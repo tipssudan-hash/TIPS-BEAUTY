@@ -1,7 +1,13 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { Mail, Lock, Loader2, ArrowRight } from 'lucide-react';
+import { Mail, Lock, Loader2 } from 'lucide-react';
+
+function loginErrorMessage(message: string): string {
+    if (/email not confirmed/i.test(message)) return 'يرجى تأكيد البريد الإلكتروني أولاً';
+    if (/invalid login credentials/i.test(message)) return 'البريد الإلكتروني أو كلمة المرور غير صحيحة';
+    return 'فشل تسجيل الدخول. يرجى التحقق من البيانات.';
+}
 
 export const LoginPage: React.FC = () => {
     const navigate = useNavigate();
@@ -11,8 +17,7 @@ export const LoginPage: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Get the return url from location state or default to home
-    const from = location.state?.from?.pathname || '/';
+    const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/';
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -27,8 +32,8 @@ export const LoginPage: React.FC = () => {
 
             if (error) throw error;
             navigate(from, { replace: true });
-        } catch (err: any) {
-            setError(err.message || 'فشل تسجيل الدخول. يرجى التحقق من البيانات.');
+        } catch (err) {
+            setError(loginErrorMessage(err instanceof Error ? err.message : ''));
         } finally {
             setLoading(false);
         }

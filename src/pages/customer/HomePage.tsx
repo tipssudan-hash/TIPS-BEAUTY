@@ -14,7 +14,7 @@ export const HomePage: React.FC = () => {
     const availableCategories = useMemo(() => Array.from(new Set(products.map(p => p.category).filter(Boolean))).sort(), [products]);
 
     const sortedAndFilteredProducts = useMemo(() => {
-        let result = products.filter(p => {
+        const result = products.filter(p => {
             const matchSearch = p.name_ar.includes(searchQuery) || p.brand.includes(searchQuery) || p.name_en.toLowerCase().includes(searchQuery.toLowerCase());
             const matchCat = activeCategory === 'الكل' || p.category === activeCategory;
             const matchBrand = activeBrand === 'الكل' || p.brand === activeBrand;

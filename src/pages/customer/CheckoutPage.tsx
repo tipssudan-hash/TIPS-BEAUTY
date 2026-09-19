@@ -1,162 +1,277 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
-import { supabase } from '../../lib/supabase';
-import { PaymentMethod } from '../../types';
-import { CreditCard, Wallet, Banknote } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { DeliveryZone, PaymentMethod } from '../../types';
+import { checkout, uploadPaymentProof, submitPaymentProof, fetchPaymentMethods, fetchDeliveryZones, errorMessage } from '../../lib/api';
+import { discountedPrice, formatSDG } from '../../lib/pricing';
+import { Banknote, Wallet, Loader2 } from 'lucide-react';
+
+const IDEMPOTENCY_KEY = 'checkout_idempotency_key';
+const MAX_PROOF_BYTES = 5 * 1024 * 1024;
+const DEFAULT_SUFFIX = ' — افتراضي';
+
+function getIdempotencyKey(): string {
+    let key = sessionStorage.getItem(IDEMPOTENCY_KEY);
+    if (!key) {
+        key = crypto.randomUUID();
+        sessionStorage.setItem(IDEMPOTENCY_KEY, key);
+    }
+    return key;
+}
+
+const isDefaultZone = (zone: DeliveryZone) => zone.name.endsWith(DEFAULT_SUFFIX);
+const zoneLabel = (zone: DeliveryZone) => isDefaultZone(zone) ? `مناطق أخرى في ${zone.state ?? ''}` : zone.name;
 
 export const CheckoutPage: React.FC = () => {
-    const { cart, cartCount } = useStore();
+    const { cart, cartCount, clearCart } = useStore();
     const { user } = useAuth();
     const navigate = useNavigate();
-    const [loading, setLoading] = useState(false);
+
+    const [zones, setZones] = useState<DeliveryZone[]>([]);
+    const [methods, setMethods] = useState<PaymentMethod[]>([]);
+    const [loadingOptions, setLoadingOptions] = useState(true);
+    const [optionsError, setOptionsError] = useState<string | null>(null);
+
+    const [submitting, setSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState<string | null>(null);
+
     const [formData, setFormData] = useState({
         name: '',
         phone: '',
+        state: '',
+        zoneId: '',
         address: '',
-        city: 'الخرطوم', // Default
-        paymentMethod: 'COD' as PaymentMethod
+        paymentMethod: '',
+        reference: '',
     });
+    const [proofFile, setProofFile] = useState<File | null>(null);
+    const [proofError, setProofError] = useState<string | null>(null);
 
     useEffect(() => {
         if (user) {
             setFormData(prev => ({
                 ...prev,
-                name: user.user_metadata.full_name || '',
-                phone: user.user_metadata.phone || ''
+                name: prev.name || user.user_metadata?.full_name || '',
+                phone: prev.phone || user.user_metadata?.phone || '',
             }));
         }
     }, [user]);
 
-    const subtotal = cart.reduce((sum, item) => sum + (item.discountedPrice || item.price) * item.quantity, 0);
-    const shipping = 1500;
+    useEffect(() => {
+        let cancelled = false;
+        Promise.all([fetchDeliveryZones(), fetchPaymentMethods()])
+            .then(([z, m]) => {
+                if (cancelled) return;
+                setZones(z);
+                setMethods(m);
+                setFormData(prev => ({
+                    ...prev,
+                    state: prev.state || (z.find(x => x.state === 'الخرطوم')?.state ?? z[0]?.state ?? ''),
+                    paymentMethod: prev.paymentMethod || (m[0]?.code ?? ''),
+                }));
+            })
+            .catch(err => { if (!cancelled) setOptionsError(errorMessage(err, 'تعذر تحميل خيارات التوصيل والدفع.')); })
+            .finally(() => { if (!cancelled) setLoadingOptions(false); });
+        return () => { cancelled = true; };
+    }, []);
+
+    const states = useMemo(() => Array.from(new Set(zones.map(z => z.state).filter((s): s is string => !!s))), [zones]);
+    const stateZones = useMemo(() => {
+        const list = zones.filter(z => z.state === formData.state);
+        return [...list.filter(z => !isDefaultZone(z)), ...list.filter(isDefaultZone)];
+    }, [zones, formData.state]);
+
+    useEffect(() => {
+        if (stateZones.length && !stateZones.some(z => z.id === formData.zoneId)) {
+            setFormData(prev => ({ ...prev, zoneId: stateZones[0].id }));
+        }
+    }, [stateZones, formData.zoneId]);
+
+    const selectedZone = zones.find(z => z.id === formData.zoneId) ?? null;
+    const selectedMethod = methods.find(m => m.code === formData.paymentMethod) ?? null;
+
+    const subtotal = cart.reduce((sum, item) => sum + discountedPrice(item.price, item.discountPercentage) * item.quantity, 0);
+    const shipping = selectedZone?.fee ?? 0;
     const total = subtotal + shipping;
+
+    if (cartCount === 0) return <Navigate to="/cart" replace />;
+
+    const handleProofChange = (file: File | null) => {
+        setProofError(null);
+        if (!file) { setProofFile(null); return; }
+        if (!file.type.startsWith('image/')) { setProofError('يرجى اختيار صورة للإيصال.'); setProofFile(null); return; }
+        if (file.size > MAX_PROOF_BYTES) { setProofError('حجم الصورة يجب ألا يتجاوز 5 ميجابايت.'); setProofFile(null); return; }
+        setProofFile(file);
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-
-        if (!user) {
-            alert('يرجى تسجيل الدخول لإتمام الطلب');
-            navigate('/login', { state: { from: window.location } });
-            return;
+        setSubmitError(null);
+        if (!user || !selectedZone || !selectedMethod) return;
+        if (selectedMethod.requiresProof) {
+            if (!formData.reference.trim()) { setSubmitError('يرجى إدخال رقم العملية.'); return; }
+            if (!proofFile) { setProofError('يرجى إرفاق صورة الإيصال.'); return; }
         }
 
-        setLoading(true);
-
+        setSubmitting(true);
+        const idempotencyKey = getIdempotencyKey();
         try {
-            const { data, error } = await supabase.from('orders').insert([
-                {
-                    customer_id: user.id,
-                    customer_name: formData.name,
-                    phone: formData.phone,
-                    shipping_address: formData.address,
-                    city: formData.city,
-                    payment_method: formData.paymentMethod,
-                    items: cart,
-                    total: total,
-                    status: 'new'
+            let proofPath: string | null = null;
+            if (selectedMethod.requiresProof && proofFile) {
+                proofPath = await uploadPaymentProof(user.id, idempotencyKey, proofFile);
+            }
+
+            const result = await checkout({
+                customerName: formData.name.trim(),
+                phone: formData.phone.trim(),
+                shippingAddress: formData.address.trim(),
+                zoneName: selectedZone.name,
+                state: formData.state,
+                paymentMethod: selectedMethod.code,
+                items: cart.map(i => ({ id: i.productId, quantity: i.quantity })),
+                idempotencyKey,
+            });
+
+            let proofWarning: string | undefined;
+            if (proofPath) {
+                try {
+                    await submitPaymentProof(result.orderId, selectedMethod.code, result.total, formData.reference.trim(), proofPath);
+                } catch (err) {
+                    console.error('submitPaymentProof failed', err);
+                    proofWarning = 'تم إنشاء الطلب، لكن تعذر إرفاق إثبات الدفع. يمكنك إرفاقه من صفحة الطلب.';
                 }
-            ]);
+            }
 
-            if (error) throw error;
-
-            // Clear cart logic should be here (localStorage clear + state reset)
-            localStorage.removeItem('sb_cart');
-            window.location.href = '/?success=true'; // Simple redirect for now
-        } catch (error: any) {
-            console.error(error);
-            alert('فشل إنشاء الطلب: ' + error.message);
+            clearCart();
+            sessionStorage.removeItem(IDEMPOTENCY_KEY);
+            navigate(`/orders/${result.orderId}`, { state: { justOrdered: true, orderNumber: result.orderNumber, proofWarning } });
+        } catch (err) {
+            console.error(err);
+            setSubmitError(errorMessage(err, 'فشل إنشاء الطلب، حاولي مرة أخرى.'));
         } finally {
-            setLoading(false);
+            setSubmitting(false);
         }
     };
 
-    if (cartCount === 0) return <div className="p-8 text-center bg-white rounded-xl shadow-sm border border-gray-100 m-4">السلة فارغة</div>;
-
-    const paymentMethods = [
-        { id: 'COD', label: 'الدفع عند الاستلام', icon: Banknote, desc: 'ادفع نقداً عند وصول المندوب' },
-        { id: 'Fawry', label: 'فوري (Fawry)', icon: Wallet, desc: 'الدفع الآمن عبر فوري' },
-        { id: 'Mychashi', label: 'ماي كاشي (Mychashi)', icon: CreditCard, desc: 'الدفع الإلكتروني السريع' },
-    ];
+    const inputClass = 'w-full bg-gray-50 border border-gray-200 rounded-lg p-3 outline-none focus:ring-2 focus:ring-brand-blue';
 
     return (
         <div className="max-w-4xl mx-auto p-4 md:p-8">
             <h1 className="text-2xl font-bold text-gray-800 mb-8">إتمام الطلب</h1>
 
+            {optionsError && (
+                <div className="mb-6 bg-red-50 border border-red-100 text-red-700 rounded-xl p-4 text-sm">{optionsError}</div>
+            )}
+
             <div className="grid md:grid-cols-2 gap-8">
-                {/* Form */}
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
                         <h2 className="font-bold border-b border-gray-50 pb-2">بيانات التوصيل</h2>
                         <div>
                             <label className="text-sm font-bold text-gray-700 block mb-1">الاسم بالكامل</label>
-                            <input required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 outline-none focus:ring-2 focus:ring-brand-blue" />
+                            <input required minLength={2} value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className={inputClass} />
                         </div>
                         <div>
                             <label className="text-sm font-bold text-gray-700 block mb-1">رقم الهاتف</label>
-                            <input required type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 outline-none focus:ring-2 focus:ring-brand-blue" />
+                            <input required minLength={5} type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className={inputClass} />
                         </div>
-                        <div>
-                            <label className="text-sm font-bold text-gray-700 block mb-1">المدينة</label>
-                            <select value={formData.city} onChange={e => setFormData({ ...formData, city: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 outline-none focus:ring-2 focus:ring-brand-blue">
-                                <option value="الخرطوم">الخرطوم</option>
-                                <option value="بحري">بحري</option>
-                                <option value="أم درمان">أم درمان</option>
-                            </select>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-sm font-bold text-gray-700 block mb-1">الولاية</label>
+                                <select required value={formData.state} onChange={e => setFormData({ ...formData, state: e.target.value, zoneId: '' })} className={inputClass} disabled={loadingOptions}>
+                                    {states.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-sm font-bold text-gray-700 block mb-1">المنطقة</label>
+                                <select required value={formData.zoneId} onChange={e => setFormData({ ...formData, zoneId: e.target.value })} className={inputClass} disabled={loadingOptions}>
+                                    {stateZones.map(z => <option key={z.id} value={z.id}>{zoneLabel(z)} — {formatSDG(z.fee)}</option>)}
+                                </select>
+                            </div>
                         </div>
                         <div>
                             <label className="text-sm font-bold text-gray-700 block mb-1">العنوان بالتفصيل</label>
-                            <textarea required value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 outline-none focus:ring-2 focus:ring-brand-blue" rows={3} />
+                            <textarea required minLength={5} value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} className={inputClass} rows={3} />
                         </div>
                     </div>
 
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
                         <h2 className="font-bold border-b border-gray-50 pb-2">طريقة الدفع</h2>
                         <div className="space-y-3">
-                            {paymentMethods.map((pm) => (
-                                <label key={pm.id} className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all ${formData.paymentMethod === pm.id ? 'border-brand-blue bg-brand-blue-soft' : 'border-gray-200 hover:bg-gray-50'}`}>
-                                    <input
-                                        type="radio"
-                                        name="payment"
-                                        value={pm.id}
-                                        checked={formData.paymentMethod === pm.id}
-                                        onChange={() => setFormData({ ...formData, paymentMethod: pm.id as PaymentMethod })}
-                                        className="w-4 h-4 text-brand-blue focus:ring-brand-blue"
-                                    />
-                                    <div className={`p-2 rounded-lg ${formData.paymentMethod === pm.id ? 'bg-white' : 'bg-gray-100'}`}>
-                                        <pm.icon className={`w-6 h-6 ${formData.paymentMethod === pm.id ? 'text-brand-blue' : 'text-gray-500'}`} />
-                                    </div>
-                                    <div>
-                                        <p className="font-bold text-gray-800">{pm.label}</p>
-                                        <p className="text-xs text-gray-500">{pm.desc}</p>
-                                    </div>
-                                </label>
-                            ))}
+                            {loadingOptions && <p className="text-sm text-gray-500">جاري تحميل طرق الدفع...</p>}
+                            {methods.map((pm) => {
+                                const active = formData.paymentMethod === pm.code;
+                                const Icon = pm.requiresProof ? Wallet : Banknote;
+                                const accountEntries = Object.entries(pm.accountDetails ?? {});
+                                return (
+                                    <label key={pm.code} className={`flex items-start gap-4 p-4 rounded-xl border cursor-pointer transition-all ${active ? 'border-brand-blue bg-brand-blue-soft' : 'border-gray-200 hover:bg-gray-50'}`}>
+                                        <input
+                                            type="radio"
+                                            name="payment"
+                                            value={pm.code}
+                                            checked={active}
+                                            onChange={() => setFormData({ ...formData, paymentMethod: pm.code })}
+                                            className="w-4 h-4 mt-1 text-brand-blue focus:ring-brand-blue"
+                                        />
+                                        <div className={`p-2 rounded-lg ${active ? 'bg-white' : 'bg-gray-100'}`}>
+                                            <Icon className={`w-6 h-6 ${active ? 'text-brand-blue' : 'text-gray-500'}`} />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-bold text-gray-800">{pm.nameAr}</p>
+                                            {pm.descriptionAr && <p className="text-xs text-gray-500">{pm.descriptionAr}</p>}
+                                            {active && accountEntries.length > 0 && (
+                                                <div className="mt-2 text-xs bg-white rounded-lg p-2 border border-gray-100 space-y-1">
+                                                    <p className="font-bold text-gray-700">بيانات التحويل:</p>
+                                                    {accountEntries.map(([k, v]) => <p key={k} className="text-gray-600"><span className="font-semibold">{k}:</span> {String(v)}</p>)}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </label>
+                                );
+                            })}
                         </div>
+
+                        {selectedMethod?.requiresProof && (
+                            <div className="space-y-3 pt-2 border-t border-gray-50">
+                                <div>
+                                    <label className="text-sm font-bold text-gray-700 block mb-1">رقم العملية</label>
+                                    <input required value={formData.reference} onChange={e => setFormData({ ...formData, reference: e.target.value })} className={inputClass} placeholder="رقم عملية التحويل" />
+                                </div>
+                                <div>
+                                    <label className="text-sm font-bold text-gray-700 block mb-1">صورة الإيصال (حتى 5 ميجابايت)</label>
+                                    <input required type="file" accept="image/*" onChange={e => handleProofChange(e.target.files?.[0] ?? null)} className="w-full text-sm text-gray-600 file:ml-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-brand-blue-soft file:text-brand-blue file:font-bold" />
+                                    {proofError && <p className="text-xs text-red-600 mt-1">{proofError}</p>}
+                                    {proofFile && !proofError && <p className="text-xs text-green-600 mt-1">تم اختيار: {proofFile.name}</p>}
+                                </div>
+                            </div>
+                        )}
                     </div>
+
+                    {submitError && (
+                        <div className="bg-red-50 border border-red-100 text-red-700 rounded-xl p-4 text-sm">{submitError}</div>
+                    )}
 
                     <button
                         type="submit"
-                        disabled={loading}
-                        className="w-full bg-brand-blue hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2"
+                        disabled={submitting || loadingOptions || !selectedZone || !selectedMethod}
+                        className="w-full bg-brand-blue hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2"
                     >
-                        {loading ? 'جاري المعالجة...' : `تأكيد الطلب (${total.toLocaleString()} ج.س)`}
+                        {submitting ? <><Loader2 className="w-5 h-5 animate-spin" /> جاري المعالجة...</> : `تأكيد الطلب (${formatSDG(total)})`}
                     </button>
                 </form>
 
-                {/* Summary */}
                 <div className="h-fit bg-gray-50 p-6 rounded-2xl border border-gray-200 sticky top-24">
                     <h3 className="font-bold text-gray-800 mb-4">ملخص الطلب ({cartCount} منتجات)</h3>
                     <div className="space-y-3 mb-6 max-h-60 overflow-y-auto pr-2">
                         {cart.map((item) => (
-                            <div key={`${item.id}-${item.selectedVariantId}`} className="flex gap-3 text-sm">
+                            <div key={item.productId} className="flex gap-3 text-sm">
                                 <img src={item.image} className="w-12 h-12 rounded-lg object-cover" alt="" />
                                 <div className="flex-1">
                                     <p className="font-bold text-gray-800">{item.name_ar}</p>
                                     <div className="flex justify-between mt-1">
                                         <span className="text-gray-500">x{item.quantity}</span>
-                                        <span className="font-medium">{(item.discountedPrice || item.price).toLocaleString()} ج.س</span>
+                                        <span className="font-medium">{formatSDG(discountedPrice(item.price, item.discountPercentage))}</span>
                                     </div>
                                 </div>
                             </div>
@@ -165,16 +280,17 @@ export const CheckoutPage: React.FC = () => {
                     <div className="space-y-2 border-t border-gray-200 pt-4">
                         <div className="flex justify-between text-gray-600">
                             <span>المجموع</span>
-                            <span>{subtotal.toLocaleString()} ج.س</span>
+                            <span>{formatSDG(subtotal)}</span>
                         </div>
                         <div className="flex justify-between text-gray-600">
-                            <span>التوصيل</span>
-                            <span>{shipping.toLocaleString()} ج.س</span>
+                            <span>التوصيل{selectedZone ? ` (${zoneLabel(selectedZone)})` : ''}</span>
+                            <span>{selectedZone ? formatSDG(shipping) : '—'}</span>
                         </div>
-                        <div className="flex justify-between font-bold text-lg text-gray-800 border-top pt-2">
+                        <div className="flex justify-between font-bold text-lg text-gray-800 pt-2">
                             <span>الإجمالي</span>
-                            <span className="text-brand-blue">{total.toLocaleString()} ج.س</span>
+                            <span className="text-brand-blue">{formatSDG(total)}</span>
                         </div>
+                        <p className="text-xs text-gray-500 pt-1">يتم احتساب الإجمالي النهائي وتأكيده من النظام عند إنشاء الطلب.</p>
                     </div>
                 </div>
             </div>

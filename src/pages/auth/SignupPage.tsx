@@ -1,7 +1,14 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { Mail, Lock, User, Phone, Loader2 } from 'lucide-react';
+import { Mail, Lock, User, Phone, Loader2, MailCheck } from 'lucide-react';
+
+function signupErrorMessage(message: string): string {
+    if (/already registered|already exists/i.test(message)) return 'هذا البريد الإلكتروني مسجل بالفعل';
+    if (/password/i.test(message)) return 'كلمة المرور يجب أن تكون 6 أحرف على الأقل';
+    if (/rate limit/i.test(message)) return 'تم تجاوز عدد المحاولات، حاولي لاحقاً';
+    return 'فشل إنشاء الحساب، حاولي مرة أخرى.';
+}
 
 export const SignupPage: React.FC = () => {
     const navigate = useNavigate();
@@ -13,6 +20,7 @@ export const SignupPage: React.FC = () => {
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
 
     const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -20,11 +28,11 @@ export const SignupPage: React.FC = () => {
         setError(null);
 
         try {
-            // 1. Sign up auth user
             const { data, error: authError } = await supabase.auth.signUp({
                 email: formData.email,
                 password: formData.password,
                 options: {
+                    emailRedirectTo: `${window.location.origin}/login`,
                     data: {
                         full_name: formData.fullName,
                         phone: formData.phone
@@ -34,20 +42,13 @@ export const SignupPage: React.FC = () => {
 
             if (authError) throw authError;
 
-            // 2. Profile creation is handled by SQL trigger (handle_new_user)
-            // But we might want to update additional fields if the trigger only sets basics
-            // For now, we trust the trigger logic we saw in setup.sql
-
             if (data.session) {
                 navigate('/');
             } else {
-                // If email confirmation is enabled (it usually is by default but we might want to warn user)
-                alert('تم إنشاء الحساب بنجاح! يرجى تسجيل الدخول.');
-                navigate('/login');
+                setAwaitingConfirmation(true);
             }
-
-        } catch (err: any) {
-            setError(err.message || 'فشل إنشاء الحساب');
+        } catch (err) {
+            setError(signupErrorMessage(err instanceof Error ? err.message : ''));
         } finally {
             setLoading(false);
         }
@@ -56,6 +57,22 @@ export const SignupPage: React.FC = () => {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
+
+    if (awaitingConfirmation) {
+        return (
+            <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
+                <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
+                    <MailCheck className="w-14 h-14 text-green-600 mx-auto mb-4" />
+                    <h1 className="text-xl font-bold text-gray-800 mb-2">تم إنشاء الحساب</h1>
+                    <p className="text-gray-600 mb-6">تم إنشاء الحساب، افتحي بريدك الإلكتروني وأكدي الحساب قبل تسجيل الدخول</p>
+                    <p className="text-xs text-gray-400 mb-6">{formData.email}</p>
+                    <Link to="/login" className="inline-block bg-brand-blue text-white font-bold py-3 px-8 rounded-xl">
+                        الذهاب لتسجيل الدخول
+                    </Link>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">

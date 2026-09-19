@@ -18,7 +18,7 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
             <div className="max-w-4xl mx-auto px-4 py-3">
                 <div className="flex items-center justify-between">
                     <Link to="/" className="flex items-center gap-2 cursor-pointer group">
-                        <img src="/logo.png" alt="Tips Beauty" className="h-16 md:h-24 w-auto object-contain hover:scale-105 transition-transform duration-300 mix-blend-multiply" />
+                        <img src="/logo.PNG" alt="Tips Beauty" className="h-16 md:h-24 w-auto object-contain hover:scale-105 transition-transform duration-300 mix-blend-multiply" />
                     </Link>
 
                     {/* Mobile Menu Button */}
@@ -35,7 +35,9 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
                         <Link to="/ai-chat" className={`flex items-center gap-1 hover:text-brand-blue transition-colors ${currentPath === '/ai-chat' ? 'text-brand-blue font-bold' : 'text-gray-600'}`}>
                             <span className="bg-brand-blue-soft text-brand-blue px-1.5 py-0.5 rounded text-[10px] font-bold animate-pulse">AI</span> مساعدي
                         </Link>
-                        <Link to="/track-order" className={`hover:text-brand-blue transition-colors ${currentPath === '/track-order' ? 'text-brand-blue font-bold' : 'text-gray-600'}`}>تتبع الطلب</Link>
+                        {user && (
+                            <Link to="/orders" className={`hover:text-brand-blue transition-colors ${currentPath.startsWith('/orders') ? 'text-brand-blue font-bold' : 'text-gray-600'}`}>طلباتي</Link>
+                        )}
 
                         {user ? (
                             <div className="flex items-center gap-4 border-r border-gray-100 pr-4 mr-2">
@@ -76,7 +78,9 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
                         <Link to="/ai-chat" className={`p-2 rounded-lg flex items-center gap-2 ${currentPath === '/ai-chat' ? 'bg-brand-blue-soft text-brand-blue font-bold' : 'text-gray-600'}`} onClick={() => setIsMenuOpen(false)}>
                             <span className="bg-brand-blue-soft text-brand-blue px-1.5 py-0.5 rounded text-[10px] font-bold">AI</span> مساعدي
                         </Link>
-                        <Link to="/track-order" className={`p-2 rounded-lg ${currentPath === '/track-order' ? 'bg-brand-blue-soft text-brand-blue font-bold' : 'text-gray-600'}`} onClick={() => setIsMenuOpen(false)}>تتبع الطلب</Link>
+                        {user && (
+                            <Link to="/orders" className={`p-2 rounded-lg ${currentPath.startsWith('/orders') ? 'bg-brand-blue-soft text-brand-blue font-bold' : 'text-gray-600'}`} onClick={() => setIsMenuOpen(false)}>طلباتي</Link>
+                        )}
 
                         <div className="border-t border-gray-100 my-1"></div>
 

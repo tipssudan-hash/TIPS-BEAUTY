@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Send, Sparkles } from 'lucide-react';
-import { getBeautyAdvice } from '../../gemini';
-import { useStore } from '../../context/StoreContext';
+import { askBeautyAdvice, errorMessage } from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 
 export const AIChatPage: React.FC = () => {
-    const { products } = useStore();
+    const { user, loading: authLoading } = useAuth();
     const [messages, setMessages] = useState<{ role: 'user' | 'bot'; text: string }[]>([
         { role: 'bot', text: 'أهلاً بك في Tips Beauty! كيف يمكنني مساعدتك اليوم؟ نحن نهتم بجمالك.' }
     ]);
@@ -26,10 +26,10 @@ export const AIChatPage: React.FC = () => {
         setIsTyping(true);
 
         try {
-            const response = await getBeautyAdvice(userMessage, products);
+            const response = await askBeautyAdvice(userMessage);
             setMessages(prev => [...prev, { role: 'bot', text: response || 'عذراً، لم أستطع فهم طلبك.' }]);
         } catch (error) {
-            setMessages(prev => [...prev, { role: 'bot', text: 'عذراً، حدث خطأ. حاولي مرة أخرى.' }]);
+            setMessages(prev => [...prev, { role: 'bot', text: errorMessage(error, 'عذراً، حدث خطأ. حاولي مرة أخرى.') }]);
         } finally {
             setIsTyping(false);
         }
@@ -38,9 +38,22 @@ export const AIChatPage: React.FC = () => {
     const handleKeyPress = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            handleSend();
+            void handleSend();
         }
     };
+
+    if (!authLoading && !user) {
+        return (
+            <div className="max-w-md mx-auto p-8 text-center">
+                <Sparkles className="w-12 h-12 text-brand-blue mx-auto mb-4" />
+                <h1 className="text-xl font-bold text-gray-800 mb-2">مساعد تيبس بيوتي الذكي</h1>
+                <p className="text-gray-600 mb-6">سجلي الدخول للحصول على نصائح جمال مخصصة لك.</p>
+                <Link to="/login" state={{ from: { pathname: '/ai-chat' } }} className="inline-block bg-brand-blue text-white font-bold py-3 px-8 rounded-xl">
+                    تسجيل الدخول
+                </Link>
+            </div>
+        );
+    }
 
     return (
         <div className="max-w-4xl mx-auto p-4 h-[calc(100vh-80px)] flex flex-col">
