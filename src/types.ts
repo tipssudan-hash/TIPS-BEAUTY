@@ -1,19 +1,9 @@
-
-export interface Review {
-  id: string;
-  productId: string;
-  userName: string;
-  rating: number; // 1-5
-  comment: string;
-  date: string;
-}
-
 export interface ProductVariant {
   id: string;
   name_ar: string;
-  name_en: string;
+  name_en?: string;
   priceOverride?: number;
-  stock: number;
+  stock?: number;
 }
 
 export interface Product {
@@ -21,12 +11,11 @@ export interface Product {
   name_ar: string;
   name_en: string;
   price: number;
-  discountPercentage?: number;
-  costPrice?: number;
+  discountPercentage: number;
   category: string;
   brand: string;
   image: string;
-  images?: string[];
+  images: string[];
   description: string;
   benefits: string[];
   ingredients: string[];
@@ -35,67 +24,86 @@ export interface Product {
   expiry: string;
   stock: number;
   isImported: boolean;
-  skinType?: string[];
-  reviews?: Review[];
-  rating?: number; // Average rating
-  reviewCount?: number;
-  variants?: ProductVariant[];
+  skinType: string[];
+  rating: number;
+  reviewCount: number;
+  variants: ProductVariant[];
   createdAt: string;
 }
 
-export interface Category {
-  id: string;
+export interface CartItem {
+  productId: string;
   name_ar: string;
-  name_en: string;
-}
-
-export interface Driver {
-  id: string;
-  name: string;
-  phone: string;
-  company?: string;
-  status: 'active' | 'busy' | 'offline';
-}
-
-export interface Promotion {
-  id: string;
-  name: string;
-  type: 'product' | 'category' | 'all';
-  targetId?: string;
+  image: string;
+  price: number;
   discountPercentage: number;
-  startDate: string;
-  endDate: string;
-  isActive: boolean;
-}
-
-export interface CartItem extends Product {
   quantity: number;
-  discountedPrice?: number;
-  selectedVariantId?: string;
 }
 
-export type OrderStatus = 'new' | 'confirmed' | 'preparing' | 'shipped' | 'delivered' | 'cancelled';
-export type PaymentMethod = 'COD' | 'Fawry' | 'Mychashi';
+export type OrderStatus = 'new' | 'confirmed' | 'preparing' | 'shipped' | 'delivered' | 'cancelled' | 'delivery_failed';
+export type PaymentStatus = 'pending' | 'proof_submitted' | 'paid' | 'refunded';
+
+export interface OrderItem {
+  id: string;
+  quantity: number;
+  name_ar?: string;
+  unit_price?: number;
+  discount_percentage?: number;
+  line_total?: number;
+}
 
 export interface Order {
   id: string;
-  customerName: string;
-  phone: string;
-  items: CartItem[];
+  orderNumber: string;
+  items: OrderItem[];
   total: number;
+  shippingFee: number;
+  discountAmount: number;
   status: OrderStatus;
-  paymentMethod: PaymentMethod;
-  paymentStatus: 'pending' | 'paid' | 'failed';
-  state: string;
-  city: string;
-  address: string;
+  paymentMethod: string;
+  paymentStatus: PaymentStatus;
+  paymentReference: string | null;
+  shippingAddress: string;
+  city: string | null;
+  state: string | null;
   createdAt: string;
-  assignedDriverId?: string;
-  adminNotes?: string;
-  pointsEarned?: number;
-  pointsRedeemed?: number;
-  discountFromPoints?: number;
 }
 
-export type AppView = 'home' | 'product' | 'cart' | 'checkout' | 'admin' | 'ai-chat' | 'success' | 'profile' | 'order-tracking';
-export type AdminSubView = 'dashboard' | 'orders' | 'products' | 'delivery' | 'accounting' | 'ai-insights' | 'promotions' | 'categories';
+export interface OrderStatusEntry {
+  id: string;
+  status: OrderStatus;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface PaymentMethod {
+  code: string;
+  nameAr: string;
+  descriptionAr: string | null;
+  requiresProof: boolean;
+  accountDetails: Record<string, string>;
+}
+
+export interface DeliveryZone {
+  id: string;
+  name: string;
+  state: string | null;
+  fee: number;
+}
+
+export interface Review {
+  id: string;
+  rating: number;
+  comment: string;
+  reviewerLabel: string;
+  createdAt: string;
+  verifiedPurchase: boolean;
+}
+
+export interface ReviewableItem {
+  orderId: string;
+  orderNumber: string;
+  productId: string;
+  productName: string;
+  alreadyReviewed: boolean;
+}

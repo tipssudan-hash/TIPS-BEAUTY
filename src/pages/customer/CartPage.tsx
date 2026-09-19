@@ -2,13 +2,12 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 import { Trash2, Plus, Minus, ShoppingBag } from 'lucide-react';
+import { discountedPrice, formatSDG } from '../../lib/pricing';
 
 export const CartPage: React.FC = () => {
     const { cart, removeFromCart, updateQuantity } = useStore();
 
-    const subtotal = cart.reduce((sum, item) => sum + (item.discountedPrice || item.price) * item.quantity, 0);
-    const shipping = 1500; // Fixed shipping cost
-    const total = subtotal + shipping;
+    const subtotal = cart.reduce((sum, item) => sum + discountedPrice(item.price, item.discountPercentage) * item.quantity, 0);
 
     if (cart.length === 0) {
         return (
@@ -43,7 +42,7 @@ export const CartPage: React.FC = () => {
                 <div className="md:col-span-2 space-y-4">
                     {cart.map((item) => (
                         <div
-                            key={`${item.id}-${item.selectedVariantId || 'default'}`}
+                            key={item.productId}
                             className="bg-white rounded-xl shadow-sm border border-brand-blue-soft p-4 flex gap-4"
                         >
                             <img
@@ -53,28 +52,30 @@ export const CartPage: React.FC = () => {
                             />
                             <div className="flex-1">
                                 <h3 className="font-bold text-gray-800 mb-1">{item.name_ar}</h3>
-                                <p className="text-xs text-gray-500 mb-2">{item.brand}</p>
                                 <p className="text-brand-blue font-bold">
-                                    {(item.discountedPrice || item.price).toLocaleString()} ج.س
+                                    {formatSDG(discountedPrice(item.price, item.discountPercentage))}
                                 </p>
                             </div>
                             <div className="flex flex-col items-end justify-between">
                                 <button
-                                    onClick={() => removeFromCart(item.id, item.selectedVariantId)}
+                                    aria-label="إزالة"
+                                    onClick={() => removeFromCart(item.productId)}
                                     className="text-red-500 hover:text-red-700 p-1"
                                 >
                                     <Trash2 className="w-4 h-4" />
                                 </button>
                                 <div className="flex items-center gap-2 bg-gray-50 rounded-lg">
                                     <button
-                                        onClick={() => updateQuantity(item.id, item.quantity - 1, item.selectedVariantId)}
+                                        aria-label="تقليل الكمية"
+                                        onClick={() => updateQuantity(item.productId, item.quantity - 1)}
                                         className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
                                     >
                                         <Minus className="w-4 h-4" />
                                     </button>
                                     <span className="w-8 text-center font-bold">{item.quantity}</span>
                                     <button
-                                        onClick={() => updateQuantity(item.id, item.quantity + 1, item.selectedVariantId)}
+                                        aria-label="زيادة الكمية"
+                                        onClick={() => updateQuantity(item.productId, item.quantity + 1)}
                                         className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
                                     >
                                         <Plus className="w-4 h-4" />
@@ -92,19 +93,11 @@ export const CartPage: React.FC = () => {
                         <div className="space-y-3 mb-4">
                             <div className="flex justify-between text-sm">
                                 <span className="text-gray-600">المجموع الفرعي:</span>
-                                <span className="font-semibold">{subtotal.toLocaleString()} ج.س</span>
+                                <span className="font-semibold">{formatSDG(subtotal)}</span>
                             </div>
                             <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">الشحن:</span>
-                                <span className="font-semibold">{shipping.toLocaleString()} ج.س</span>
-                            </div>
-                            <div className="border-t border-gray-200 pt-3">
-                                <div className="flex justify-between">
-                                    <span className="font-bold text-gray-800">الإجمالي:</span>
-                                    <span className="font-bold text-brand-blue text-xl">
-                                        {total.toLocaleString()} ج.س
-                                    </span>
-                                </div>
+                                <span className="text-gray-600">التوصيل:</span>
+                                <span className="text-gray-500 text-xs">يُحدد حسب منطقتك عند إتمام الطلب</span>
                             </div>
                         </div>
                         <Link to="/checkout" className="block w-full text-center bg-brand-blue hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all active:scale-95 shadow-lg shadow-blue-100">

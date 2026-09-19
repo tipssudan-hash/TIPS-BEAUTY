@@ -24,8 +24,6 @@ export const RelatedProducts: React.FC<RelatedProductsProps> = ({ currentProduct
                     <ProductCard
                         key={p.id}
                         product={p}
-                        discountedPrice={p.price} // Simplified logic
-                        isHighlyPromoted={false}
                         isInWishlist={wishlist.includes(p.id)}
                         onToggleWishlist={toggleWishlist}
                         onAddToCart={addToCart}

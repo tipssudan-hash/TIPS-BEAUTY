@@ -1,30 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../../context/StoreContext';
 import { ProductCard } from '../../components/ui/ProductCard';
-import { Category } from '../../types';
-import { PromotionsSection } from '../../components/ui/PromotionsSection';
 import { RecentlyViewed } from '../../components/ui/RecentlyViewed';
 
-// Hardcoded for now, can move to config
-const CATEGORIES: Category[] = [
-    { id: '1', name_ar: 'مكياج', name_en: 'Makeup' },
-    { id: '2', name_ar: 'عناية بالبشرة', name_en: 'Skincare' },
-    { id: '3', name_ar: 'عناية بالشعر', name_en: 'Haircare' },
-    { id: '4', name_ar: 'عطور', name_en: 'Perfumes' },
-    { id: '5', name_ar: 'أدوات تجميل', name_en: 'Beauty Tools' },
-];
-
 export const HomePage: React.FC = () => {
-    const { products, wishlist, addToCart, toggleWishlist } = useStore();
+    const { products, productsLoading, productsError, reloadProducts, wishlist, addToCart, toggleWishlist } = useStore();
     const [searchQuery, setSearchQuery] = useState('');
     const [activeCategory, setActiveCategory] = useState('الكل');
     const [activeBrand, setActiveBrand] = useState('الكل');
     const [sortBy, setSortBy] = useState('newest');
 
-    const availableBrands = useMemo(() => {
-        const brands = products.map(p => p.brand);
-        return Array.from(new Set(brands));
-    }, [products]);
+    const availableBrands = useMemo(() => Array.from(new Set(products.map(p => p.brand).filter(Boolean))).sort(), [products]);
+    const availableCategories = useMemo(() => Array.from(new Set(products.map(p => p.category).filter(Boolean))).sort(), [products]);
 
     const sortedAndFilteredProducts = useMemo(() => {
         let result = products.filter(p => {
@@ -65,18 +52,16 @@ export const HomePage: React.FC = () => {
                     <span className="text-sm md:text-base font-medium mb-2 bg-white/20 w-fit px-3 py-1 rounded-full backdrop-blur-sm">أحدث صيحات الجمال ✨</span>
                     <h1 className="text-3xl md:text-5xl font-bold mb-4 leading-tight">اكتشفي جمالك الطبيعي<br />مع منتجاتنا المميزة</h1>
                     <p className="mb-6 opacity-90 max-w-md text-sm md:text-base">تشكيلة واسعة من مستحضرات التجميل والعناية بالبشرة من أشهر الماركات العالمية.</p>
-                    <button className="bg-white text-brand-blue px-8 py-3 rounded-xl font-bold hover:bg-brand-blue-soft transition-colors w-fit shadow-lg">
+                    <a href="#products" className="bg-white text-brand-blue px-8 py-3 rounded-xl font-bold hover:bg-brand-blue-soft transition-colors w-fit shadow-lg">
                         تسوقي الآن
-                    </button>
+                    </a>
                 </div>
                 {/* Decorative Circles */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
                 <div className="absolute bottom-0 left-0 w-48 h-48 bg-brand-cyan/20 rounded-full blur-2xl translate-y-1/2 -translate-x-1/2"></div>
             </div>
 
-            <div className="max-w-4xl mx-auto px-4">
-                <PromotionsSection />
-
+            <div id="products" className="max-w-4xl mx-auto px-4">
                 {/* Search */}
                 <div className="mb-8 relative z-10">
                     <input
@@ -95,8 +80,8 @@ export const HomePage: React.FC = () => {
                     {/* Categories - Compact */}
                     <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 flex-1">
                         <button onClick={() => setActiveCategory('الكل')} className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${activeCategory === 'الكل' ? 'bg-brand-blue text-white shadow-md shadow-blue-100' : 'bg-white border border-brand-blue-soft text-gray-500'}`}>الكل</button>
-                        {CATEGORIES.map(c => (
-                            <button key={c.id} onClick={() => setActiveCategory(c.name_ar)} className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${activeCategory === c.name_ar ? 'bg-brand-blue text-white shadow-md shadow-blue-100' : 'bg-white border border-brand-blue-soft text-gray-500'}`}>{c.name_ar}</button>
+                        {availableCategories.map(c => (
+                            <button key={c} onClick={() => setActiveCategory(c)} className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${activeCategory === c ? 'bg-brand-blue text-white shadow-md shadow-blue-100' : 'bg-white border border-brand-blue-soft text-gray-500'}`}>{c}</button>
                         ))}
                     </div>
 
@@ -133,27 +118,34 @@ export const HomePage: React.FC = () => {
                     </span>
                 </h2>
 
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
-                    {sortedAndFilteredProducts.map(p => {
-                        const discountedPrice = (p.discountPercentage && p.discountPercentage > 0)
-                            ? p.price * (1 - p.discountPercentage / 100)
-                            : p.price;
+                {productsLoading && (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-5" aria-busy="true">
+                        {Array.from({ length: 6 }).map((_, i) => <div key={i} className="aspect-[4/6] rounded-2xl bg-gray-100 animate-pulse" />)}
+                    </div>
+                )}
 
-                        return (
+                {productsError && !productsLoading && (
+                    <div className="text-center py-16 bg-red-50 rounded-2xl border border-red-100">
+                        <p className="text-red-700 font-medium">{productsError}</p>
+                        <button onClick={() => void reloadProducts()} className="mt-4 text-brand-blue font-bold hover:underline">إعادة المحاولة</button>
+                    </div>
+                )}
+
+                {!productsLoading && !productsError && (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
+                        {sortedAndFilteredProducts.map(p => (
                             <ProductCard
                                 key={p.id}
                                 product={p}
-                                discountedPrice={discountedPrice}
-                                isHighlyPromoted={false}
                                 isInWishlist={wishlist.includes(p.id)}
                                 onToggleWishlist={toggleWishlist}
                                 onAddToCart={addToCart}
                             />
-                        );
-                    })}
-                </div>
+                        ))}
+                    </div>
+                )}
 
-                {sortedAndFilteredProducts.length === 0 && (
+                {!productsLoading && !productsError && sortedAndFilteredProducts.length === 0 && (
                     <div className="text-center py-20 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
                         <p className="text-gray-500 font-medium">لا توجد منتجات تطابق بحثك</p>
                         <button onClick={() => { setSearchQuery(''); setActiveCategory('الكل'); }} className="mt-4 text-brand-blue font-bold hover:underline">

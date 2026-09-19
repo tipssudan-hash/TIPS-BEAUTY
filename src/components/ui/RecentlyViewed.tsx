@@ -18,8 +18,6 @@ export const RecentlyViewed: React.FC = () => {
                     <div key={p.id} className="min-w-[160px] md:min-w-[200px] max-w-[200px]">
                         <ProductCard
                             product={p}
-                            discountedPrice={(p.discountPercentage && p.discountPercentage > 0) ? p.price * (1 - p.discountPercentage / 100) : p.price}
-                            isHighlyPromoted={false}
                             isInWishlist={wishlist.includes(p.id)}
                             onToggleWishlist={toggleWishlist}
                             onAddToCart={addToCart}

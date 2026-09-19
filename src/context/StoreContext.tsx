@@ -1,14 +1,18 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Product, CartItem } from '../types';
-import { supabase } from '../lib/supabase';
+import { fetchProducts } from '../lib/api';
 
 interface StoreContextType {
     products: Product[];
+    productsLoading: boolean;
+    productsError: string | null;
+    reloadProducts: () => Promise<void>;
     cart: CartItem[];
     wishlist: string[];
-    addToCart: (product: Product, variantId?: string) => void;
-    removeFromCart: (productId: string, variantId?: string) => void;
-    updateQuantity: (productId: string, quantity: number, variantId?: string) => void;
+    addToCart: (product: Product, quantity?: number) => void;
+    removeFromCart: (productId: string) => void;
+    updateQuantity: (productId: string, quantity: number) => void;
+    clearCart: () => void;
     toggleWishlist: (productId: string) => void;
     addToRecentlyViewed: (product: Product) => void;
     recentlyViewed: Product[];
@@ -17,100 +21,93 @@ interface StoreContextType {
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
+function readJson<T>(key: string, validate: (value: unknown) => value is T, fallback: T): T {
+    try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return fallback;
+        const parsed: unknown = JSON.parse(raw);
+        return validate(parsed) ? parsed : fallback;
+    } catch {
+        return fallback;
+    }
+}
+
+const isCart = (value: unknown): value is CartItem[] =>
+    Array.isArray(value) && value.every((i) => i && typeof i.productId === 'string' && typeof i.quantity === 'number');
+const isStringArray = (value: unknown): value is string[] => Array.isArray(value) && value.every((v) => typeof v === 'string');
+const isProductArray = (value: unknown): value is Product[] => Array.isArray(value) && value.every((p) => p && typeof p.id === 'string' && typeof p.name_ar === 'string');
+
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [products, setProducts] = useState<Product[]>([]);
+    const [productsLoading, setProductsLoading] = useState(true);
+    const [productsError, setProductsError] = useState<string | null>(null);
 
-    useEffect(() => {
-        supabase.from('products').select('*').then(({ data }) => {
-            if (data) {
-                setProducts(data.map((p: any) => ({
-                    ...p,
-                    isImported: p.is_imported,
-                    skinType: p.skin_type,
-                    createdAt: p.created_at,
-                    discountPercentage: p.discount_percentage,
-                    costPrice: p.cost_price
-                })));
-            }
-        });
+    const reloadProducts = React.useCallback(async () => {
+        setProductsLoading(true);
+        setProductsError(null);
+        try {
+            setProducts(await fetchProducts());
+        } catch (error) {
+            console.error('Failed to load products', error);
+            setProductsError('تعذر تحميل المنتجات، تحققي من الاتصال وحاولي مرة أخرى.');
+        } finally {
+            setProductsLoading(false);
+        }
     }, []);
 
-    const [cart, setCart] = useState<CartItem[]>(() => {
-        try {
-            const saved = localStorage.getItem('sb_cart');
-            return saved ? JSON.parse(saved) : [];
-        } catch { return []; }
-    });
+    useEffect(() => { void reloadProducts(); }, [reloadProducts]);
 
-    const [wishlist, setWishlist] = useState<string[]>(() => {
-        try {
-            const saved = localStorage.getItem('sb_wishlist');
-            return saved ? JSON.parse(saved) : [];
-        } catch { return []; }
-    });
-
-    const [recentlyViewed, setRecentlyViewed] = useState<Product[]>(() => {
-        try {
-            const saved = localStorage.getItem('sb_recently_viewed');
-            return saved ? JSON.parse(saved) : [];
-        } catch { return []; }
-    });
+    const [cart, setCart] = useState<CartItem[]>(() => readJson('sb_cart', isCart, []));
+    const [wishlist, setWishlist] = useState<string[]>(() => readJson('sb_wishlist', isStringArray, []));
+    const [recentlyViewed, setRecentlyViewed] = useState<Product[]>(() => readJson('sb_recently_viewed', isProductArray, []));
 
     useEffect(() => localStorage.setItem('sb_cart', JSON.stringify(cart)), [cart]);
     useEffect(() => localStorage.setItem('sb_wishlist', JSON.stringify(wishlist)), [wishlist]);
     useEffect(() => localStorage.setItem('sb_recently_viewed', JSON.stringify(recentlyViewed)), [recentlyViewed]);
 
     const addToRecentlyViewed = React.useCallback((product: Product) => {
-        setRecentlyViewed(prev => {
-            const filtered = prev.filter(p => p.id !== product.id);
-            return [product, ...filtered].slice(0, 10);
-        });
+        setRecentlyViewed(prev => [product, ...prev.filter(p => p.id !== product.id)].slice(0, 10));
     }, []);
 
-    const addToCart = React.useCallback((product: Product, variantId?: string) => {
-        console.log('addToCart called', product.id, variantId);
+    const addToCart = React.useCallback((product: Product, quantity = 1) => {
         setCart(prev => {
-            const existing = prev.find(item => item.id === product.id && item.selectedVariantId === variantId);
+            const existing = prev.find(item => item.productId === product.id);
             if (existing) {
-                return prev.map(item => (item.id === product.id && item.selectedVariantId === variantId)
-                    ? { ...item, quantity: item.quantity + 1 }
-                    : item);
+                return prev.map(item => item.productId === product.id ? { ...item, quantity: item.quantity + quantity } : item);
             }
-            const variant = variantId ? product.variants?.find(v => v.id === variantId) : null;
-            const price = variant?.priceOverride ?? product.price;
-            let discountedPrice = price;
-            if (product.discountPercentage && product.discountPercentage > 0) {
-                discountedPrice = price * (1 - product.discountPercentage / 100);
-            }
-            const newItem = { ...product, quantity: 1, discountedPrice, selectedVariantId: variantId };
-            return [...prev, newItem];
+            return [...prev, {
+                productId: product.id,
+                name_ar: product.name_ar,
+                image: product.image,
+                price: product.price,
+                discountPercentage: product.discountPercentage,
+                quantity,
+            }];
         });
     }, []);
 
-    const removeFromCart = React.useCallback((productId: string, variantId?: string) => {
-        setCart(prev => prev.filter(item => !(item.id === productId && item.selectedVariantId === variantId)));
+    const removeFromCart = React.useCallback((productId: string) => {
+        setCart(prev => prev.filter(item => item.productId !== productId));
     }, []);
 
-    const updateQuantity = React.useCallback((productId: string, quantity: number, variantId?: string) => {
+    const updateQuantity = React.useCallback((productId: string, quantity: number) => {
         if (quantity <= 0) {
-            removeFromCart(productId, variantId);
+            removeFromCart(productId);
             return;
         }
-        setCart(prev => prev.map(item => (item.id === productId && item.selectedVariantId === variantId) ? { ...item, quantity } : item));
+        setCart(prev => prev.map(item => item.productId === productId ? { ...item, quantity } : item));
     }, [removeFromCart]);
 
+    const clearCart = React.useCallback(() => setCart([]), []);
+
     const toggleWishlist = React.useCallback((productId: string) => {
-        setWishlist(prev =>
-            prev.includes(productId)
-                ? prev.filter(id => id !== productId)
-                : [...prev, productId]
-        );
+        setWishlist(prev => prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId]);
     }, []);
 
     const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
     return (
-        <StoreContext.Provider value={{ products, cart, wishlist, recentlyViewed, addToCart, removeFromCart, updateQuantity, toggleWishlist, addToRecentlyViewed, cartCount }}>
+        <StoreContext.Provider value={{ products, productsLoading, productsError, reloadProducts, cart, wishlist, recentlyViewed, addToCart, removeFromCart, updateQuantity, clearCart, toggleWishlist, addToRecentlyViewed, cartCount }}>
             {children}
         </StoreContext.Provider>
     );

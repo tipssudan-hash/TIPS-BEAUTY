@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Product } from '../../types';
-import { supabase } from '../../lib/supabase';
-import { Heart, Share2, ShoppingCart } from 'lucide-react';
+import { fetchProduct } from '../../lib/api';
+import { discountedPrice, formatSDG } from '../../lib/pricing';
+import { Heart, Share2, ShoppingCart, Check } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { ReviewSection } from '../../components/ui/ReviewSection';
 import { RelatedProducts } from '../../components/ui/RelatedProducts';
@@ -13,66 +14,52 @@ export const ProductDetailsPage: React.FC = () => {
     const [product, setProduct] = useState<Product | null>(null);
     const [loading, setLoading] = useState(true);
     const [activeImageIndex, setActiveImageIndex] = useState(0);
+    const [notice, setNotice] = useState<string | null>(null);
 
     useEffect(() => {
-        if (id) {
-            fetchProduct(id);
-        }
-    }, [id]);
+        if (!id) return;
+        let cancelled = false;
+        setLoading(true);
+        fetchProduct(id)
+            .then((data) => {
+                if (cancelled) return;
+                setProduct(data);
+                if (data) addToRecentlyViewed(data);
+            })
+            .catch((error) => console.error('Error fetching product:', error))
+            .finally(() => { if (!cancelled) setLoading(false); });
+        return () => { cancelled = true; };
+    }, [id, addToRecentlyViewed]);
 
-    const fetchProduct = async (productId: string) => {
-        try {
-            const { data, error } = await supabase
-                .from('products')
-                .select('*')
-                .eq('id', productId)
-                .single();
-
-            if (error) throw error;
-
-            if (data) {
-                const productWithReviews = {
-                    ...data,
-                    isImported: data.is_imported,
-                    skinType: data.skin_type,
-                    createdAt: data.created_at,
-                    reviews: []
-                };
-                setProduct(productWithReviews);
-                addToRecentlyViewed(productWithReviews);
-            }
-        } catch (error) {
-            console.error('Error fetching product:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+    useEffect(() => {
+        if (!notice) return;
+        const timer = setTimeout(() => setNotice(null), 2500);
+        return () => clearTimeout(timer);
+    }, [notice]);
 
     const handleShare = async () => {
-        if (product) {
-            const shareData = {
-                title: `Tips Beauty - ${product.name_ar}`,
-                text: product.description.substring(0, 100),
-                url: window.location.href,
-            };
-            try {
-                if (navigator.share) {
-                    await navigator.share(shareData);
-                } else {
-                    await navigator.clipboard.writeText(window.location.href);
-                    alert('تم نسخ الرابط!');
-                }
-            } catch (err) {
-                console.error('Error sharing:', err);
+        if (!product) return;
+        const shareData = {
+            title: `Tips Beauty - ${product.name_ar}`,
+            text: product.description.substring(0, 100),
+            url: window.location.href,
+        };
+        try {
+            if (navigator.share) {
+                await navigator.share(shareData);
+            } else {
+                await navigator.clipboard.writeText(window.location.href);
+                setNotice('تم نسخ الرابط');
             }
+        } catch (err) {
+            console.error('Error sharing:', err);
         }
     };
 
     const handleAddToCart = () => {
-        if (product) {
-            addToCart(product);
-            alert('تمت إضافة المنتج للسلة بنجاح');
-        }
+        if (!product) return;
+        addToCart(product);
+        setNotice('تمت إضافة المنتج للسلة');
     };
 
     if (loading) {
@@ -95,11 +82,18 @@ export const ProductDetailsPage: React.FC = () => {
         );
     }
 
-    const images = product.images && product.images.length > 0 ? product.images : [product.image];
+    const images = product.images.length > 0 ? product.images : [product.image];
     const isInWishlist = wishlist.includes(product.id);
+    const finalPrice = discountedPrice(product.price, product.discountPercentage);
+    const hasDiscount = finalPrice < product.price;
 
     return (
         <div className="max-w-4xl mx-auto p-4 animate-fadeIn">
+            {notice && (
+                <div role="status" className="fixed top-4 inset-x-4 z-50 mx-auto max-w-sm bg-gray-900 text-white text-sm rounded-xl px-4 py-3 flex items-center gap-2 shadow-lg">
+                    <Check className="w-4 h-4" /> {notice}
+                </div>
+            )}
             <Link to="/" className="text-brand-blue text-sm mb-4 inline-block hover:underline">
                 ← العودة للمنتجات
             </Link>
@@ -153,11 +147,17 @@ export const ProductDetailsPage: React.FC = () => {
                     </div>
 
                     <div className="mb-6">
-                        <p className="text-3xl font-black text-brand-blue">
-                            {product.price.toLocaleString()} ج.س
-                        </p>
+                        <div className="flex items-baseline gap-3 flex-wrap">
+                            <p className="text-3xl font-black text-brand-blue">{formatSDG(finalPrice)}</p>
+                            {hasDiscount && (
+                                <>
+                                    <p className="text-lg text-gray-400 line-through">{formatSDG(product.price)}</p>
+                                    <span className="text-xs font-bold bg-red-100 text-red-600 rounded-full px-2 py-1">خصم {product.discountPercentage}%</span>
+                                </>
+                            )}
+                        </div>
                         {product.stock > 0 ? (
-                            <p className="text-sm text-green-600 mt-1">متوفر في المخزون ({product.stock} قطعة)</p>
+                            <p className="text-sm text-green-600 mt-1">{product.stock <= 5 ? 'الكمية محدودة' : 'متوفر'}</p>
                         ) : (
                             <p className="text-sm text-red-600 mt-1">غير متوفر حالياً</p>
                         )}
