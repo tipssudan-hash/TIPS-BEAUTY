@@ -1,12 +1,12 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders as buildCorsHeaders, handleOptions } from "../_shared/cors.ts";
 
 type DeliveryStatus = "shipped" | "delivered";
 type PushEvent = DeliveryStatus | "review_request";
 type PushToken = { id: string; expo_push_token: string };
 type OrderRow = { id: string; order_number: string | null; customer_id: string; driver_id: string | null; status: string };
 
-const corsHeaders = { "Content-Type": "application/json" };
 const copy: Record<PushEvent, { title: string; body: (number: string) => string; url: string }> = {
   shipped: { title: "طلبك في الطريق", body: (number) => `طلبك ${number} أصبح في الطريق إليك.`, url: "/orders" },
   delivered: { title: "تم توصيل طلبك", body: (number) => `تم توصيل طلبك ${number} بنجاح. نتمنى لك تجربة جميلة.`, url: "/orders" },
@@ -14,6 +14,9 @@ const copy: Record<PushEvent, { title: string; body: (number: string) => string;
 };
 
 Deno.serve(async (request) => {
+  const preflight = handleOptions(request);
+  if (preflight) return preflight;
+  const corsHeaders = { ...buildCorsHeaders(request), "Content-Type": "application/json" };
   if (request.method !== "POST") return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: corsHeaders });
   const authorization = request.headers.get("Authorization") ?? "";
   if (!authorization.startsWith("Bearer ")) return new Response(JSON.stringify({ error: "Missing authorization" }), { status: 401, headers: corsHeaders });

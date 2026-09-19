@@ -1,9 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+import { handleOptions, json as jsonWithCors } from "../_shared/cors.ts";
 
 Deno.serve(async (request) => {
+  const preflight = handleOptions(request);
+  if (preflight) return preflight;
+  const json = (body: unknown, status = 200) => jsonWithCors(request, body, status);
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
   const authorization = request.headers.get("Authorization") ?? "";
   if (!authorization.startsWith("Bearer ")) return json({ error: "Authentication required" }, 401);
