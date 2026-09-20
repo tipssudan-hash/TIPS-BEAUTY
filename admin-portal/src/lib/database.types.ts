@@ -148,6 +148,24 @@ export type Database = {
           },
         ]
       }
+      app_settings: {
+        Row: {
+          id: boolean
+          notification_emails: string[]
+          updated_at: string
+        }
+        Insert: {
+          id?: boolean
+          notification_emails?: string[]
+          updated_at?: string
+        }
+        Update: {
+          id?: boolean
+          notification_emails?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       checkout_idempotency: {
         Row: {
           created_at: string
@@ -664,6 +682,7 @@ export type Database = {
       }
       notification_queue: {
         Row: {
+          attempts: number
           channel: string
           created_at: string
           customer_id: string | null
@@ -679,6 +698,7 @@ export type Database = {
           status: string
         }
         Insert: {
+          attempts?: number
           channel?: string
           created_at?: string
           customer_id?: string | null
@@ -694,6 +714,7 @@ export type Database = {
           status?: string
         }
         Update: {
+          attempts?: number
           channel?: string
           created_at?: string
           customer_id?: string | null
@@ -838,11 +859,13 @@ export type Database = {
           points_redeemed: number
           referral_code: string | null
           referral_referrer_id: string | null
+          resources_released_at: string | null
           shipping_address: string | null
           shipping_fee: number
           state: string | null
           status: string | null
           total: number | null
+          viewed_at: string | null
         }
         Insert: {
           affiliate_code?: string | null
@@ -869,11 +892,13 @@ export type Database = {
           points_redeemed?: number
           referral_code?: string | null
           referral_referrer_id?: string | null
+          resources_released_at?: string | null
           shipping_address?: string | null
           shipping_fee?: number
           state?: string | null
           status?: string | null
           total?: number | null
+          viewed_at?: string | null
         }
         Update: {
           affiliate_code?: string | null
@@ -900,11 +925,13 @@ export type Database = {
           points_redeemed?: number
           referral_code?: string | null
           referral_referrer_id?: string | null
+          resources_released_at?: string | null
           shipping_address?: string | null
           shipping_fee?: number
           state?: string | null
           status?: string | null
           total?: number | null
+          viewed_at?: string | null
         }
         Relationships: [
           {
@@ -1031,6 +1058,7 @@ export type Database = {
           image: string | null
           images: string[] | null
           ingredients: string[] | null
+          is_active: boolean
           is_imported: boolean | null
           name_ar: string | null
           name_en: string | null
@@ -1056,6 +1084,7 @@ export type Database = {
           image?: string | null
           images?: string[] | null
           ingredients?: string[] | null
+          is_active?: boolean
           is_imported?: boolean | null
           name_ar?: string | null
           name_en?: string | null
@@ -1081,6 +1110,7 @@ export type Database = {
           image?: string | null
           images?: string[] | null
           ingredients?: string[] | null
+          is_active?: boolean
           is_imported?: boolean | null
           name_ar?: string | null
           name_en?: string | null
@@ -1657,6 +1687,7 @@ export type Database = {
           updated_at: string
         }[]
       }
+      cancel_stale_orders: { Args: { p_max_age?: string }; Returns: number }
       checkout_order: {
         Args: {
           p_city: string
@@ -1778,6 +1809,49 @@ export type Database = {
           total: number
         }[]
       }
+      customer_cancel_order: {
+        Args: { p_order_id: string }
+        Returns: {
+          id: string
+          status: string
+        }[]
+      }
+      dispatch_email_queue: { Args: never; Returns: undefined }
+      get_admin_product: {
+        Args: { p_product_id: string }
+        Returns: {
+          average_rating: number | null
+          benefits: string[] | null
+          brand: string | null
+          category: string | null
+          cost_price: number | null
+          created_at: string
+          description: string | null
+          discount_percentage: number | null
+          expiry: string | null
+          id: string
+          image: string | null
+          images: string[] | null
+          ingredients: string[] | null
+          is_active: boolean
+          is_imported: boolean | null
+          name_ar: string | null
+          name_en: string | null
+          origin: string | null
+          price: number | null
+          reviews_count: number | null
+          skin_type: string[] | null
+          stock: number | null
+          usage: string | null
+          variants: Json | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "products"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       get_admin_product_review_stats: {
         Args: never
         Returns: {
@@ -1792,6 +1866,41 @@ export type Database = {
           published_count: number
           sales_count: number
         }[]
+      }
+      get_admin_products: {
+        Args: never
+        Returns: {
+          average_rating: number | null
+          benefits: string[] | null
+          brand: string | null
+          category: string | null
+          cost_price: number | null
+          created_at: string
+          description: string | null
+          discount_percentage: number | null
+          expiry: string | null
+          id: string
+          image: string | null
+          images: string[] | null
+          ingredients: string[] | null
+          is_active: boolean
+          is_imported: boolean | null
+          name_ar: string | null
+          name_en: string | null
+          origin: string | null
+          price: number | null
+          reviews_count: number | null
+          skin_type: string[] | null
+          stock: number | null
+          usage: string | null
+          variants: Json | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "products"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_public_product: {
         Args: { p_product_id: string }
@@ -1891,6 +2000,7 @@ export type Database = {
       }
       is_admin: { Args: never; Returns: boolean }
       is_driver: { Args: never; Returns: boolean }
+      mark_order_viewed: { Args: { p_order_id: string }; Returns: undefined }
       moderate_product_review: {
         Args: {
           p_remove_images?: boolean
@@ -1918,6 +2028,10 @@ export type Database = {
           p_platform: string
         }
         Returns: string
+      }
+      release_order_resources: {
+        Args: { p_order_id: string }
+        Returns: undefined
       }
       request_order_return: {
         Args: {
