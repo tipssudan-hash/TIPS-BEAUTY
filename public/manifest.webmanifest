@@ -1,0 +1,20 @@
+{
+  "name": "TIPS Beauty",
+  "short_name": "تيبس بيوتي",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#005696",
+  "background_color": "#f8fafc",
+  "icons": [
+    {
+      "src": "/logo.PNG",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
