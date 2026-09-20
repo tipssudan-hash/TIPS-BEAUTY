@@ -10,7 +10,7 @@ web
 
 **Customers**: Sudanese cosmetics shoppers using the Storefront, a mobile-first web app (also shipped inside a native wrapper built and maintained separately by others). They browse the catalogue, order via Cash on Delivery or Mycashi, track delivery, and review products they've received.
 
-**Staff**: A single admin role at launch, using the separately hosted Admin Portal to manage products, orders, drivers, warehouses/inventory, delivery zones, and banners. No role-based access tiers yet.
+**Staff**: A single admin role at launch, using the separately hosted Admin Portal to manage products, orders, drivers, Warehouses and Stock, States and Localities, and banners. No role-based access tiers yet.
 
 ## Product Purpose
 
@@ -26,7 +26,7 @@ Brand tagline (bilingual, user-confirmed): **اكتشفي جمالك الطبي�
 - The backend is mature and authoritative: ~35 tables, ~50 SECURITY DEFINER RPCs, RLS everywhere, 2 deployed Edge Functions (`beauty-advice` — server-side Gemini chat; `order-status-push` — Expo push). The app code must be rewired to call these RPCs rather than reading/writing tables directly.
 - Pre-launch: existing database rows are treated as real, not test data.
 - Delivery is fulfilled only by Tips Beauty's own employed Drivers, never a third-party courier.
-- Orders ship from one of multiple warehouses (Khartoum + Port Sudan at launch), routed by delivery zone.
+- Orders ship from one of multiple warehouses (Khartoum + Port Sudan at launch), routed by the Order's State and Locality.
 - Notifications (order confirmation, new-order alerts) are sent by email via Resend, Arabic only.
 - Full glossary of product terminology lives in the repo at `CONTEXT.md` — Product/Variant/Order/Cart/Driver/Locality/State/Shipping Fee/etc. Use those terms and their "avoid" lists consistently.
 
@@ -40,7 +40,7 @@ Brand tagline (bilingual, user-confirmed): **اكتشفي جمالك الطبي�
 - **Variants**: exist per Product (shade/size, own price/stock) but are hidden at checkout for launch — documented limitation, not a bug.
 - **Discounts**: a staff-set percentage on a single Product is the only pricing rule at launch.
 - Scope is explicitly tiered:
-  - **Tier 1 (launch)**: catalogue, checkout, delivery zones/warehouses, Mycashi + COD, verified reviews, order tracking/history, admin order operations, product image upload, drivers, banners, order emails.
+  - **Tier 1 (launch)**: catalogue, checkout, Localities/Warehouses, Mycashi + COD, verified reviews, order tracking/history, admin order operations, product image upload, drivers, banners, order emails.
   - **Tier 2 (post-launch, after Tier 1 is tested)**: coupons, promotions, collections, in-app notifications, returns.
   - **Tier 3 (report only, not built)**: loyalty, referrals, affiliates, driver app/live location, push beyond the existing Edge Function.
 
@@ -54,7 +54,7 @@ Brand tagline (bilingual, user-confirmed): **اكتشفي جمالك الطبي�
 
 ## Evidence on Hand
 
-- Backend schema and RPC surface documented in `docs/IMPLEMENTATION-PLAN.md` and (once dumped) `supabase/schema-current.sql`.
+- Backend schema and RPC surface documented in `docs/IMPLEMENTATION-PLAN.md` and the baseline migration under `supabase/migrations/`.
 - Terminology glossary: repo `CONTEXT.md`.
 - No testimonials, press, case studies, or marketing copy exist yet — do not fabricate any.
 

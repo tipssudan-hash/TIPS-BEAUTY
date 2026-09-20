@@ -86,8 +86,12 @@ _Avoid_: marketing campaign, promotion, ad
 
 ### Stock
 
+**Warehouse** (Arabic: المخزن):
+A physical location Tips Beauty ships Orders from (Khartoum and Port Sudan at launch). Each Warehouse holds its own Stock of each Product; an Order is fulfilled from one Warehouse.
+_Avoid_: store, depot, branch
+
 **Stock**:
-The quantity of a Product available to sell in a warehouse, maintained by staff. Counted per Product, never per Variant. Reserved atomically by the backend when an Order is created and restored when the Order is cancelled.
+The quantity of a Product available to sell in a Warehouse, maintained by staff. Counted per Product, never per Variant. Reserved atomically by the backend when an Order is created and restored when the Order is cancelled.
 _Avoid_: inventory, quantity on hand
 
 **Return** (post-launch; Arabic: المرتجع):

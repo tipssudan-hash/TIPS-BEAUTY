@@ -52,7 +52,7 @@ Ship the pre-launch hardening first (copy, staff alert rows, tests, code hygiene
 31. As a customer, I want the Variant's own price used when it has one, and the Product's price otherwise.
 32. As a customer, I want the same Product in two different Variants to be two Cart lines.
 33. As a staff member, I want the Order's items to record the chosen Variant's name and price at the time of ordering, so that later edits to the Variant do not rewrite history.
-34. As a staff member, I want Stock to keep being counted per Product per warehouse (ADR 0001), so that inventory screens and reservation do not change.
+34. As a staff member, I want Stock to keep being counted per Product per warehouse (ADR 0001), so that Stock screens and reservation do not change.
 35. As a staff member, I want to see the chosen Variant on the Order detail and the picking list.
 
 ### Promotions

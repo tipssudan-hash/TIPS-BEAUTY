@@ -57,7 +57,8 @@
 
     /* Decorative entrance/attention motion: safe to remove entirely. */
     .animate-fadeIn,
-    .animate-bounce {
+    .animate-bounce,
+    .animate-in {
         animation: none !important;
     }
 

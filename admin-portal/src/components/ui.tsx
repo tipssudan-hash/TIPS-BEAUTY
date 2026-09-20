@@ -35,15 +35,17 @@ export const Field: React.FC<{ label: string; required?: boolean; hint?: string;
     const id = React.useId();
     const labelId = `${id}-label`;
     const isSingleControl = React.isValidElement(children) && typeof children.type === 'string' && NATIVE_CONTROL_TAGS.includes(children.type);
+    const control = isSingleControl ? (children as React.ReactElement<{ id?: string }>) : null;
+    const controlId = control?.props.id ?? id;
     const labelClasses = 'text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-1';
     const labelContent = <>{label}{required && <span className="text-brand-blue">*</span>}</>;
 
     return (
         <div className={`space-y-2 ${className}`} {...(!isSingleControl && { role: 'group', 'aria-labelledby': labelId })}>
             {isSingleControl
-                ? <label htmlFor={id} className={labelClasses}>{labelContent}</label>
+                ? <label htmlFor={controlId} className={labelClasses}>{labelContent}</label>
                 : <span id={labelId} className={labelClasses}>{labelContent}</span>}
-            {isSingleControl ? React.cloneElement(children as React.ReactElement<{ id?: string }>, { id }) : children}
+            {control ? React.cloneElement(control, { id: controlId }) : children}
             {hint && <p className="text-[10px] text-slate-400 font-medium">{hint}</p>}
         </div>
     );
