@@ -90,6 +90,18 @@ export interface Banner {
     ends_at: string | null;
 }
 
+export interface Collection {
+    id: string;
+    slug: string;
+    name_ar: string;
+    description_ar: string | null;
+    icon: string;
+    display_order: number;
+    is_active: boolean;
+}
+
+export type CollectionInput = Omit<Collection, 'id'>;
+
 export interface AdminReview {
     id: string;
     product_id: string;

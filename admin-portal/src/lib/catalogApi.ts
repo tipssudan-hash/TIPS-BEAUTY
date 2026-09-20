@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { AdminReview, Banner, DeliveryZone, Driver, InventoryRow, Product, ProductInput, Warehouse } from '../types';
+import type { AdminReview, Banner, Collection, CollectionInput, DeliveryZone, Driver, InventoryRow, Product, ProductInput, Warehouse } from '../types';
 
 // Admin data access for catalogue, logistics and settings. RPCs added by our migrations
 // are not in database.types.ts yet, so they go through rpcUntyped.
@@ -248,6 +248,80 @@ export async function saveBanner(id: string | null, input: BannerInput): Promise
 
 export async function deleteBanner(id: string): Promise<void> {
     const { error } = await supabase.from('storefront_banners').delete().eq('id', id);
+    if (error) throw error;
+}
+
+// Collections --------------------------------------------------------------------------
+// rule_type is written as the literal 'manual' on every save: the Admin UI only manages
+// hand-picked collections for now, even though the backend also supports 5 auto-rule types.
+
+const SLUG_PATTERN = /^[a-z0-9-]+$/;
+
+export function validateCollectionSlug(slug: string): string | null {
+    if (!slug.trim()) return 'المعرّف (slug) مطلوب.';
+    if (!SLUG_PATTERN.test(slug)) return 'المعرّف يجب أن يحتوي على حروف إنجليزية صغيرة وأرقام وشرطات فقط، مثل: eid-essentials.';
+    return null;
+}
+
+export async function fetchCollections(): Promise<Collection[]> {
+    const { data, error } = await supabase.from('storefront_collections')
+        .select('id,slug,name_ar,description_ar,icon,display_order,is_active')
+        .order('display_order');
+    if (error) throw error;
+    return data ?? [];
+}
+
+export async function fetchCollection(id: string): Promise<Collection | null> {
+    const { data, error } = await supabase.from('storefront_collections')
+        .select('id,slug,name_ar,description_ar,icon,display_order,is_active')
+        .eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data;
+}
+
+export async function fetchCollectionProductIds(collectionId: string): Promise<string[]> {
+    const { data, error } = await supabase.from('storefront_collection_products')
+        .select('product_id').eq('collection_id', collectionId).order('display_order');
+    if (error) throw error;
+    return (data ?? []).map((r) => r.product_id);
+}
+
+export async function saveCollection(id: string | null, input: CollectionInput): Promise<string> {
+    const row = {
+        slug: input.slug.trim(),
+        name_ar: input.name_ar.trim(),
+        description_ar: input.description_ar?.trim() || null,
+        icon: input.icon,
+        display_order: input.display_order,
+        // New collections start inactive regardless of the form's choice: is_active only flips
+        // on after setCollectionProducts confirms, so a collection is never live with 0 products.
+        is_active: id ? input.is_active : false,
+        rule_type: 'manual',
+        updated_at: new Date().toISOString(),
+    };
+    if (id) {
+        const { error } = await supabase.from('storefront_collections').update(row).eq('id', id);
+        if (error) throw error;
+        return id;
+    }
+    const { data, error } = await supabase.from('storefront_collections').insert(row).select('id').single();
+    if (error) throw error;
+    return data.id;
+}
+
+export async function activateCollection(id: string): Promise<void> {
+    const { error } = await supabase.from('storefront_collections')
+        .update({ is_active: true, updated_at: new Date().toISOString() }).eq('id', id);
+    if (error) throw error;
+}
+
+export async function deleteCollection(id: string): Promise<void> {
+    const { error } = await supabase.from('storefront_collections').delete().eq('id', id);
+    if (error) throw error;
+}
+
+export async function setCollectionProducts(collectionId: string, productIds: string[]): Promise<void> {
+    const { error } = await rpcUntyped('admin_set_collection_products', { p_collection_id: collectionId, p_product_ids: productIds });
     if (error) throw error;
 }
 

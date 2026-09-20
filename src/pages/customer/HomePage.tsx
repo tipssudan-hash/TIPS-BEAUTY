@@ -1,7 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../../context/StoreContext';
 import { ProductCard } from '../../components/ui/ProductCard';
+import { ProductRow } from '../../components/ui/ProductRow';
 import { RecentlyViewed } from '../../components/ui/RecentlyViewed';
+import { fetchCollections } from '../../lib/api';
+import { Collection } from '../../types';
 
 export const HomePage: React.FC = () => {
     const { products, productsLoading, productsError, reloadProducts, wishlist, addToCart, toggleWishlist } = useStore();
@@ -9,6 +12,23 @@ export const HomePage: React.FC = () => {
     const [activeCategory, setActiveCategory] = useState('الكل');
     const [activeBrand, setActiveBrand] = useState('الكل');
     const [sortBy, setSortBy] = useState('newest');
+    const [collections, setCollections] = useState<Collection[]>([]);
+
+    useEffect(() => {
+        let cancelled = false;
+        fetchCollections()
+            .then((data) => { if (!cancelled) setCollections(data); })
+            .catch((err) => console.error('Failed to load collections', err));
+        return () => { cancelled = true; };
+    }, []);
+
+    const isFiltered = searchQuery.trim() !== '' || activeCategory !== 'الكل' || activeBrand !== 'الكل';
+
+    const productsById = useMemo(() => new Map(products.map(p => [p.id, p])), [products]);
+    const collectionProducts = useMemo(
+        () => collections.map(c => ({ collection: c, products: c.productIds.map(id => productsById.get(id)).filter((p): p is typeof products[number] => Boolean(p)) })),
+        [collections, productsById]
+    );
 
     const availableBrands = useMemo(() => Array.from(new Set(products.map(p => p.brand).filter(Boolean))).sort(), [products]);
     const availableCategories = useMemo(() => Array.from(new Set(products.map(p => p.category).filter(Boolean))).sort(), [products]);
@@ -109,6 +129,20 @@ export const HomePage: React.FC = () => {
                         </select>
                     </div>
                 </div>
+
+                {/* Collections: only in the unfiltered default state, so they never contradict an active search/filter */}
+                {!isFiltered && collectionProducts.map(({ collection, products: collectionItems }) => (
+                    <ProductRow
+                        key={collection.id}
+                        id={`collection-${collection.slug}`}
+                        title={collection.name_ar}
+                        products={collectionItems}
+                        wishlist={wishlist}
+                        onToggleWishlist={toggleWishlist}
+                        onAddToCart={addToCart}
+                        className="mb-10"
+                    />
+                ))}
 
                 {/* Products Grid */}
                 <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
