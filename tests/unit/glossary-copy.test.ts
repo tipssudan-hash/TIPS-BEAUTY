@@ -17,8 +17,8 @@ function arabicAvoidTerms(): { term: string; entry: string }[] {
         if (heading) entry = heading[1];
         const avoid = line.match(/^_Avoid_:\s*(.+)$/);
         if (!avoid) continue;
-        for (const raw of avoid[1].split(',')) {
-            const term = raw.replace(/\(.*?\)/g, '').trim();
+        for (const raw of avoid[1].replace(/\(.*?\)/g, '').split(/[,،]/)) {
+            const term = raw.trim();
             if (/[؀-ۿ]/.test(term)) out.push({ term, entry });
         }
     }

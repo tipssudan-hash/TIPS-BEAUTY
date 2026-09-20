@@ -235,7 +235,7 @@ export const CheckoutPage: React.FC = () => {
                             <div className="space-y-3 pt-2 border-t border-gray-50">
                                 <label className="block">
                                     <span className="text-sm font-bold text-gray-700 block mb-1">الرقم المرجعي</span>
-                                    <input required value={formData.reference} onChange={e => setFormData({ ...formData, reference: e.target.value })} className={inputClass} placeholder="رقم عملية التحويل" />
+                                    <input required value={formData.reference} onChange={e => setFormData({ ...formData, reference: e.target.value })} className={inputClass} placeholder="الرقم المرجعي للتحويل" />
                                 </label>
                                 <label className="block">
                                     <span className="text-sm font-bold text-gray-700 block mb-1">إثبات الدفع (صورة حتى 5 ميجابايت)</span>
