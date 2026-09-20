@@ -39,13 +39,26 @@ export async function publicStock(client: Client, productId: string): Promise<nu
     return Number((data as { stock: number }[])[0]?.stock ?? 0);
 }
 
-export async function pickProduct(client: Client, minStock: number) {
-    const { data, error } = await client.rpc('get_public_products');
+const TEST_STOCK_TOPUP = 30;
+
+// Checkout fulfils a cart from ONE warehouse. Rather than depend on the live catalogue's stock
+// levels, the suite tops up one active product in the Khartoum warehouse and removes it afterwards.
+export async function provisionProduct(admin: Client): Promise<{ id: string; warehouseId: string; release: () => Promise<void> }> {
+    const { data: wh, error: whErr } = await admin.from('warehouses').select('id').eq('code', 'KRT').single();
+    if (whErr) throw whErr;
+    const { data: products, error: pErr } = await admin.rpc('get_admin_products');
+    if (pErr) throw pErr;
+    const product = (products as { id: string; is_active: boolean }[]).find((p) => p.is_active);
+    if (!product) throw new Error('No active product to test with');
+    const adjust = (delta: number, note: string) =>
+        admin.rpc('adjust_warehouse_inventory', { p_warehouse_id: wh.id, p_product_id: product.id, p_quantity_delta: delta, p_note: note });
+    const { error } = await adjust(TEST_STOCK_TOPUP, `${TEST_TAG} top-up`);
     if (error) throw error;
-    const rows = data as { id: string; stock: number; price: number; name_ar: string }[];
-    const product = rows.find((p) => p.stock >= minStock);
-    if (!product) throw new Error(`No product with stock >= ${minStock}; adjust inventory in the admin portal first`);
-    return product;
+    return {
+        id: product.id,
+        warehouseId: wh.id,
+        release: async () => { await adjust(-TEST_STOCK_TOPUP, `${TEST_TAG} top-up removed`); },
+    };
 }
 
 export async function pickZone(client: Client) {

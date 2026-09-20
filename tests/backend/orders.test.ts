@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { anonClient, checkoutArgs, cleanupTestOrders, creds, haveCreds, pickProduct, pickZone, publicStock, rpc, signedInClient, type Client } from './helpers';
+import { anonClient, checkoutArgs, cleanupTestOrders, creds, haveCreds, pickZone, provisionProduct, publicStock, rpc, signedInClient, type Client } from './helpers';
 
 // Runs against the linked Supabase project with two auto-confirmed test accounts
 // (see .env.test.local). Orders are tagged with customer_name = TEST-AUTOMATED and deleted afterwards.
@@ -11,7 +11,7 @@ suite('order lifecycle against the live backend', () => {
     let customer: Client;
     let admin: Client;
     let anon: Client;
-    let product: { id: string; stock: number };
+    let product: { id: string; release: () => Promise<void> };
     let zone: { name: string; state: string | null; fee: number };
 
     beforeAll(async () => {
@@ -19,12 +19,14 @@ suite('order lifecycle against the live backend', () => {
         admin = await signedInClient(creds.admin.email, creds.admin.password);
         anon = anonClient();
         await cleanupTestOrders(admin);
-        product = await pickProduct(customer, 6);
+        product = await provisionProduct(admin);
         zone = await pickZone(customer);
     });
 
     afterAll(async () => {
-        if (admin) await cleanupTestOrders(admin);
+        if (!admin) return;
+        await cleanupTestOrders(admin);
+        await product?.release();
     });
 
     it('anonymous users cannot read products directly or call customer RPCs', async () => {
@@ -159,5 +161,32 @@ suite('order lifecycle against the live backend', () => {
         const { data: row } = await admin.from('orders').select('status').eq('id', orderId).single();
         expect(row!.status).toBe('new');
         expect(await publicStock(customer, product.id)).toBe(before - 1);
+    });
+});
+
+suite('payment proof storage', () => {
+    it('a customer can upload two proofs for the same attempt and never into another prefix', async () => {
+        const customer = await signedInClient(creds.customer.email, creds.customer.password);
+        const { data: user } = await customer.auth.getUser();
+        const uid = user.user!.id;
+        const png = new Blob([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], { type: 'image/png' });
+        const key = randomUUID();
+
+        // Storage grants customers INSERT only, so a retry must use a fresh object name.
+        const first = await customer.storage.from('payment-proofs').upload(`${uid}/${key}-1.png`, png, { upsert: false });
+        const second = await customer.storage.from('payment-proofs').upload(`${uid}/${key}-2.png`, png, { upsert: false });
+        expect(first.error).toBeNull();
+        expect(second.error).toBeNull();
+
+        const overwrite = await customer.storage.from('payment-proofs').upload(`${uid}/${key}-1.png`, png, { upsert: true });
+        expect(overwrite.error).toBeTruthy();
+
+        const foreign = await customer.storage.from('payment-proofs').upload(`${randomUUID()}/${key}.png`, png, { upsert: false });
+        expect(foreign.error).toBeTruthy();
+
+        const admin = await signedInClient(creds.admin.email, creds.admin.password);
+        const signed = await admin.storage.from('payment-proofs').createSignedUrl(`${uid}/${key}-1.png`, 60);
+        expect(signed.error).toBeNull();
+        await admin.storage.from('payment-proofs').remove([`${uid}/${key}-1.png`, `${uid}/${key}-2.png`]);
     });
 });

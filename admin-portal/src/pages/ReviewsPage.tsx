@@ -1,3 +1,4 @@
+import { formatDate } from '../lib/format';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Star, MessageSquare, Eye, EyeOff } from 'lucide-react';
 import type { AdminReview } from '../types';
@@ -64,7 +65,7 @@ export const ReviewsPage: React.FC = () => {
                             </td>
                             <td className="px-6 py-4"><Stars rating={review.rating} /></td>
                             <td className="px-6 py-4 text-sm text-slate-700 max-w-md whitespace-pre-wrap">{review.comment || '—'}</td>
-                            <td className="px-6 py-4 text-xs font-bold text-slate-500" dir="ltr">{new Date(review.created_at).toLocaleDateString('ar-EG')}</td>
+                            <td className="px-6 py-4 text-xs font-bold text-slate-500" dir="ltr">{formatDate(review.created_at)}</td>
                             <td className="px-6 py-4">
                                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-black ${review.status === 'published' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-700'}`}>{review.status === 'published' ? 'منشور' : 'مخفي'}</span>
                             </td>

@@ -1,12 +1,8 @@
 import { supabase } from './supabase';
-import type { DeliveryZone, Order, OrderItem, OrderStatusEntry, PaymentMethod, Product, Review, ReviewableItem } from '../types';
+import type { Collection, DeliveryZone, Order, OrderItem, OrderStatusEntry, PaymentMethod, Product, Review, ReviewableItem } from '../types';
 
 // Thin typed wrappers over the backend RPCs. All pricing, stock and permission rules live in
-// the database; this file only maps rows to app types. New RPCs added by our migrations are
-// called through `rpcUntyped` until database.types.ts is regenerated.
-
-const rpcUntyped = (name: string, args?: Record<string, unknown>) =>
-    (supabase.rpc as unknown as (fn: string, params?: Record<string, unknown>) => ReturnType<typeof supabase.rpc>)(name, args);
+// the database; this file only maps rows to app types.
 
 type ProductRow = {
     id: string; name_ar: string; name_en: string | null; price: number; discount_percentage: number | null;
@@ -54,6 +50,20 @@ export async function fetchProduct(id: string): Promise<Product | null> {
     if (error) throw error;
     const row = (data as ProductRow[] | null)?.[0];
     return row ? mapProduct(row) : null;
+}
+
+export async function fetchCollections(): Promise<Collection[]> {
+    const { data, error } = await supabase.rpc('get_storefront_collections');
+    if (error) throw error;
+    return (data ?? []).map((c) => ({
+        id: c.id,
+        slug: c.slug,
+        name_ar: c.name_ar,
+        description_ar: c.description_ar,
+        icon: c.icon,
+        displayOrder: c.display_order,
+        productIds: c.product_ids ?? [],
+    }));
 }
 
 export async function fetchPaymentMethods(): Promise<PaymentMethod[]> {
@@ -109,10 +119,11 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
     return { orderId: row.order_id, orderNumber: row.order_number, total: Number(row.total), shippingFee: Number(row.shipping_fee) };
 }
 
+// Customers may only INSERT into payment-proofs, so every attempt gets its own object name.
 export async function uploadPaymentProof(userId: string, key: string, file: File): Promise<string> {
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
-    const path = `${userId}/${key}.${ext}`;
-    const { error } = await supabase.storage.from('payment-proofs').upload(path, file, { upsert: true, contentType: file.type || undefined });
+    const path = `${userId}/${key}-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from('payment-proofs').upload(path, file, { upsert: false, contentType: file.type || undefined });
     if (error) throw error;
     return path;
 }
@@ -174,7 +185,7 @@ export async function fetchOrderHistory(orderId: string): Promise<OrderStatusEnt
 }
 
 export async function cancelMyOrder(orderId: string): Promise<void> {
-    const { error } = await rpcUntyped('customer_cancel_order', { p_order_id: orderId });
+    const { error } = await supabase.rpc('customer_cancel_order', { p_order_id: orderId });
     if (error) throw error;
 }
 

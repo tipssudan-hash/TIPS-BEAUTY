@@ -1,3 +1,4 @@
+import { formatDate } from '../lib/format';
 import React, { useEffect, useRef, useState } from 'react';
 import { Image as ImageIcon, Plus, Edit, Trash2, X, Upload, Loader2 } from 'lucide-react';
 import type { Banner, BannerActionType } from '../types';
@@ -122,7 +123,7 @@ export const BannersPage: React.FC = () => {
                             <Field label="ترتيب العرض" hint="الأصغر يظهر أولاً"><input type="number" step="1" value={editing.data.display_order} onChange={(e) => update({ display_order: parseInt(e.target.value, 10) || 0 })} className={inputClass} dir="ltr" /></Field>
                             <Field label="الصورة" required>
                                 <div className="flex items-center gap-3">
-                                    {editing.data.image_url && <img src={editing.data.image_url} alt="" className="w-20 h-12 rounded-xl object-cover border border-slate-100" />}
+                                    {editing.data.image_url && <img src={editing.data.image_url} alt={editing.data.title_ar ? `معاينة: ${editing.data.title_ar}` : 'معاينة صورة البانر'} className="w-20 h-12 rounded-xl object-cover border border-slate-100" />}
                                     <input ref={fileInput} type="file" accept="image/*" className="hidden" onChange={(e) => void onFile(e.target.files)} />
                                     <button type="button" disabled={uploading} onClick={() => fileInput.current?.click()} className={`${secondaryButtonClass} flex items-center gap-2 text-sm`}>
                                         {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} {editing.data.image_url ? 'تغيير الصورة' : 'رفع صورة'}
@@ -157,7 +158,7 @@ export const BannersPage: React.FC = () => {
                                 </div>
                             </td>
                             <td className="px-6 py-4 text-sm font-bold text-slate-600">{ACTION_LABELS[b.action_type]}{b.action_value ? `: ${b.action_value}` : ''}</td>
-                            <td className="px-6 py-4 text-xs font-bold text-slate-600" dir="ltr">{new Date(b.starts_at).toLocaleDateString('ar-EG')} → {b.ends_at ? new Date(b.ends_at).toLocaleDateString('ar-EG') : '∞'}</td>
+                            <td className="px-6 py-4 text-xs font-bold text-slate-600" dir="ltr">{formatDate(b.starts_at)} → {b.ends_at ? formatDate(b.ends_at) : '∞'}</td>
                             <td className="px-6 py-4 text-sm font-bold text-slate-600">{b.display_order}</td>
                             <td className="px-6 py-4"><StatusPill active={isLive(b)} activeText="معروض" inactiveText={b.is_active ? 'خارج الفترة' : 'متوقف'} /></td>
                             <td className="px-6 py-4">

@@ -1,10 +1,6 @@
 import { supabase } from './supabase';
 
 // Orders / dashboard API. Product and catalogue CRUD live in catalogApi.ts.
-// RPCs added by our migrations (mark_order_viewed) are called untyped until database.types.ts is regenerated.
-
-const rpcUntyped = (name: string, args?: Record<string, unknown>) =>
-    (supabase.rpc as unknown as (fn: string, params?: Record<string, unknown>) => ReturnType<typeof supabase.rpc>)(name, args);
 
 export interface OrderItem {
     id: string;
@@ -91,7 +87,7 @@ export async function fetchOrder(id: string): Promise<AdminOrder | null> {
 }
 
 export async function markOrderViewed(orderId: string): Promise<void> {
-    const { error } = await rpcUntyped('mark_order_viewed', { p_order_id: orderId });
+    const { error } = await supabase.rpc('mark_order_viewed', { p_order_id: orderId });
     if (error) throw error;
 }
 

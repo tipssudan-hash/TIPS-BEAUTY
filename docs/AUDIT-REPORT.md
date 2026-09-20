@@ -114,11 +114,17 @@ Severity: **S** security · **D** data integrity · **B** bug · **P** performan
 6. **Test data**: delete the `QA E2E` warehouse/driver, the two `test-*@tips-sd.com` accounts, orders whose `customer_name` starts with `TEST-`, the test review, and the test driver "مندوب اختبار الخرطوم". Rotate the database password (it was shared in chat).
 7. **Inventory**: review Khartoum quantities (migrated from the old stock column) and set Port Sudan quantities.
 8. **Deploy** the two apps to their domains with `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` only.
-9. **Git**: push `audit/2026-09` and open a PR to `main`; future DB changes go through `supabase/migrations/`.
+9. **Git**: PR #1 (`audit/2026-09` → `main`) is open; future DB changes go through `supabase/migrations/`.
+
+An interactive walkthrough of steps 1–8 exists: `bash scripts/launch-wizard.sh` (opens each dashboard, sets Edge Function secrets through the CLI, prints the Vault and cleanup SQL, and lists anything left pending).
 
 ---
 
-## 7. Improve next
+## 7. Code review outcome (post-implementation)
+
+A two-axis review (Standards vs `CONTEXT.md`/conventions; Spec vs `docs/IMPLEMENTATION-PLAN.md`) ran on the final diff. Fixed on the branch: payment-proof uploads now use a unique object per attempt (the storage policy allows customers INSERT only, so a checkout retry previously failed at upload); `beauty-advice` excludes deactivated products; admin Banners/Reviews dates use Africa/Khartoum; stale untyped RPC shims removed from the storefront and admin order APIs; a storage-policy regression test added. Carried to Tier 2 as tickets: glossary drift in UI copy (`المنطقة`/`الإيصال`/`رقم العملية`/`غير مقروء` vs `CONTEXT.md`), per-recipient staff email rows, coupon/points reversal and sweep-isolation tests, Playwright smoke, duplicated formatting/error helpers across the api modules, the `catalogApi.ts` type shims.
+
+## 8. Improve next
 
 **Tier 2 (after launch stabilises)** — coupons UI (backend ready), promotions engine (table is decorative — needs a pricing function), storefront collections, in-app customer notifications UI, order returns UI, variant-aware checkout.
 

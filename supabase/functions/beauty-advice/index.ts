@@ -24,7 +24,7 @@ Deno.serve(async (request) => {
     if ((count ?? 0) >= 12) return json({ error: "تم الوصول للحد المؤقت للمساعد. حاولي بعد ساعة." }, 429);
     await service.from("ai_request_limits").insert({ customer_id: user.id });
 
-    const { data: catalog } = await service.from("products").select("name_ar,brand,price,category,stock").gt("stock", 0).order("created_at", { ascending: false }).limit(80);
+    const { data: catalog } = await service.from("products").select("name_ar,brand,price,category,stock").eq("is_active", true).gt("stock", 0).order("created_at", { ascending: false }).limit(80);
     const key = Deno.env.get("GEMINI_API_KEY");
     if (!key) return json({ error: "خدمة المساعد لم تُهيأ بعد." }, 503);
 
