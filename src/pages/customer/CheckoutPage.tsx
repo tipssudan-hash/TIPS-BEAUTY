@@ -95,7 +95,7 @@ export const CheckoutPage: React.FC = () => {
     const shipping = selectedZone?.fee ?? 0;
     const total = subtotal + shipping;
 
-    if (cartCount === 0) return <Navigate to="/cart" replace />;
+    if (cartCount === 0 && !submitting) return <Navigate to="/cart" replace />;
 
     const handleProofChange = (file: File | null) => {
         setProofError(null);
@@ -143,13 +143,12 @@ export const CheckoutPage: React.FC = () => {
                 }
             }
 
-            clearCart();
             sessionStorage.removeItem(IDEMPOTENCY_KEY);
-            navigate(`/orders/${result.orderId}`, { state: { justOrdered: true, orderNumber: result.orderNumber, proofWarning } });
+            navigate(`/orders/${result.orderId}`, { state: { justOrdered: true, orderNumber: result.orderNumber, proofWarning }, replace: true });
+            clearCart();
         } catch (err) {
             console.error(err);
             setSubmitError(errorMessage(err, 'فشل إنشاء الطلب، حاولي مرة أخرى.'));
-        } finally {
             setSubmitting(false);
         }
     };
@@ -168,36 +167,36 @@ export const CheckoutPage: React.FC = () => {
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
                         <h2 className="font-bold border-b border-gray-50 pb-2">بيانات التوصيل</h2>
-                        <div>
-                            <label className="text-sm font-bold text-gray-700 block mb-1">الاسم بالكامل</label>
+                        <label className="block">
+                            <span className="text-sm font-bold text-gray-700 block mb-1">الاسم بالكامل</span>
                             <input required minLength={2} value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className={inputClass} />
-                        </div>
-                        <div>
-                            <label className="text-sm font-bold text-gray-700 block mb-1">رقم الهاتف</label>
+                        </label>
+                        <label className="block">
+                            <span className="text-sm font-bold text-gray-700 block mb-1">رقم الهاتف</span>
                             <input required minLength={5} type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className={inputClass} />
-                        </div>
+                        </label>
                         <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="text-sm font-bold text-gray-700 block mb-1">الولاية</label>
+                            <label className="block">
+                                <span className="text-sm font-bold text-gray-700 block mb-1">الولاية</span>
                                 <select required value={formData.state} onChange={e => setFormData({ ...formData, state: e.target.value, zoneId: '' })} className={inputClass} disabled={loadingOptions}>
                                     {states.map(s => <option key={s} value={s}>{s}</option>)}
                                 </select>
-                            </div>
-                            <div>
-                                <label className="text-sm font-bold text-gray-700 block mb-1">المنطقة</label>
+                            </label>
+                            <label className="block">
+                                <span className="text-sm font-bold text-gray-700 block mb-1">المنطقة</span>
                                 <select required value={formData.zoneId} onChange={e => setFormData({ ...formData, zoneId: e.target.value })} className={inputClass} disabled={loadingOptions}>
                                     {stateZones.map(z => <option key={z.id} value={z.id}>{zoneLabel(z)} — {formatSDG(z.fee)}</option>)}
                                 </select>
-                            </div>
+                            </label>
                         </div>
-                        <div>
-                            <label className="text-sm font-bold text-gray-700 block mb-1">العنوان بالتفصيل</label>
+                        <label className="block">
+                            <span className="text-sm font-bold text-gray-700 block mb-1">العنوان بالتفصيل</span>
                             <textarea required minLength={5} value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} className={inputClass} rows={3} />
-                        </div>
+                        </label>
                     </div>
 
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-                        <h2 className="font-bold border-b border-gray-50 pb-2">طريقة الدفع</h2>
+                    <fieldset className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+                        <legend className="font-bold border-b border-gray-50 pb-2 w-full">طريقة الدفع</legend>
                         <div className="space-y-3">
                             {loadingOptions && <p className="text-sm text-gray-500">جاري تحميل طرق الدفع...</p>}
                             {methods.map((pm) => {
@@ -234,19 +233,19 @@ export const CheckoutPage: React.FC = () => {
 
                         {selectedMethod?.requiresProof && (
                             <div className="space-y-3 pt-2 border-t border-gray-50">
-                                <div>
-                                    <label className="text-sm font-bold text-gray-700 block mb-1">رقم العملية</label>
+                                <label className="block">
+                                    <span className="text-sm font-bold text-gray-700 block mb-1">رقم العملية</span>
                                     <input required value={formData.reference} onChange={e => setFormData({ ...formData, reference: e.target.value })} className={inputClass} placeholder="رقم عملية التحويل" />
-                                </div>
-                                <div>
-                                    <label className="text-sm font-bold text-gray-700 block mb-1">صورة الإيصال (حتى 5 ميجابايت)</label>
+                                </label>
+                                <label className="block">
+                                    <span className="text-sm font-bold text-gray-700 block mb-1">صورة الإيصال (حتى 5 ميجابايت)</span>
                                     <input required type="file" accept="image/*" onChange={e => handleProofChange(e.target.files?.[0] ?? null)} className="w-full text-sm text-gray-600 file:ml-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-brand-blue-soft file:text-brand-blue file:font-bold" />
                                     {proofError && <p className="text-xs text-red-600 mt-1">{proofError}</p>}
                                     {proofFile && !proofError && <p className="text-xs text-green-600 mt-1">تم اختيار: {proofFile.name}</p>}
-                                </div>
+                                </label>
                             </div>
                         )}
-                    </div>
+                    </fieldset>
 
                     {submitError && (
                         <div className="bg-red-50 border border-red-100 text-red-700 rounded-xl p-4 text-sm">{submitError}</div>
