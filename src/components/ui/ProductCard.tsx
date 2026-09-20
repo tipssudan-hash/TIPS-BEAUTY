@@ -42,14 +42,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, isInWishlist,
                     type="button"
                     aria-label={isInWishlist ? 'إزالة من المفضلة' : 'إضافة للمفضلة'}
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleWishlist(product.id); }}
-                    className="bg-white/90 p-1.5 rounded-full shadow-sm text-brand-blue hover:scale-110 transition-transform"
+                    className="bg-white/90 min-w-11 min-h-11 flex items-center justify-center rounded-full shadow-sm text-brand-blue hover:scale-110 transition-transform"
                 >
                     <Heart className={clsx('w-4 h-4', isInWishlist && 'fill-current')} />
                 </button>
             </div>
 
             <div className="absolute top-2 right-2 z-10 flex flex-col gap-2">
-                <button type="button" aria-label="مشاركة" onClick={share} className="bg-white/90 p-1.5 rounded-full shadow-sm text-gray-600 hover:text-blue-500 hover:scale-110 transition-transform">
+                <button type="button" aria-label="مشاركة" onClick={share} className="bg-white/90 min-w-11 min-h-11 flex items-center justify-center rounded-full shadow-sm text-gray-600 hover:text-blue-500 hover:scale-110 transition-transform">
                     <Share2 className="w-4 h-4" />
                 </button>
             </div>
