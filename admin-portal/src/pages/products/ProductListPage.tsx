@@ -7,7 +7,6 @@ import { errorMessage } from '../../lib/errors';
 import { formatSDG } from '../../lib/format';
 import { Card, Notice, PageHeader, Spinner, Table, StatusPill, primaryButtonClass, smallButtonClass } from '../../components/ui';
 
-
 export const ProductListPage: React.FC = () => {
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);

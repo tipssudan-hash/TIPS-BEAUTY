@@ -15,16 +15,13 @@ const backendMessages: [RegExp, string][] = [
 
 export function errorMessage(error: unknown, fallback = 'حدث خطأ غير متوقع، حاولي مرة أخرى.'): string {
     if (error && typeof error === 'object' && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
-        return translateBackendError((error as { message: string }).message) ?? fallback;
+        const message = (error as { message: string }).message;
+        for (const [pattern, text] of backendMessages) {
+            if (pattern.test(message)) return text;
+        }
+        return /[؀-ۿ]/.test(message) ? message : fallback;
     }
     return fallback;
-}
-
-function translateBackendError(message: string): string | null {
-    for (const [pattern, text] of backendMessages) {
-        if (pattern.test(message)) return text;
-    }
-    return /[؀-ۿ]/.test(message) ? message : null;
 }
 
 export function loginErrorMessage(message: string): string {

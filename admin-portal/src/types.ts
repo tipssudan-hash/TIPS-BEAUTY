@@ -1,10 +1,10 @@
-export interface ProductVariant {
+export type ProductVariant = {
     id?: string;
     name_ar: string;
     name_en?: string;
     sku?: string;
     priceOverride?: number;
-}
+};
 
 export interface Product {
     id: string;

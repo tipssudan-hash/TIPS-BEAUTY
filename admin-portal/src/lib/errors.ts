@@ -21,7 +21,7 @@ const backendMessages: [RegExp, string][] = [
     [/row-level security/i, 'ليس لديك صلاحية لتنفيذ هذا الإجراء.'],
 ];
 
-export function errorMessage(error: unknown, fallback = 'حدث خطأ غير متوقع، حاول مرة أخرى.'): string {
+export function errorMessage(error: unknown, fallback = 'حدث خطأ غير متوقع، حاولي مرة أخرى.'): string {
     if (error && typeof error === 'object' && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
         const message = (error as { message: string }).message;
         for (const [pattern, text] of backendMessages) {

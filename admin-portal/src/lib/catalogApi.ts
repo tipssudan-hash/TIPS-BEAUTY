@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import type { Json } from './database.types';
 import type { AdminReview, Banner, DeliveryZone, Driver, InventoryRow, Product, ProductInput, Warehouse } from '../types';
 
 // Admin data access for catalogue, logistics and settings over the generated database types.
@@ -74,8 +73,7 @@ function toRow(input: ProductInput) {
         expiry: input.expiry,
         is_imported: input.is_imported,
         skin_type: input.skin_type,
-        // Variants are stored as jsonb; the generated Json type has no room for a named interface.
-        variants: input.variants as unknown as Json,
+        variants: input.variants,
         is_active: input.is_active,
     };
 }
