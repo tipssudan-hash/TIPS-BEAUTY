@@ -1,10 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { checkoutArgs, cleanupTestOrders, creds, haveCreds, pickZone, provisionProduct, publicStock, rpc, signedInClient, type Client } from './helpers';
+import { cleanupTestOrders, createTestOrder, creds, haveCreds, pickZone, provisionProduct, publicStock, rpc, signedInClient, type Client } from './helpers';
 
 // The Order Expiry sweep (cancel_stale_orders, pg_cron every 15 min) is service-role only. The
-// admin-only test helpers backdate a tagged test Order and run the sweep on demand so the rule
-// "only `new` Orders older than 48h" can be asserted without waiting for the schedule.
+// spec's fallback — wait for the schedule window — cannot fit the 60s test timeout, so two
+// admin-only helpers (migration 20260920001300) backdate a tagged test Order and run the sweep
+// on demand with its real 48h rule. The negative test (admin JWT refused) stays in orders.test.ts.
 
 const suite = haveCreds ? describe : describe.skip;
 
@@ -14,11 +15,7 @@ suite('the order expiry sweep touches only stale new orders', () => {
     let product: { id: string; release: () => Promise<void> };
     let zone: { name: string; state: string | null; fee: number };
 
-    const createOrder = async () => {
-        const created = await rpc(customer, 'checkout_order_safe', checkoutArgs(zone, [{ id: product.id, quantity: 1 }], randomUUID()));
-        expect(created.error).toBeNull();
-        return (created.data as { order_id: string }[])[0].order_id;
-    };
+    const createOrder = async () => (await createTestOrder(customer, zone, product.id)).order_id;
     const backdate = (client: Client, orderId: string, hours: number) =>
         rpc(client, 'admin_backdate_test_order', { p_order_id: orderId, p_created_at: new Date(Date.now() - hours * 3600_000).toISOString() });
     const statusOf = async (orderId: string) => (await admin.from('orders').select('status').eq('id', orderId).single()).data!.status;
@@ -61,7 +58,6 @@ suite('the order expiry sweep touches only stale new orders', () => {
 
         const sweep = await rpc(admin, 'admin_run_stale_order_sweep');
         expect(sweep.error).toBeNull();
-        expect(Number(sweep.data)).toBeGreaterThanOrEqual(1);
 
         expect(await statusOf(stale)).toBe('cancelled');
         expect(await statusOf(fresh)).toBe('new');

@@ -2,7 +2,11 @@
 -- cancel_stale_orders is service_role only, so the Vitest suite cannot drive it. These two
 -- helpers keep that lockdown while letting an admin (a) backdate a tagged test Order — never a
 -- real one — and (b) run the sweep with its default 48h rule ahead of the pg_cron schedule,
--- which is the same action the schedule performs every 15 minutes.
+-- which is the same action the schedule performs every 15 minutes. The spec's alternative
+-- (wait for the schedule window inside the test) was rejected: the cron interval is far longer
+-- than the suite's 60s timeout, and a sweep an admin can only run with the default rule adds no
+-- power an admin does not already have (cancelling `new` Orders one by one).
+-- 'TEST-AUTOMATED' mirrors TEST_TAG in tests/backend/helpers.ts.
 
 CREATE OR REPLACE FUNCTION public.admin_backdate_test_order(p_order_id uuid, p_created_at timestamp with time zone) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER

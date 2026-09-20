@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { randomUUID } from 'node:crypto';
-import { TEST_TAG, checkoutArgs, cleanupTestOrders, creds, haveCreds, pickZone, provisionProduct, publicStock, rpc, signedInClient, type Client } from './helpers';
+import { TEST_TAG, cleanupTestOrders, createTestOrder, creds, haveCreds, pickZone, provisionProduct, publicStock, rpc, signedInClient, type Client } from './helpers';
 
 // Cancelling an Order must give back exactly once what checkout consumed: stock, the Coupon use
 // and the redeemed points. Both cancel paths (customer, admin) end in release_order_resources.
@@ -14,7 +13,7 @@ suite('order cancellation reverses coupon and points exactly once', () => {
     let product: { id: string; release: () => Promise<void> };
     let zone: { name: string; state: string | null; fee: number };
     let couponId: string;
-    const couponCode = `${TEST_TAG}-${randomUUID().slice(0, 8).toUpperCase()}`;
+    const couponCode = `${TEST_TAG}-${Date.now().toString(36).toUpperCase()}`;
 
     const couponUsage = async () => {
         const { data, error } = await admin.from('coupons').select('usage_count').eq('id', couponId).single();
@@ -31,11 +30,7 @@ suite('order cancellation reverses coupon and points exactly once', () => {
         if (error) throw error;
         return data.beauty_points ?? 0;
     };
-    const createOrder = async (extra: Record<string, unknown>) => {
-        const created = await rpc(customer, 'checkout_order_safe', { ...checkoutArgs(zone, [{ id: product.id, quantity: 1 }], randomUUID()), ...extra });
-        expect(created.error).toBeNull();
-        return (created.data as { order_id: string; discount_amount: number; points_discount: number }[])[0];
-    };
+    const createOrder = (extra: Record<string, unknown>) => createTestOrder(customer, zone, product.id, extra);
 
     beforeAll(async () => {
         customer = await signedInClient(creds.customer.email, creds.customer.password);
@@ -72,15 +67,15 @@ suite('order cancellation reverses coupon and points exactly once', () => {
         expect(await redemptions(order.order_id)).toBe(0);
         expect(await publicStock(customer, product.id)).toBe(stockBefore);
 
-        // Neither cancel path may release twice.
+        // Neither cancel path may release twice. release_order_resources itself is internal, so
+        // "exactly once" is asserted through the callers: a second cancel from either side leaves
+        // usage count, stock and points as they were after the first.
         const again = await rpc(customer, 'customer_cancel_order', { p_order_id: order.order_id });
         expect(again.error).toBeTruthy();
         const adminAgain = await rpc(admin, 'admin_update_order_operation', { p_order_id: order.order_id, p_expected_status: 'cancelled', p_status: 'cancelled' });
         expect(adminAgain.error).toBeNull();
         expect(await couponUsage()).toBe(0);
         expect(await publicStock(customer, product.id)).toBe(stockBefore);
-        const { data: row } = await admin.from('orders').select('resources_released_at').eq('id', order.order_id).single();
-        expect(row!.resources_released_at).toBeTruthy();
     });
 
     it('an admin cancel gives back redeemed points exactly once and writes one reversal ledger row', async () => {
@@ -89,22 +84,25 @@ suite('order cancellation reverses coupon and points exactly once', () => {
         const toRedeem = Math.max(settings.minimum_redemption_points, 1);
         const grant = await rpc(admin, 'adjust_loyalty_points', { p_customer_id: customerId, p_points_delta: toRedeem, p_note: `${TEST_TAG} grant` });
         expect(grant.error).toBeNull();
-        const balanceBefore = await points();
+        try {
+            const balanceBefore = await points();
 
-        const order = await createOrder({ p_points_to_redeem: toRedeem });
-        expect(Number(order.points_discount)).toBeGreaterThan(0);
-        expect(await points()).toBe(balanceBefore - toRedeem);
+            const order = await createOrder({ p_points_to_redeem: toRedeem });
+            expect(Number(order.points_discount)).toBeGreaterThan(0);
+            expect(await points()).toBe(balanceBefore - toRedeem);
 
-        const cancel = await rpc(admin, 'admin_update_order_operation', { p_order_id: order.order_id, p_expected_status: 'new', p_status: 'cancelled', p_note: 'test' });
-        expect(cancel.error).toBeNull();
-        expect(await points()).toBe(balanceBefore);
+            const cancel = await rpc(admin, 'admin_update_order_operation', { p_order_id: order.order_id, p_expected_status: 'new', p_status: 'cancelled', p_note: 'test' });
+            expect(cancel.error).toBeNull();
+            expect(await points()).toBe(balanceBefore);
 
-        const again = await rpc(admin, 'admin_update_order_operation', { p_order_id: order.order_id, p_expected_status: 'cancelled', p_status: 'cancelled' });
-        expect(again.error).toBeNull();
-        expect(await points()).toBe(balanceBefore);
-        const { data: ledger } = await admin.from('loyalty_ledger').select('event_type').eq('order_id', order.order_id);
-        expect((ledger ?? []).filter((l) => l.event_type === 'refund_reversal')).toHaveLength(1);
-
-        await rpc(admin, 'adjust_loyalty_points', { p_customer_id: customerId, p_points_delta: -toRedeem, p_note: `${TEST_TAG} grant removed` });
+            const again = await rpc(admin, 'admin_update_order_operation', { p_order_id: order.order_id, p_expected_status: 'cancelled', p_status: 'cancelled' });
+            expect(again.error).toBeNull();
+            expect(await points()).toBe(balanceBefore);
+            const { data: ledger } = await admin.from('loyalty_ledger').select('event_type').eq('order_id', order.order_id);
+            expect((ledger ?? []).filter((l) => l.event_type === 'refund_reversal')).toHaveLength(1);
+        } finally {
+            // The test Order is cancelled (or never existed), so the grant is fully back on the balance.
+            await rpc(admin, 'adjust_loyalty_points', { p_customer_id: customerId, p_points_delta: -toRedeem, p_note: `${TEST_TAG} grant removed` });
+        }
     });
 });

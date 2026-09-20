@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { config } from 'dotenv';
+import { randomUUID } from 'node:crypto';
 import type { Database } from '../../src/lib/database.types';
 
 config({ path: '.env' });
@@ -79,6 +80,13 @@ export function checkoutArgs(zone: { name: string; state: string | null }, items
         p_items: items,
         p_idempotency_key: key,
     };
+}
+
+// One-line COD order for the provisioned product; `extra` overrides checkout args (coupon, points...).
+export async function createTestOrder(customer: Client, zone: { name: string; state: string | null }, productId: string, extra: Record<string, unknown> = {}) {
+    const created = await rpc(customer, 'checkout_order_safe', { ...checkoutArgs(zone, [{ id: productId, quantity: 1 }], randomUUID()), ...extra });
+    if (created.error) throw created.error;
+    return (created.data as { order_id: string; discount_amount: number; points_discount: number }[])[0];
 }
 
 export async function cleanupTestOrders(admin: Client) {
