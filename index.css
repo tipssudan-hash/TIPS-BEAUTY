@@ -22,10 +22,6 @@
         padding-left: var(--safe-left);
         padding-right: var(--safe-right);
     }
-
-    .font-serif {
-        font-family: 'Playfair Display', serif;
-    }
 }
 
 @layer utilities {
@@ -51,4 +47,30 @@
 ::-webkit-scrollbar-thumb {
     background: #005696;
     border-radius: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    html {
+        scroll-behavior: auto !important;
+    }
+
+    /* Decorative entrance/attention motion: safe to remove entirely. */
+    .animate-fadeIn,
+    .animate-bounce,
+    .animate-in {
+        animation: none !important;
+    }
+
+    /* Interaction-triggered scale/transform feedback: keep the state change, drop the motion. */
+
+    [class*="hover:scale"]:hover,
+    [class*="active:scale"]:active,
+    [class*="group-hover:scale"] {
+        transform: none !important;
+    }
+
+    /* animate-spin / animate-pulse are intentionally left untouched: for several buttons in this
+       app they are the ONLY loading indicator once the button's label is swapped out, so removing
+       them would leave the user with no feedback that anything is happening. */
 }

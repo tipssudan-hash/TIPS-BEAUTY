@@ -30,3 +30,6 @@ supabase/.temp/
 *.njsproj
 *.sln
 *.sw?
+
+# design-tool session cache (absolute local paths)
+.impeccable/hook.cache.json

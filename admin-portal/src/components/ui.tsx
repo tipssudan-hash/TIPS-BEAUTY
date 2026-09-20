@@ -29,20 +29,32 @@ export const Spinner: React.FC<{ label?: string }> = ({ label = 'جاري الت
     </div>
 );
 
-export const Field: React.FC<{ label: string; required?: boolean; hint?: string; children: React.ReactNode; className?: string }> = ({ label, required, hint, children, className = '' }) => (
-    <div className={`space-y-2 ${className}`}>
-        <label className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-1">
-            {label}{required && <span className="text-brand-blue">*</span>}
-        </label>
-        {children}
-        {hint && <p className="text-[10px] text-slate-400 font-medium">{hint}</p>}
-    </div>
-);
+const NATIVE_CONTROL_TAGS = ['input', 'select', 'textarea'];
+
+export const Field: React.FC<{ label: string; required?: boolean; hint?: string; children: React.ReactNode; className?: string }> = ({ label, required, hint, children, className = '' }) => {
+    const id = React.useId();
+    const labelId = `${id}-label`;
+    const isSingleControl = React.isValidElement(children) && typeof children.type === 'string' && NATIVE_CONTROL_TAGS.includes(children.type);
+    const control = isSingleControl ? (children as React.ReactElement<{ id?: string }>) : null;
+    const controlId = control?.props.id ?? id;
+    const labelClasses = 'text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-1';
+    const labelContent = <>{label}{required && <span className="text-brand-blue">*</span>}</>;
+
+    return (
+        <div className={`space-y-2 ${className}`} {...(!isSingleControl && { role: 'group', 'aria-labelledby': labelId })}>
+            {isSingleControl
+                ? <label htmlFor={controlId} className={labelClasses}>{labelContent}</label>
+                : <span id={labelId} className={labelClasses}>{labelContent}</span>}
+            {control ? React.cloneElement(control, { id: controlId }) : children}
+            {hint && <p className="text-[10px] text-slate-400 font-medium">{hint}</p>}
+        </div>
+    );
+};
 
 export const inputClass = 'w-full p-3.5 bg-slate-50 rounded-2xl border border-slate-100 focus:ring-2 focus:ring-brand-blue outline-none font-bold text-slate-800 transition-all placeholder:text-slate-300 disabled:opacity-60';
 export const primaryButtonClass = 'bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-slate-900/10 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed';
 export const secondaryButtonClass = 'bg-white border border-slate-200 text-slate-600 px-5 py-3 rounded-2xl font-bold hover:bg-slate-50 transition-all disabled:opacity-50';
-export const smallButtonClass = 'px-3 py-1.5 rounded-xl text-xs font-black transition-all disabled:opacity-50';
+export const smallButtonClass = 'px-3 py-2.5 rounded-xl text-xs font-black transition-all disabled:opacity-50';
 
 export const Table: React.FC<{ headers: string[]; children: React.ReactNode; empty?: boolean; emptyText?: string }> = ({ headers, children, empty, emptyText = 'لا توجد بيانات بعد' }) => (
     <div className="overflow-x-auto">

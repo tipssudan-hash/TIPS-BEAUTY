@@ -205,7 +205,7 @@ export const ProductFormPage: React.FC = () => {
 
                 <Card className="p-8 space-y-6">
                     <div className="flex items-center justify-between flex-wrap gap-4">
-                        <h3 className="text-lg font-black text-slate-900 flex items-center gap-2"><ImageIcon className="w-5 h-5 text-indigo-500" /> الصور</h3>
+                        <h3 className="text-lg font-black text-slate-900 flex items-center gap-2"><ImageIcon className="w-5 h-5 text-brand-blue" /> الصور</h3>
                         <div className="flex items-center gap-2">
                             <input ref={fileInput} type="file" accept="image/*" multiple className="hidden" onChange={(e) => void onFiles(e.target.files)} />
                             <button type="button" disabled={uploading} onClick={() => fileInput.current?.click()} className={`${secondaryButtonClass} flex items-center gap-2 text-sm`}>
@@ -220,7 +220,7 @@ export const ProductFormPage: React.FC = () => {
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                         {form.images.map((url, idx) => (
                             <div key={`${url}-${idx}`} className="relative aspect-square rounded-2xl overflow-hidden bg-slate-50 border border-slate-100 group">
-                                <img src={url} alt="" className="w-full h-full object-cover" />
+                                <img src={url} alt={`${form.name_ar || 'المنتج'} - صورة ${idx + 1}`} className="w-full h-full object-cover" />
                                 {form.image === url && <span className="absolute top-2 right-2 px-2 py-0.5 bg-emerald-500 text-white text-[9px] font-black rounded-full">الرئيسية</span>}
                                 <div className="absolute inset-x-0 bottom-0 p-2 flex gap-1 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button type="button" onClick={() => set('image', url)} className="flex-1 py-1 bg-white/90 text-slate-800 rounded-lg text-[10px] font-black flex items-center justify-center gap-1"><Star className="w-3 h-3" /> رئيسية</button>
