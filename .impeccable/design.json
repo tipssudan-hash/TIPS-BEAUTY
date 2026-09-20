@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-20T00:00:00.000Z",
+  "title": "Design System: Tips Beauty",
+  "extensions": {
+    "colorMeta": {
+      "sky-blue": { "role": "primary", "displayName": "Sky Blue", "canonical": "#005696", "tonalRamp": ["#001a2b", "#00304d", "#004770", "#005696", "#0a6fb8", "#3f95d6", "#8ec6ea", "#dcf0fb"] },
+      "sky-blue-soft": { "role": "primary-tint", "displayName": "Sky Blue Soft", "canonical": "#f0f9ff", "tonalRamp": ["#001a2b", "#00304d", "#004770", "#005696", "#0a6fb8", "#3f95d6", "#8ec6ea", "#f0f9ff"] },
+      "palm-green": { "role": "secondary", "displayName": "Palm Green", "canonical": "#22AD52", "tonalRamp": ["#062e14", "#0d4d21", "#15722f", "#22AD52", "#4fc574", "#84d99b", "#b8ecc7", "#e6f9ec"] },
+      "aqua-glow": { "role": "tertiary", "displayName": "Aqua Glow", "canonical": "#00AEEF", "tonalRamp": ["#00303f", "#004f66", "#00728f", "#00AEEF", "#3ec2f5", "#7ad6f8", "#b3e8fb", "#e3f7fd"] },
+      "storefront-surface": { "role": "neutral", "displayName": "Storefront Surface", "canonical": "#f9fafb", "tonalRamp": ["#111827", "#1f2937", "#374151", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb", "#f9fafb"] },
+      "storefront-border": { "role": "neutral", "displayName": "Storefront Border", "canonical": "#e5e7eb", "tonalRamp": ["#111827", "#1f2937", "#374151", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb", "#f9fafb"] },
+      "storefront-ink": { "role": "neutral", "displayName": "Storefront Ink", "canonical": "#1f2937", "tonalRamp": ["#111827", "#1f2937", "#374151", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb", "#f9fafb"] },
+      "admin-surface": { "role": "neutral", "displayName": "Admin Surface", "canonical": "#f8fafc", "tonalRamp": ["#0f172a", "#1e293b", "#334155", "#64748b", "#94a3b8", "#cbd5e1", "#e2e8f0", "#f8fafc"] },
+      "admin-border": { "role": "neutral", "displayName": "Admin Border", "canonical": "#f1f5f9", "tonalRamp": ["#0f172a", "#1e293b", "#334155", "#64748b", "#94a3b8", "#cbd5e1", "#e2e8f0", "#f8fafc"] },
+      "admin-console": { "role": "neutral-dark", "displayName": "Admin Console", "canonical": "#0f172a", "tonalRamp": ["#0f172a", "#1e293b", "#334155", "#64748b", "#94a3b8", "#cbd5e1", "#e2e8f0", "#f8fafc"] },
+      "status-emerald": { "role": "semantic-success", "displayName": "Status Emerald", "canonical": "#059669", "tonalRamp": ["#022c22", "#064e3b", "#065f46", "#059669", "#10b981", "#34d399", "#a7f3d0", "#ecfdf5"] },
+      "status-amber": { "role": "semantic-warning", "displayName": "Status Amber", "canonical": "#d97706", "tonalRamp": ["#451a03", "#78350f", "#92400e", "#d97706", "#f59e0b", "#fbbf24", "#fde68a", "#fffbeb"] },
+      "status-red": { "role": "semantic-error", "displayName": "Status Red", "canonical": "#dc2626", "tonalRamp": ["#450a0a", "#7f1d1d", "#991b1b", "#dc2626", "#ef4444", "#f87171", "#fecaca", "#fef2f2"] }
+    },
+    "typographyMeta": {
+      "storefront-display": { "displayName": "Storefront Display", "purpose": "Hero headline only, e.g. the homepage hero and auth page titles." },
+      "storefront-body": { "displayName": "Storefront Body", "purpose": "Paragraph copy and descriptions across the Storefront." },
+      "storefront-label": { "displayName": "Storefront Label", "purpose": "Small uppercase eyebrow tags, e.g. the brand name on product cards." },
+      "admin-heading": { "displayName": "Admin Heading", "purpose": "Page titles inside the Admin Portal (PageHeader component)." },
+      "admin-body": { "displayName": "Admin Body", "purpose": "Table cells and paragraph text inside the Admin Portal." }
+    },
+    "shadows": [
+      { "name": "resting-card", "value": "0 1px 2px 0 rgb(0 0 0 / 0.05)", "purpose": "Default for every card/container on both surfaces at rest." },
+      { "name": "storefront-glow", "value": "0 10px 15px -3px rgb(0 86 150 / 0.15), 0 4px 6px -4px rgb(0 86 150 / 0.15)", "purpose": "Under the Storefront's primary CTA and the homepage search bar only." },
+      { "name": "admin-glow", "value": "0 10px 15px -3px rgb(15 23 42 / 0.1), 0 4px 6px -4px rgb(15 23 42 / 0.1)", "purpose": "Under the Admin Portal's primary button and the active sidebar item only." }
+    ],
+    "breakpoints": [
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Storefront Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main call-to-action on the Storefront (sign in, add to cart, checkout).",
+      "html": "<button class=\"ds-btn-primary\">تسجيل الدخول</button>",
+      "css": ".ds-btn-primary { background: #005696; color: #fff; font-weight: 700; padding: 14px 24px; border-radius: 12px; border: none; width: 100%; box-shadow: 0 10px 15px -3px rgb(0 86 150 / 0.15), 0 4px 6px -4px rgb(0 86 150 / 0.15); transition: background 0.2s, transform 0.1s; } .ds-btn-primary:hover { background: #1d4ed8; } .ds-btn-primary:focus-visible { outline: 2px solid #005696; outline-offset: 2px; } .ds-btn-primary:active { transform: scale(0.95); } .ds-btn-primary:disabled { opacity: 0.7; cursor: not-allowed; }"
+    },
+    {
+      "name": "Storefront Input",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Text/email/password field used across auth and checkout forms.",
+      "html": "<div class=\"ds-field\"><input class=\"ds-input\" type=\"email\" placeholder=\"البريد الإلكتروني\" /><svg class=\"ds-field-icon\" viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"5\" width=\"18\" height=\"14\" rx=\"2\"/><path d=\"m3 7 9 6 9-6\"/></svg></div>",
+      "css": ".ds-field { position: relative; } .ds-input { width: 100%; padding: 12px 40px 12px 16px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; font-family: Cairo, sans-serif; color: #1f2937; transition: box-shadow 0.2s; } .ds-input::placeholder { color: #9ca3af; } .ds-input:focus { outline: none; box-shadow: 0 0 0 2px #005696; } .ds-field-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #9ca3af; }"
+    },
+    {
+      "name": "Storefront Product Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Signature component: the catalogue grid tile — image, brand label, price, add-to-cart.",
+      "html": "<div class=\"ds-product-card\"><div class=\"ds-product-image\"><span class=\"ds-discount-badge\">خصم 20%</span></div><div class=\"ds-product-body\"><p class=\"ds-product-brand\">MAYBELLINE</p><h3 class=\"ds-product-name\">أحمر شفاه مطفي</h3><p class=\"ds-product-price\">12,000 ج.س</p><button class=\"ds-product-cta\">أضيفي للسلة</button></div></div>",
+      "css": ".ds-product-card { background: #fff; border-radius: 16px; border: 1px solid #f0f9ff; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); overflow: hidden; font-family: Cairo, sans-serif; transition: transform 0.1s; max-width: 220px; } .ds-product-card:active { transform: scale(0.95); } .ds-product-image { position: relative; aspect-ratio: 4 / 5; background: #f9fafb; } .ds-discount-badge { position: absolute; bottom: 8px; right: 8px; background: #ef4444; color: #fff; font-size: 10px; font-weight: 900; padding: 2px 8px; border-radius: 9999px; } .ds-product-body { padding: 12px; } .ds-product-brand { font-size: 10px; font-weight: 700; color: #005696; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 2px; } .ds-product-name { font-size: 12px; font-weight: 700; color: #1f2937; margin: 0 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-product-price { font-size: 14px; font-weight: 900; color: #005696; margin: 0 0 12px; } .ds-product-cta { width: 100%; padding: 8px; border-radius: 12px; background: #005696; color: #fff; font-size: 10px; font-weight: 700; border: none; box-shadow: 0 4px 6px -4px rgb(0 86 150 / 0.15); }"
+    },
+    {
+      "name": "Admin Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary-admin",
+      "description": "Main action button inside the Admin Portal (save, confirm, create).",
+      "html": "<button class=\"ds-admin-btn-primary\">حفظ التغييرات</button>",
+      "css": ".ds-admin-btn-primary { background: #0f172a; color: #fff; font-weight: 900; padding: 12px 24px; border-radius: 16px; border: none; box-shadow: 0 10px 15px -3px rgb(15 23 42 / 0.1), 0 4px 6px -4px rgb(15 23 42 / 0.1); transition: background 0.2s, transform 0.1s; } .ds-admin-btn-primary:hover { background: #1e293b; } .ds-admin-btn-primary:focus-visible { outline: 2px solid #005696; outline-offset: 2px; } .ds-admin-btn-primary:active { transform: scale(0.95); } .ds-admin-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }"
+    },
+    {
+      "name": "Admin Card",
+      "kind": "card",
+      "refersTo": "card-admin",
+      "description": "Generic content container used for every panel/table wrapper in the Admin Portal.",
+      "html": "<div class=\"ds-admin-card\"><p>محتوى اللوحة</p></div>",
+      "css": ".ds-admin-card { background: #fff; border-radius: 24px; border: 1px solid #f1f5f9; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); font-family: Inter, system-ui, sans-serif; padding: 24px; }"
+    },
+    {
+      "name": "Admin Sidebar Nav Item",
+      "kind": "nav",
+      "refersTo": "admin-nav-item",
+      "description": "Signature component: sidebar navigation link, default and active states.",
+      "html": "<a class=\"ds-nav-item ds-nav-item--active\" href=\"#\"><svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"3\" width=\"7\" height=\"9\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"5\"/><rect x=\"14\" y=\"12\" width=\"7\" height=\"9\"/><rect x=\"3\" y=\"16\" width=\"7\" height=\"5\"/></svg><span>لوحة التحكم</span></a>",
+      "css": ".ds-nav-item { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 12px; color: #94a3b8; font-weight: 600; font-size: 14px; text-decoration: none; font-family: Inter, system-ui, sans-serif; transition: all 0.2s; } .ds-nav-item:hover { background: #1e293b; color: #f1f5f9; } .ds-nav-item--active { background: #005696; color: #fff; box-shadow: 0 10px 15px -3px rgb(0 86 150 / 0.2), 0 4px 6px -4px rgb(0 86 150 / 0.2); }"
+    },
+    {
+      "name": "Admin Status Pill",
+      "kind": "chip",
+      "refersTo": "status-pill",
+      "description": "Signature component: at-a-glance active/inactive indicator for drivers, products, banners.",
+      "html": "<span class=\"ds-status-pill ds-status-pill--active\">نشط</span>",
+      "css": ".ds-status-pill { display: inline-block; padding: 4px 10px; border-radius: 9999px; font-size: 10px; font-weight: 900; font-family: Inter, system-ui, sans-serif; } .ds-status-pill--active { background: #ecfdf5; color: #059669; } .ds-status-pill--inactive { background: #f1f5f9; color: #64748b; }"
+    },
+    {
+      "name": "Admin Notice",
+      "kind": "custom",
+      "refersTo": "notice",
+      "description": "Inline success/error banner used across Admin forms.",
+      "html": "<div class=\"ds-notice ds-notice--error\"><svg viewBox=\"0 0 24 24\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"16\" x2=\"12.01\" y2=\"16\"/></svg><span>تعذر حفظ البيانات</span></div>",
+      "css": ".ds-notice { display: flex; align-items: center; gap: 8px; padding: 16px; border-radius: 16px; font-size: 14px; font-weight: 700; font-family: Inter, system-ui, sans-serif; border: 1px solid; } .ds-notice--error { background: #fef2f2; color: #dc2626; border-color: #fee2e2; } .ds-notice--success { background: #ecfdf5; color: #047857; border-color: #d1fae5; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Clear Sky Counter",
+    "overview": "Tips Beauty's Storefront is a bright, approachable beauty counter lit by open sky-blue light: generously rounded white cards, soft colored-glow shadows, and Arabic type (Cairo) carrying most of the personality since imagery is still thin. It is warm and optimistic, never clinical or minimal-for-its-own-sake — decorative blurred color circles and a blue-to-teal hero gradient signal \"beauty retail,\" not \"SaaS dashboard.\"\n\nThe Admin Portal is a deliberately separate identity: \"The Confident Dark Console.\" Where the Storefront invites, the Admin Portal commands — a near-black slate-900 sidebar, heavyweight font-black labels, and a near-black (not sky-blue) primary button say \"this is a work tool, not the shop.\" The two surfaces share the same brand color primitives (sky blue, palm green, aqua glow) and the same generous-radius, soft-shadow language, but never share type family, base neutral (warm gray vs. cool slate), or which color leads a primary action. This split is intentional, confirmed with the product owner — do not unify them.",
+    "keyCharacteristics": [
+      "Two surfaces, one palette: sky blue / palm green / aqua glow recur everywhere; only their role changes per surface.",
+      "Generously rounded throughout (12–24px); nothing in either surface uses a sharp corner.",
+      "Flat by default; a soft, color-tinted shadow \"glow\" appears only under primary actions and active nav states, never on resting cards.",
+      "RTL Arabic is the default reading direction on both surfaces; layouts must be built RTL-first, not mirrored after the fact."
+    ],
+    "rules": [
+      { "name": "The One Voice Rule", "body": "On the Storefront, sky blue is the only color allowed to say \"act here\" (buttons, active states, focus rings). Green and cyan are never used for calls to action — reserve them for their single existing roles (badge count, decoration) so they stay legible when they do appear.", "section": "colors" },
+      { "name": "The Console Contrast Rule", "body": "The Admin Portal's primary button is never sky-blue — it is near-black (admin-console). Sky blue in the Admin Portal is reserved for the active sidebar item and focus rings only, so the one primary action per screen stays visually unambiguous against a UI that otherwise uses blue for navigation state.", "section": "colors" },
+      { "name": "The Weight-Over-Ornament Rule", "body": "The Admin Portal never reaches for a second typeface or color to create hierarchy — it reaches for weight. font-black marks anything structurally important (headings, labels, table headers); everything else stays regular weight.", "section": "typography" },
+      { "name": "The Tinted-Glow Rule", "body": "A shadow is only ever colored when it sits under the one primary action on screen, and the tint always matches that element's own fill color (blue glow under a blue button, dark glow under a dark button). Every other surface — cards, inputs, secondary buttons — stays a neutral, near-invisible shadow-sm.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep Sky Blue as the only \"act here\" color on the Storefront, and Admin Console (near-black) as the only \"act here\" color in the Admin Portal — see The Console Contrast Rule.",
+      "Do scale radius with element size (12px small elements → 16–24px cards → full pills); never introduce a sharp (0px) corner on either surface.",
+      "Do keep resting cards at shadow-sm only; reserve the tinted glow shadow for the single primary action per screen.",
+      "Do build every new screen RTL-first (dir=\"rtl\"); Arabic copy and icon placement are the default, not a mirrored afterthought.",
+      "Do use the documented Semantic Status palette (emerald/amber/red, -50 bg + -600/-700 text) for any new status pill or KPI card in the Admin Portal, rather than inventing a new hue."
+    ],
+    "donts": [
+      "Don't give the Admin Portal a sky-blue primary button — that would collapse the intentional Storefront/Admin distinction (see Admin identity, confirmed with the product owner).",
+      "Don't use Palm Green or Aqua Glow as a call-to-action fill — Green is reserved for the cart badge/success accent, Aqua is decorative-only.",
+      "Don't add a new shadow color that isn't a tint of the element's own fill; ambient/neutral shadows on non-primary elements break the Tinted-Glow Rule.",
+      "Don't reach for indigo, violet, or any hue outside the documented brand + Semantic Status palettes — it reads as an off-system accident, not a deliberate choice."
+    ]
+  }
+}

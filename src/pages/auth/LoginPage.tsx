@@ -55,8 +55,8 @@ export const LoginPage: React.FC = () => {
                             </div>
                         )}
 
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-gray-700">البريد الإلكتروني</label>
+                        <label className="space-y-2 block">
+                            <span className="text-sm font-bold text-gray-700">البريد الإلكتروني</span>
                             <div className="relative">
                                 <input
                                     type="email"
@@ -67,10 +67,10 @@ export const LoginPage: React.FC = () => {
                                 />
                                 <Mail className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             </div>
-                        </div>
+                        </label>
 
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-gray-700">كلمة المرور</label>
+                        <label className="space-y-2 block">
+                            <span className="text-sm font-bold text-gray-700">كلمة المرور</span>
                             <div className="relative">
                                 <input
                                     type="password"
@@ -81,7 +81,7 @@ export const LoginPage: React.FC = () => {
                                 />
                                 <Lock className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             </div>
-                        </div>
+                        </label>
 
                         <button
                             type="submit"

@@ -31,7 +31,7 @@ export const AdminLayout: React.FC = () => {
         { path: '/products', icon: Package, label: 'المنتجات', badge: null },
         { path: '/inventory', icon: Boxes, label: 'المخزون', badge: null },
         { path: '/warehouses', icon: Warehouse, label: 'المخازن', badge: null },
-        { path: '/delivery-zones', icon: MapPin, label: 'مناطق التوصيل', badge: null },
+        { path: '/delivery-zones', icon: MapPin, label: 'محليات التوصيل', badge: null },
         { path: '/drivers', icon: Truck, label: 'المندوبون', badge: null },
         { path: '/banners', icon: Image, label: 'البانرات', badge: null },
         { path: '/collections', icon: Layers, label: 'المجموعات', badge: null },

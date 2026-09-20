@@ -131,7 +131,7 @@ export const OrderListPage: React.FC = () => {
                                             <Link to={`/orders/${order.id}`} className="flex items-center gap-3 group">
                                                 <span className="relative w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600">
                                                     <ShoppingBag className="w-4 h-4" />
-                                                    {unseen && <span aria-label="طلب غير مقروء" className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-brand-blue ring-2 ring-white" />}
+                                                    {unseen && <span aria-label="طلب لم يُطّلع عليه" className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-brand-blue ring-2 ring-white" />}
                                                 </span>
                                                 <span>
                                                     <p className="font-bold text-slate-900 text-sm group-hover:text-brand-blue">{order.order_number ?? order.id.slice(0, 8)}</p>

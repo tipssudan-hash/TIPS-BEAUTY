@@ -19,7 +19,6 @@ export default {
             },
             fontFamily: {
                 sans: ['Cairo', 'sans-serif'],
-                serif: ['Playfair Display', 'serif'],
             },
             keyframes: {
                 fadeIn: {

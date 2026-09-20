@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Collection, DeliveryZone, Order, OrderItem, OrderStatusEntry, PaymentMethod, Product, Review, ReviewableItem } from '../types';
+import type { DeliveryZone, Order, OrderItem, OrderStatusEntry, PaymentMethod, Product, Review, ReviewableItem } from '../types';
 
 // Thin typed wrappers over the backend RPCs. All pricing, stock and permission rules live in
 // the database; this file only maps rows to app types.
@@ -50,20 +50,6 @@ export async function fetchProduct(id: string): Promise<Product | null> {
     if (error) throw error;
     const row = (data as ProductRow[] | null)?.[0];
     return row ? mapProduct(row) : null;
-}
-
-export async function fetchCollections(): Promise<Collection[]> {
-    const { data, error } = await supabase.rpc('get_storefront_collections');
-    if (error) throw error;
-    return (data ?? []).map((c) => ({
-        id: c.id,
-        slug: c.slug,
-        name_ar: c.name_ar,
-        description_ar: c.description_ar,
-        icon: c.icon,
-        displayOrder: c.display_order,
-        productIds: c.product_ids ?? [],
-    }));
 }
 
 export async function fetchPaymentMethods(): Promise<PaymentMethod[]> {

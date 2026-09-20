@@ -239,7 +239,7 @@ export const OrderDetailPage: React.FC = () => {
                         <dl className="space-y-2">
                             <div className="flex justify-between"><dt className="text-slate-500">الطريقة</dt><dd className="font-bold">{paymentMethodLabel(order.payment_method)}</dd></div>
                             <div className="flex justify-between"><dt className="text-slate-500">الحالة</dt><dd className={`px-2 py-0.5 rounded text-xs font-black ${paymentStatusStyle(order.payment_status)}`}>{paymentStatusLabel(order.payment_status)}</dd></div>
-                            {order.payment_reference && <div className="flex justify-between"><dt className="text-slate-500">رقم العملية</dt><dd className="font-bold" dir="ltr">{order.payment_reference}</dd></div>}
+                            {order.payment_reference && <div className="flex justify-between"><dt className="text-slate-500">الرقم المرجعي</dt><dd className="font-bold" dir="ltr">{order.payment_reference}</dd></div>}
                         </dl>
 
                         {proof && (
@@ -253,7 +253,7 @@ export const OrderDetailPage: React.FC = () => {
                                     <p className="text-xs text-slate-400 mb-3">تعذر عرض الصورة.</p>
                                 )}
                                 <dl className="space-y-1 text-xs">
-                                    <div className="flex justify-between"><dt className="text-slate-500">رقم العملية</dt><dd className="font-bold" dir="ltr">{proof.transaction_reference}</dd></div>
+                                    <div className="flex justify-between"><dt className="text-slate-500">الرقم المرجعي</dt><dd className="font-bold" dir="ltr">{proof.transaction_reference}</dd></div>
                                     <div className="flex justify-between"><dt className="text-slate-500">المبلغ</dt><dd className="font-bold">{formatSDG(proof.amount)}</dd></div>
                                     <div className="flex justify-between"><dt className="text-slate-500">تاريخ الإرسال</dt><dd className="font-bold">{formatDateTime(proof.submitted_at)}</dd></div>
                                     {proof.review_note && <div className="flex justify-between"><dt className="text-slate-500">ملاحظة المراجعة</dt><dd className="font-bold">{proof.review_note}</dd></div>}
