@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Layers, Plus, Edit, Trash2 } from 'lucide-react';
 import type { Collection } from '../../types';
-import { deleteCollection, fetchCollections, errorMessage } from '../../lib/catalogApi';
+import { COLLECTION_RULE_LABELS, deleteCollection, fetchCollections, errorMessage } from '../../lib/catalogApi';
 import { Card, Notice, PageHeader, Spinner, StatusPill, Table, primaryButtonClass, smallButtonClass } from '../../components/ui';
 
 export const CollectionsPage: React.FC = () => {
@@ -16,7 +16,7 @@ export const CollectionsPage: React.FC = () => {
         try {
             setCollections(await fetchCollections());
         } catch (err) {
-            setError(errorMessage(err, 'تعذر تحميل المجموعات.'));
+            setError(errorMessage(err, 'تعذر تحميل التشكيلات.'));
         } finally {
             setLoading(false);
         }
@@ -25,7 +25,7 @@ export const CollectionsPage: React.FC = () => {
     useEffect(() => { void load(); }, []);
 
     const remove = async (collection: Collection) => {
-        if (!window.confirm(`حذف مجموعة "${collection.name_ar}"؟`)) return;
+        if (!window.confirm(`حذف تشكيلة "${collection.name_ar}"؟`)) return;
         try {
             await deleteCollection(collection.id);
             setCollections((prev) => prev.filter((c) => c.id !== collection.id));
@@ -39,16 +39,16 @@ export const CollectionsPage: React.FC = () => {
     return (
         <div className="space-y-8">
             <PageHeader
-                title="المجموعات"
+                title="التشكيلات"
                 subtitle="تشكيلات مختارة تظهر في الصفحة الرئيسية للمتجر، مستقلة عن التصنيف."
                 icon={<Layers className="w-8 h-8 text-brand-blue" />}
-                actions={<Link to="/collections/new" className={`${primaryButtonClass} inline-flex`}><Plus className="w-5 h-5" /> إضافة مجموعة</Link>}
+                actions={<Link to="/collections/new" className={`${primaryButtonClass} inline-flex`}><Plus className="w-5 h-5" /> إضافة تشكيلة</Link>}
             />
 
             {error && <Notice kind="error">{error}</Notice>}
 
             <Card className="overflow-hidden">
-                <Table headers={['المجموعة', 'المعرّف', 'الترتيب', 'الحالة', 'الإجراءات']} empty={collections.length === 0} emptyText="لا توجد مجموعات بعد">
+                <Table headers={['التشكيلة', 'المعرّف', 'القاعدة', 'الترتيب', 'الحالة', 'الإجراءات']} empty={collections.length === 0} emptyText="لا توجد تشكيلات بعد">
                     {collections.map((c) => (
                         <tr key={c.id} className="hover:bg-slate-50/50">
                             <td className="px-6 py-4">
@@ -56,6 +56,7 @@ export const CollectionsPage: React.FC = () => {
                                 {c.description_ar && <p className="text-[10px] text-slate-400 font-bold">{c.description_ar}</p>}
                             </td>
                             <td className="px-6 py-4 text-xs font-bold text-slate-500" dir="ltr">{c.slug}</td>
+                            <td className="px-6 py-4 text-xs font-bold text-slate-600">{COLLECTION_RULE_LABELS[c.rule_type]}{c.rule_type === 'manual' ? ` (${c.product_ids.length})` : ''}</td>
                             <td className="px-6 py-4 text-sm font-bold text-slate-600">{c.display_order}</td>
                             <td className="px-6 py-4"><StatusPill active={c.is_active} activeText="ظاهرة" inactiveText="متوقفة" /></td>
                             <td className="px-6 py-4">

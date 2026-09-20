@@ -1666,9 +1666,49 @@ export type Database = {
         }
         Returns: number
       }
+      admin_backdate_test_order: {
+        Args: { p_created_at: string; p_order_id: string }
+        Returns: undefined
+      }
       admin_business_report: {
         Args: { p_end?: string; p_start?: string }
         Returns: Json
+      }
+      admin_delete_collection: { Args: { p_id: string }; Returns: undefined }
+      admin_get_collections: {
+        Args: never
+        Returns: {
+          description_ar: string
+          display_order: number
+          icon: string
+          id: string
+          is_active: boolean
+          name_ar: string
+          product_ids: string[]
+          rule_config: Json
+          rule_type: string
+          slug: string
+          updated_at: string
+        }[]
+      }
+      admin_run_stale_order_sweep: { Args: never; Returns: number }
+      admin_save_collection: {
+        Args: {
+          p_description_ar?: string
+          p_display_order?: number
+          p_icon?: string
+          p_id?: string
+          p_is_active?: boolean
+          p_name_ar: string
+          p_rule_config?: Json
+          p_rule_type: string
+          p_slug: string
+        }
+        Returns: string
+      }
+      admin_set_collection_products: {
+        Args: { p_collection_id: string; p_product_ids: string[] }
+        Returns: undefined
       }
       admin_update_order_operation: {
         Args: {

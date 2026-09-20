@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
-import type { AdminReview, Banner, Collection, CollectionInput, DeliveryZone, Driver, InventoryRow, Product, ProductInput, Warehouse } from '../types';
+import type { AdminReview, Banner, Collection, CollectionInput, CollectionRuleConfig, CollectionRuleType, DeliveryZone, Driver, InventoryRow, Product, ProductInput, Warehouse } from '../types';
+import type { Json } from './database.types';
 
 // Admin data access for catalogue, logistics and settings. RPCs added by our migrations
 // are not in database.types.ts yet, so they go through rpcUntyped.
@@ -252,8 +253,7 @@ export async function deleteBanner(id: string): Promise<void> {
 }
 
 // Collections --------------------------------------------------------------------------
-// rule_type is written as the literal 'manual' on every save: the Admin UI only manages
-// hand-picked collections for now, even though the backend also supports 5 auto-rule types.
+// Every read and write goes through the admin RPCs (the tables carry no write grant).
 
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
 
@@ -263,65 +263,53 @@ export function validateCollectionSlug(slug: string): string | null {
     return null;
 }
 
+export const COLLECTION_RULE_LABELS: Record<CollectionRuleType, string> = {
+    manual: 'اختيار يدوي',
+    newest: 'الأحدث',
+    best_sellers: 'الأكثر مبيعاً',
+    discount: 'عليها خصم',
+    price_under: 'أقل من سعر',
+    category: 'من تصنيف',
+};
+
 export async function fetchCollections(): Promise<Collection[]> {
-    const { data, error } = await supabase.from('storefront_collections')
-        .select('id,slug,name_ar,description_ar,icon,display_order,is_active')
-        .order('display_order');
+    const { data, error } = await supabase.rpc('admin_get_collections');
     if (error) throw error;
-    return data ?? [];
+    return (data ?? []).map((row) => ({
+        ...row,
+        rule_type: row.rule_type as CollectionRuleType,
+        rule_config: (row.rule_config ?? {}) as CollectionRuleConfig,
+        product_ids: row.product_ids ?? [],
+    }));
 }
 
 export async function fetchCollection(id: string): Promise<Collection | null> {
-    const { data, error } = await supabase.from('storefront_collections')
-        .select('id,slug,name_ar,description_ar,icon,display_order,is_active')
-        .eq('id', id).maybeSingle();
+    return (await fetchCollections()).find((c) => c.id === id) ?? null;
+}
+
+export async function saveCollection(id: string | null, input: CollectionInput): Promise<string> {
+    const { data, error } = await supabase.rpc('admin_save_collection', {
+        p_id: id ?? undefined,
+        p_slug: input.slug.trim(),
+        p_name_ar: input.name_ar.trim(),
+        p_description_ar: input.description_ar?.trim() || undefined,
+        p_icon: input.icon,
+        p_rule_type: input.rule_type,
+        p_rule_config: input.rule_type === 'manual' ? {} : (input.rule_config as Json),
+        p_display_order: input.display_order,
+        p_is_active: input.is_active,
+    });
     if (error) throw error;
     return data;
 }
 
-export async function fetchCollectionProductIds(collectionId: string): Promise<string[]> {
-    const { data, error } = await supabase.from('storefront_collection_products')
-        .select('product_id').eq('collection_id', collectionId).order('display_order');
-    if (error) throw error;
-    return (data ?? []).map((r) => r.product_id);
-}
-
-export async function saveCollection(id: string | null, input: CollectionInput): Promise<string> {
-    const row = {
-        slug: input.slug.trim(),
-        name_ar: input.name_ar.trim(),
-        description_ar: input.description_ar?.trim() || null,
-        icon: input.icon,
-        display_order: input.display_order,
-        // New collections start inactive regardless of the form's choice: is_active only flips
-        // on after setCollectionProducts confirms, so a collection is never live with 0 products.
-        is_active: id ? input.is_active : false,
-        rule_type: 'manual',
-        updated_at: new Date().toISOString(),
-    };
-    if (id) {
-        const { error } = await supabase.from('storefront_collections').update(row).eq('id', id);
-        if (error) throw error;
-        return id;
-    }
-    const { data, error } = await supabase.from('storefront_collections').insert(row).select('id').single();
-    if (error) throw error;
-    return data.id;
-}
-
-export async function activateCollection(id: string): Promise<void> {
-    const { error } = await supabase.from('storefront_collections')
-        .update({ is_active: true, updated_at: new Date().toISOString() }).eq('id', id);
-    if (error) throw error;
-}
-
 export async function deleteCollection(id: string): Promise<void> {
-    const { error } = await supabase.from('storefront_collections').delete().eq('id', id);
+    const { error } = await supabase.rpc('admin_delete_collection', { p_id: id });
     if (error) throw error;
 }
 
 export async function setCollectionProducts(collectionId: string, productIds: string[]): Promise<void> {
-    const { error } = await rpcUntyped('admin_set_collection_products', { p_collection_id: collectionId, p_product_ids: productIds });
+    const { error } = await supabase.rpc('admin_set_collection_products', { p_collection_id: collectionId, p_product_ids: productIds });
     if (error) throw error;
 }
 
