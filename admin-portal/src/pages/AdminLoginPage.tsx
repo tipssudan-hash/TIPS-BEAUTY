@@ -1,10 +1,19 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 import { Lock, Mail, AlertCircle } from 'lucide-react';
+
+const loginErrorMessage = (message: string) => {
+    if (/invalid login credentials/i.test(message)) return 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
+    if (/email not confirmed/i.test(message)) return 'يرجى تأكيد البريد الإلكتروني أولاً.';
+    if (/rate limit|too many/i.test(message)) return 'محاولات كثيرة، حاولي بعد قليل.';
+    return 'فشل تسجيل الدخول، حاولي مرة أخرى.';
+};
 
 export const AdminLoginPage: React.FC = () => {
     const navigate = useNavigate();
+    const { checkAdminRole } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
@@ -16,21 +25,20 @@ export const AdminLoginPage: React.FC = () => {
         setError(null);
 
         try {
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email,
-                password,
-            });
-
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
             if (error) throw error;
+            if (!data.session) throw new Error('no session');
 
-            if (data.session) {
-                // Determine if user is admin
-                // This check is effectively repeated in AuthContext/AdminLayout 
-                // but good for immediate feedback
-                navigate('/dashboard');
+            const admin = await checkAdminRole(data.session.user.id);
+            if (!admin) {
+                await supabase.auth.signOut();
+                setError('هذا الحساب ليس حساب مدير.');
+                return;
             }
-        } catch (err: any) {
-            setError(err.message || 'فشل تسجيل الدخول');
+            navigate('/dashboard');
+        } catch (err) {
+            console.error('Admin login failed', err);
+            setError(loginErrorMessage(err instanceof Error ? err.message : ''));
         } finally {
             setLoading(false);
         }

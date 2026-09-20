@@ -5,10 +5,14 @@ import { AdminDashboard } from './pages/AdminDashboard';
 import { ProductListPage } from './pages/products/ProductListPage';
 import { ProductFormPage } from './pages/products/ProductFormPage';
 import { OrderListPage } from './pages/orders/OrderListPage';
-import { LogisticsPage } from './pages/LogisticsPage';
-import { MarketingPage } from './pages/MarketingPage';
-import { BIPage } from './pages/BIPage';
-import { CategoriesPage } from './pages/CategoriesPage';
+import { OrderDetailPage } from './pages/orders/OrderDetailPage';
+import { InventoryPage } from './pages/InventoryPage';
+import { WarehousesPage } from './pages/WarehousesPage';
+import { DeliveryZonesPage } from './pages/DeliveryZonesPage';
+import { DriversPage } from './pages/DriversPage';
+import { BannersPage } from './pages/BannersPage';
+import { ReviewsPage } from './pages/ReviewsPage';
+import { SettingsPage } from './pages/SettingsPage';
 
 function App() {
   return (
@@ -17,25 +21,22 @@ function App() {
       <Route path="/" element={<AdminLayout />}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboard />} />
-
-        {/* Order Management */}
         <Route path="orders" element={<OrderListPage />} />
-        <Route path="logistics" element={<LogisticsPage />} />
-
-        {/* Inventory & Products */}
+        <Route path="orders/:id" element={<OrderDetailPage />} />
         <Route path="products" element={<ProductListPage />} />
         <Route path="products/new" element={<ProductFormPage />} />
         <Route path="products/edit/:id" element={<ProductFormPage />} />
-        <Route path="categories" element={<CategoriesPage />} />
-
-        {/* Marketing & Insights */}
-        <Route path="marketing" element={<MarketingPage />} />
-        <Route path="bi" element={<BIPage />} />
+        <Route path="inventory" element={<InventoryPage />} />
+        <Route path="warehouses" element={<WarehousesPage />} />
+        <Route path="delivery-zones" element={<DeliveryZonesPage />} />
+        <Route path="drivers" element={<DriversPage />} />
+        <Route path="banners" element={<BannersPage />} />
+        <Route path="reviews" element={<ReviewsPage />} />
+        <Route path="settings" element={<SettingsPage />} />
       </Route>
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
 }
 
 export default App;
-

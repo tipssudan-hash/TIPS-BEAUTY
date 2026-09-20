@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Session, User } from '@supabase/supabase-js';
 
@@ -8,6 +8,7 @@ interface AuthContextType {
     isAdmin: boolean;
     loading: boolean;
     signOut: () => Promise<void>;
+    checkAdminRole: (userId: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -18,24 +19,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [isAdmin, setIsAdmin] = useState(false);
     const [loading, setLoading] = useState(true);
 
+    const checkAdminRole = useCallback(async (userId: string): Promise<boolean> => {
+        try {
+            const { data, error } = await supabase.from('profiles').select('role').eq('id', userId).single();
+            if (error) {
+                console.error('Error checking role:', error);
+                setIsAdmin(false);
+                return false;
+            }
+            const admin = data?.role === 'admin';
+            setIsAdmin(admin);
+            return admin;
+        } catch (error) {
+            console.error('Error checking admin role:', error);
+            setIsAdmin(false);
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     useEffect(() => {
-        // Get initial session
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
             setUser(session?.user ?? null);
             if (session?.user) {
-                checkAdminRole(session.user.id);
+                void checkAdminRole(session.user.id);
             } else {
                 setLoading(false);
             }
         });
 
-        // Listen for auth changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        // The role only changes with the signed-in user, so a token refresh must not re-query it.
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             setSession(session);
             setUser(session?.user ?? null);
+            if (event === 'TOKEN_REFRESHED') return;
             if (session?.user) {
-                checkAdminRole(session.user.id);
+                void checkAdminRole(session.user.id);
             } else {
                 setIsAdmin(false);
                 setLoading(false);
@@ -43,29 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         return () => subscription.unsubscribe();
-    }, []);
-
-    const checkAdminRole = async (userId: string) => {
-        try {
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('role')
-                .eq('id', userId)
-                .single();
-
-            if (error) {
-                console.error('Error checking role:', error);
-                setIsAdmin(false);
-            } else {
-                setIsAdmin(data?.role === 'admin');
-            }
-        } catch (error) {
-            console.error('Error checking admin role:', error);
-            setIsAdmin(false);
-        } finally {
-            setLoading(false);
-        }
-    };
+    }, [checkAdminRole]);
 
     const signOut = async () => {
         await supabase.auth.signOut();
@@ -73,12 +72,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     return (
-        <AuthContext.Provider value={{ session, user, isAdmin, loading, signOut }}>
+        <AuthContext.Provider value={{ session, user, isAdmin, loading, signOut, checkAdminRole }}>
             {children}
         </AuthContext.Provider>
     );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (context === undefined) {

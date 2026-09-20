@@ -1,0 +1,113 @@
+export type OrderStatus = 'new' | 'confirmed' | 'preparing' | 'shipped' | 'delivered' | 'cancelled' | 'delivery_failed';
+export type PaymentStatus = 'pending' | 'proof_submitted' | 'paid' | 'refunded';
+
+export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+    new: 'جديد',
+    confirmed: 'مؤكد',
+    preparing: 'قيد التجهيز',
+    shipped: 'في الطريق',
+    delivered: 'تم التوصيل',
+    cancelled: 'ملغي',
+    delivery_failed: 'تعذر التسليم',
+};
+
+export const ORDER_STATUS_STYLES: Record<OrderStatus, string> = {
+    new: 'bg-blue-50 text-blue-600 border-blue-100',
+    confirmed: 'bg-amber-50 text-amber-600 border-amber-100',
+    preparing: 'bg-purple-50 text-purple-600 border-purple-100',
+    shipped: 'bg-indigo-50 text-indigo-600 border-indigo-100',
+    delivered: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+    cancelled: 'bg-slate-100 text-slate-500 border-slate-200',
+    delivery_failed: 'bg-red-50 text-red-600 border-red-100',
+};
+
+export const ORDER_STATUS_DOTS: Record<OrderStatus, string> = {
+    new: 'bg-blue-500',
+    confirmed: 'bg-amber-500',
+    preparing: 'bg-purple-500',
+    shipped: 'bg-indigo-500',
+    delivered: 'bg-emerald-500',
+    cancelled: 'bg-slate-400',
+    delivery_failed: 'bg-red-500',
+};
+
+export function orderStatusDot(status: string): string {
+    return ORDER_STATUS_DOTS[status as OrderStatus] ?? 'bg-gray-400';
+}
+
+export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+    pending: 'بانتظار الدفع',
+    proof_submitted: 'بانتظار مراجعة الإثبات',
+    paid: 'مدفوع',
+    refunded: 'مسترد',
+};
+
+export const PAYMENT_STATUS_STYLES: Record<PaymentStatus, string> = {
+    pending: 'bg-slate-100 text-slate-600',
+    proof_submitted: 'bg-amber-100 text-amber-700',
+    paid: 'bg-emerald-100 text-emerald-700',
+    refunded: 'bg-red-100 text-red-700',
+};
+
+export const PAYMENT_METHOD_LABELS: Record<string, string> = {
+    COD: 'الدفع عند الاستلام',
+    Mychashi: 'تحويل ماي كاشي',
+};
+
+export const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+    new: ['confirmed', 'cancelled'],
+    confirmed: ['preparing', 'shipped', 'cancelled'],
+    preparing: ['shipped', 'cancelled'],
+    shipped: ['delivered', 'delivery_failed'],
+    delivered: [],
+    cancelled: [],
+    delivery_failed: ['confirmed', 'cancelled'],
+};
+
+export function orderStatusLabel(status: string): string {
+    return ORDER_STATUS_LABELS[status as OrderStatus] ?? status;
+}
+
+export function orderStatusStyle(status: string): string {
+    return ORDER_STATUS_STYLES[status as OrderStatus] ?? 'bg-gray-50 text-gray-600 border-gray-100';
+}
+
+export function paymentStatusLabel(status: string): string {
+    return PAYMENT_STATUS_LABELS[status as PaymentStatus] ?? status;
+}
+
+export function paymentStatusStyle(status: string): string {
+    return PAYMENT_STATUS_STYLES[status as PaymentStatus] ?? 'bg-slate-100 text-slate-600';
+}
+
+export function paymentMethodLabel(code: string): string {
+    return PAYMENT_METHOD_LABELS[code] ?? code;
+}
+
+export function formatSDG(amount: number | null | undefined): string {
+    return `${Math.round(Number(amount ?? 0)).toLocaleString('ar-EG')} ج.س`;
+}
+
+export function formatDateTime(iso: string | null | undefined): string {
+    if (!iso) return '—';
+    return new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Africa/Khartoum' }).format(new Date(iso));
+}
+
+export function formatDate(iso: string | null | undefined): string {
+    if (!iso) return '—';
+    return new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium', timeZone: 'Africa/Khartoum' }).format(new Date(iso));
+}
+
+export function errorMessage(error: unknown, fallback = 'حدث خطأ غير متوقع، حاول مرة أخرى.'): string {
+    const message = error && typeof error === 'object' && 'message' in error ? String((error as { message: unknown }).message) : '';
+    if (/updated by another user/i.test(message)) return 'تم تحديث هذا الطلب من مستخدم آخر، أعد التحميل وحاول مجدداً.';
+    if (/transition is not allowed/i.test(message)) return 'هذا الانتقال في حالة الطلب غير مسموح.';
+    if (/Assign a driver/i.test(message)) return 'يجب تعيين مندوب قبل بدء التوصيل.';
+    if (/driver is not available/i.test(message)) return 'المندوب المختار غير متاح.';
+    if (/assigned to another warehouse/i.test(message)) return 'المندوب المختار تابع لمخزن آخر.';
+    if (/warehouse is not active/i.test(message)) return 'المخزن المختار غير نشط.';
+    if (/Assignments cannot change/i.test(message)) return 'لا يمكن تغيير التعيينات بعد بدء التوصيل.';
+    if (/Administrator access required/i.test(message)) return 'هذا الإجراء يتطلب صلاحيات مدير.';
+    if (/[؀-ۿ]/.test(message)) return message;
+    return fallback;
+}

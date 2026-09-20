@@ -2,14 +2,16 @@ import React, { useState } from 'react';
 import { Outlet, Link, useLocation, Navigate } from 'react-router-dom';
 import {
     LayoutDashboard, Package, LogOut, Menu, X, Loader2,
-    ShoppingBag, Users, Settings, Tag, TrendingUp, Sparkles, Truck
+    ShoppingBag, Settings, Truck, Boxes, Warehouse, MapPin, Image, MessageSquare
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useUnseenOrders } from '../hooks/useUnseenOrders';
 
 export const AdminLayout: React.FC = () => {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const location = useLocation();
     const { user, isAdmin, loading, signOut } = useAuth();
+    const { count: unseenOrders } = useUnseenOrders();
 
     if (loading) {
         return (
@@ -23,14 +25,17 @@ export const AdminLayout: React.FC = () => {
         return <Navigate to="/login" replace />;
     }
 
-    const menuItems = [
+    const menuItems: { path: string; icon: typeof LayoutDashboard; label: string; badge: string | null }[] = [
         { path: '/dashboard', icon: LayoutDashboard, label: 'لوحة التحكم', badge: null },
-        { path: '/orders', icon: ShoppingBag, label: 'إدارة الطلبات', badge: '5' },
-        { path: '/logistics', icon: Truck, label: 'الخدمات اللوجستية', badge: null },
-        { path: '/products', icon: Package, label: 'المنتجات والمخزون', badge: null },
-        { path: '/categories', icon: Tag, label: 'التصنيفات', badge: null },
-        { path: '/marketing', icon: Sparkles, label: 'التسويق والعروض', badge: null },
-        { path: '/bi', icon: TrendingUp, label: 'ذكاء الأعمال', badge: 'AI' }
+        { path: '/orders', icon: ShoppingBag, label: 'الطلبات', badge: unseenOrders > 0 ? String(unseenOrders) : null },
+        { path: '/products', icon: Package, label: 'المنتجات', badge: null },
+        { path: '/inventory', icon: Boxes, label: 'المخزون', badge: null },
+        { path: '/warehouses', icon: Warehouse, label: 'المخازن', badge: null },
+        { path: '/delivery-zones', icon: MapPin, label: 'مناطق التوصيل', badge: null },
+        { path: '/drivers', icon: Truck, label: 'المندوبون', badge: null },
+        { path: '/banners', icon: Image, label: 'البانرات', badge: null },
+        { path: '/reviews', icon: MessageSquare, label: 'التقييمات', badge: null },
+        { path: '/settings', icon: Settings, label: 'الإعدادات', badge: null },
     ];
 
     const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
@@ -55,11 +60,11 @@ export const AdminLayout: React.FC = () => {
                     <div className="h-20 flex items-center justify-between px-6 border-b border-slate-800">
                         <div className="flex items-center gap-3">
                             <div className="bg-white p-1.5 rounded-lg shadow-sm">
-                                <img src="/logo.png" alt="Tips Admin" className="h-12 w-auto object-contain" />
+                                <img src="/logo.png" alt="تيبس بيوتي" className="h-12 w-auto object-contain" />
                             </div>
                             <div>
                                 <h2 className="text-xl font-bold tracking-tight text-white">إدارة تيبس</h2>
-                                <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Executive Suite</p>
+                                <p className="text-[10px] tracking-widest text-slate-400 font-bold">لوحة الإدارة</p>
                             </div>
                         </div>
                         <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 text-slate-400 hover:text-white transition-colors">
@@ -86,7 +91,7 @@ export const AdminLayout: React.FC = () => {
                                         <span className="font-semibold text-sm tracking-wide">{item.label}</span>
                                     </div>
                                     {item.badge && (
-                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${active ? 'bg-white text-brand-blue' : 'bg-slate-800 text-slate-400'
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${active ? 'bg-white text-brand-blue' : 'bg-rose-500 text-white'
                                             }`}>
                                             {item.badge}
                                         </span>
