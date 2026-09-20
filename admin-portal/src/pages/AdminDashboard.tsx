@@ -88,7 +88,7 @@ export const AdminDashboard: React.FC = () => {
                         </div>
 
                         <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-                            <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-2"><MapPin className="w-5 h-5 text-brand-blue" /> الطلبات حسب المنطقة</h3>
+                            <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-2"><MapPin className="w-5 h-5 text-brand-blue" /> الطلبات حسب المحلية</h3>
                             {report.by_city.length === 0 ? (
                                 <p className="text-sm text-slate-400 font-bold">لا توجد طلبات في هذه الفترة.</p>
                             ) : (

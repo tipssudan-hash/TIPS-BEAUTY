@@ -24,7 +24,7 @@ export const DeliveryZonesPage: React.FC = () => {
             setZones(z);
             setWarehouses(w);
         } catch (err) {
-            setError(errorMessage(err, 'تعذر تحميل مناطق التوصيل.'));
+            setError(errorMessage(err, 'تعذر تحميل محليات التوصيل.'));
         } finally {
             setLoading(false);
         }
@@ -35,7 +35,7 @@ export const DeliveryZonesPage: React.FC = () => {
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editing) return;
-        if (!editing.data.name.trim()) { setError('اسم المنطقة مطلوب.'); return; }
+        if (!editing.data.name.trim()) { setError('اسم المحلية مطلوب.'); return; }
         if (editing.data.fee < 0) { setError('رسوم التوصيل لا يمكن أن تكون سالبة.'); return; }
         setSaving(true);
         setError(null);
@@ -51,7 +51,7 @@ export const DeliveryZonesPage: React.FC = () => {
     };
 
     const remove = async (zone: DeliveryZone) => {
-        if (!window.confirm(`حذف المنطقة "${zone.name}"؟ الطلبات السابقة لن تتأثر.`)) return;
+        if (!window.confirm(`حذف المحلية "${zone.name}"؟ الطلبات السابقة لن تتأثر.`)) return;
         setError(null);
         try {
             await deleteDeliveryZone(zone.id);
@@ -69,10 +69,10 @@ export const DeliveryZonesPage: React.FC = () => {
     return (
         <div className="space-y-8">
             <PageHeader
-                title="مناطق التوصيل"
-                subtitle="اسم المنطقة هو ما يختاره العميل عند الدفع، والرسوم تُحسب منه تلقائياً. منطقة «افتراضي» لكل ولاية هي الرسوم البديلة."
+                title="محليات التوصيل"
+                subtitle="اسم المحلية هو ما يختاره العميل عند الدفع، والرسوم تُحسب منه تلقائياً. محلية «افتراضي» لكل ولاية هي الرسوم البديلة."
                 icon={<MapPin className="w-8 h-8 text-brand-blue" />}
-                actions={<button type="button" onClick={() => setEditing({ id: null, data: emptyZone })} className={primaryButtonClass}><Plus className="w-5 h-5" /> إضافة منطقة</button>}
+                actions={<button type="button" onClick={() => setEditing({ id: null, data: emptyZone })} className={primaryButtonClass}><Plus className="w-5 h-5" /> إضافة محلية</button>}
             />
 
             {error && <Notice kind="error">{error}</Notice>}
@@ -81,7 +81,7 @@ export const DeliveryZonesPage: React.FC = () => {
                 <Card className="p-6">
                     <form onSubmit={submit} className="space-y-4">
                         <div className="flex items-center justify-between">
-                            <h3 className="font-black text-slate-900">{editing.id ? 'تعديل منطقة' : 'منطقة جديدة'}</h3>
+                            <h3 className="font-black text-slate-900">{editing.id ? 'تعديل محلية' : 'محلية جديدة'}</h3>
                             <button type="button" onClick={() => setEditing(null)} className="p-2 text-slate-400 hover:text-slate-600" aria-label="إغلاق"><X className="w-5 h-5" /></button>
                         </div>
                         <div className="grid md:grid-cols-4 gap-4">
@@ -90,7 +90,7 @@ export const DeliveryZonesPage: React.FC = () => {
                                     {SUDANESE_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
                                 </select>
                             </Field>
-                            <Field label="اسم المنطقة" required><input value={editing.data.name} onChange={(e) => setEditing({ ...editing, data: { ...editing.data, name: e.target.value } })} className={inputClass} required /></Field>
+                            <Field label="اسم المحلية" required><input value={editing.data.name} onChange={(e) => setEditing({ ...editing, data: { ...editing.data, name: e.target.value } })} className={inputClass} required /></Field>
                             <Field label="رسوم التوصيل (ج.س)" required><input type="number" min={0} step="1" value={editing.data.fee} onChange={(e) => setEditing({ ...editing, data: { ...editing.data, fee: Number(e.target.value) || 0 } })} className={inputClass} required /></Field>
                             <Field label="المخزن المسؤول">
                                 <select value={editing.data.warehouse_id ?? ''} onChange={(e) => setEditing({ ...editing, data: { ...editing.data, warehouse_id: e.target.value || null } })} className={inputClass}>
@@ -120,7 +120,7 @@ export const DeliveryZonesPage: React.FC = () => {
                         {SUDANESE_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
                     </select>
                 </div>
-                <Table headers={['الولاية', 'المنطقة', 'الرسوم', 'المخزن', 'الحالة', 'الإجراءات']} empty={visible.length === 0}>
+                <Table headers={['الولاية', 'المحلية', 'الرسوم', 'المخزن', 'الحالة', 'الإجراءات']} empty={visible.length === 0}>
                     {visible.map((zone) => (
                         <tr key={zone.id} className="hover:bg-slate-50/50">
                             <td className="px-6 py-4 text-sm font-bold text-slate-600">{zone.state ?? '—'}</td>

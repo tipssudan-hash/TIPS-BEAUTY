@@ -21,7 +21,7 @@ function getIdempotencyKey(): string {
 }
 
 const isDefaultZone = (zone: DeliveryZone) => zone.name.endsWith(DEFAULT_SUFFIX);
-const zoneLabel = (zone: DeliveryZone) => isDefaultZone(zone) ? `مناطق أخرى في ${zone.state ?? ''}` : zone.name;
+const zoneLabel = (zone: DeliveryZone) => isDefaultZone(zone) ? `محليات أخرى في ${zone.state ?? ''}` : zone.name;
 
 export const CheckoutPage: React.FC = () => {
     const { cart, cartCount, clearCart } = useStore();
@@ -100,7 +100,7 @@ export const CheckoutPage: React.FC = () => {
     const handleProofChange = (file: File | null) => {
         setProofError(null);
         if (!file) { setProofFile(null); return; }
-        if (!file.type.startsWith('image/')) { setProofError('يرجى اختيار صورة للإيصال.'); setProofFile(null); return; }
+        if (!file.type.startsWith('image/')) { setProofError('يرجى اختيار صورة لإثبات الدفع.'); setProofFile(null); return; }
         if (file.size > MAX_PROOF_BYTES) { setProofError('حجم الصورة يجب ألا يتجاوز 5 ميجابايت.'); setProofFile(null); return; }
         setProofFile(file);
     };
@@ -110,8 +110,8 @@ export const CheckoutPage: React.FC = () => {
         setSubmitError(null);
         if (!user || !selectedZone || !selectedMethod) return;
         if (selectedMethod.requiresProof) {
-            if (!formData.reference.trim()) { setSubmitError('يرجى إدخال رقم العملية.'); return; }
-            if (!proofFile) { setProofError('يرجى إرفاق صورة الإيصال.'); return; }
+            if (!formData.reference.trim()) { setSubmitError('يرجى إدخال الرقم المرجعي.'); return; }
+            if (!proofFile) { setProofError('يرجى إرفاق إثبات الدفع.'); return; }
         }
 
         setSubmitting(true);
@@ -183,7 +183,7 @@ export const CheckoutPage: React.FC = () => {
                                 </select>
                             </label>
                             <label className="block">
-                                <span className="text-sm font-bold text-gray-700 block mb-1">المنطقة</span>
+                                <span className="text-sm font-bold text-gray-700 block mb-1">المحلية</span>
                                 <select required value={formData.zoneId} onChange={e => setFormData({ ...formData, zoneId: e.target.value })} className={inputClass} disabled={loadingOptions}>
                                     {stateZones.map(z => <option key={z.id} value={z.id}>{zoneLabel(z)} — {formatSDG(z.fee)}</option>)}
                                 </select>
@@ -234,11 +234,11 @@ export const CheckoutPage: React.FC = () => {
                         {selectedMethod?.requiresProof && (
                             <div className="space-y-3 pt-2 border-t border-gray-50">
                                 <label className="block">
-                                    <span className="text-sm font-bold text-gray-700 block mb-1">رقم العملية</span>
+                                    <span className="text-sm font-bold text-gray-700 block mb-1">الرقم المرجعي</span>
                                     <input required value={formData.reference} onChange={e => setFormData({ ...formData, reference: e.target.value })} className={inputClass} placeholder="رقم عملية التحويل" />
                                 </label>
                                 <label className="block">
-                                    <span className="text-sm font-bold text-gray-700 block mb-1">صورة الإيصال (حتى 5 ميجابايت)</span>
+                                    <span className="text-sm font-bold text-gray-700 block mb-1">إثبات الدفع (صورة حتى 5 ميجابايت)</span>
                                     <input required type="file" accept="image/*" onChange={e => handleProofChange(e.target.files?.[0] ?? null)} className="w-full text-sm text-gray-600 file:ml-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-brand-blue-soft file:text-brand-blue file:font-bold" />
                                     {proofError && <p className="text-xs text-red-600 mt-1">{proofError}</p>}
                                     {proofFile && !proofError && <p className="text-xs text-green-600 mt-1">تم اختيار: {proofFile.name}</p>}

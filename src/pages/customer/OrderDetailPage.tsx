@@ -72,7 +72,7 @@ export const OrderDetailPage: React.FC = () => {
     const handleProofChange = (file: File | null) => {
         setProofError(null);
         if (!file) { setProofFile(null); return; }
-        if (!file.type.startsWith('image/')) { setProofError('يرجى اختيار صورة للإيصال.'); setProofFile(null); return; }
+        if (!file.type.startsWith('image/')) { setProofError('يرجى اختيار صورة لإثبات الدفع.'); setProofFile(null); return; }
         if (file.size > MAX_PROOF_BYTES) { setProofError('حجم الصورة يجب ألا يتجاوز 5 ميجابايت.'); setProofFile(null); return; }
         setProofFile(file);
     };
@@ -80,8 +80,8 @@ export const OrderDetailPage: React.FC = () => {
     const handleProofSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!order || !user || !method) return;
-        if (!reference.trim()) { setProofError('يرجى إدخال رقم العملية.'); return; }
-        if (!proofFile) { setProofError('يرجى إرفاق صورة الإيصال.'); return; }
+        if (!reference.trim()) { setProofError('يرجى إدخال الرقم المرجعي.'); return; }
+        if (!proofFile) { setProofError('يرجى إرفاق إثبات الدفع.'); return; }
         setProofSubmitting(true);
         setProofError(null);
         try {
@@ -188,7 +188,7 @@ export const OrderDetailPage: React.FC = () => {
                     <p><span className="text-gray-500">العنوان:</span> <span className="text-gray-800">{address}</span></p>
                     <p><span className="text-gray-500">طريقة الدفع:</span> <span className="text-gray-800">{method?.nameAr ?? PAYMENT_METHOD_LABELS[order.paymentMethod] ?? order.paymentMethod}</span></p>
                     <p><span className="text-gray-500">حالة الدفع:</span> <span className="text-gray-800">{PAYMENT_STATUS_LABELS[order.paymentStatus] ?? order.paymentStatus}</span></p>
-                    {order.paymentReference && <p><span className="text-gray-500">رقم العملية:</span> <span className="text-gray-800">{order.paymentReference}</span></p>}
+                    {order.paymentReference && <p><span className="text-gray-500">الرقم المرجعي:</span> <span className="text-gray-800">{order.paymentReference}</span></p>}
 
                     {order.status === 'new' && (
                         <button
@@ -226,18 +226,18 @@ export const OrderDetailPage: React.FC = () => {
             {needsProof && (
                 <form onSubmit={handleProofSubmit} className="bg-white rounded-2xl shadow-sm border border-amber-200 p-6 space-y-3">
                     <h2 className="font-bold text-gray-800">إرفاق إثبات الدفع</h2>
-                    <p className="text-xs text-gray-500">حوّلي المبلغ {formatSDG(order.total)} ثم أدخلي رقم العملية وصورة الإيصال ليتم تأكيد طلبك.</p>
+                    <p className="text-xs text-gray-500">حوّلي المبلغ {formatSDG(order.total)} ثم أدخلي الرقم المرجعي وإثبات الدفع ليتم تأكيد طلبك.</p>
                     {Object.entries(method?.accountDetails ?? {}).length > 0 && (
                         <div className="text-xs bg-gray-50 rounded-lg p-2 border border-gray-100 space-y-1">
                             {Object.entries(method!.accountDetails).map(([k, v]) => <p key={k} className="text-gray-600"><span className="font-semibold">{k}:</span> {String(v)}</p>)}
                         </div>
                     )}
                     <div>
-                        <label className="text-sm font-bold text-gray-700 block mb-1">رقم العملية</label>
+                        <label className="text-sm font-bold text-gray-700 block mb-1">الرقم المرجعي</label>
                         <input required value={reference} onChange={e => setReference(e.target.value)} className={inputClass} />
                     </div>
                     <div>
-                        <label className="text-sm font-bold text-gray-700 block mb-1">صورة الإيصال (حتى 5 ميجابايت)</label>
+                        <label className="text-sm font-bold text-gray-700 block mb-1">إثبات الدفع (صورة حتى 5 ميجابايت)</label>
                         <input required type="file" accept="image/*" onChange={e => handleProofChange(e.target.files?.[0] ?? null)} className="w-full text-sm text-gray-600 file:ml-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-brand-blue-soft file:text-brand-blue file:font-bold" />
                     </div>
                     {proofError && <p className="text-xs text-red-600">{proofError}</p>}

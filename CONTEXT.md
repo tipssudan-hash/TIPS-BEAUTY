@@ -133,7 +133,7 @@ _Avoid_: region, province, city (a city is within a State)
 
 **Locality** (Arabic: المحلية):
 A delivery area within a State (e.g. Omdurman within Khartoum State), maintained by staff with its own Shipping Fee.
-_Avoid_: city, district, zone, area, المنطقة, المدينة
+_Avoid_: city, district, zone, area, منطقة, مناطق, المدينة
 
 **Shipping Fee**:
 The delivery charge for an Order, determined by the Locality, or by the State's default fee when no Locality is chosen.
