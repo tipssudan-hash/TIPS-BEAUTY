@@ -20,7 +20,7 @@ BEGIN
          'طلب جديد رقم ' || COALESCE(NEW.order_number, ''),
          jsonb_build_object('audience', 'staff', 'order_number', NEW.order_number, 'recipient', r.email)
   FROM (
-    SELECT DISTINCT lower(btrim(e)) AS email
+    SELECT DISTINCT btrim(e) AS email
     FROM public.app_settings s, unnest(s.notification_emails) AS e
     WHERE s.id AND btrim(e) <> ''
   ) r;
@@ -29,4 +29,14 @@ BEGIN
 END;
 $$;
 
--- DOWN: restore the two-row version from 20260920000600_email_notifications.sql.
+-- DOWN:
+--   CREATE OR REPLACE FUNCTION public.queue_order_email_notification() RETURNS trigger
+--   LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
+--   BEGIN
+--     INSERT INTO public.notification_queue (order_id, customer_id, channel, event_type, message, payload) VALUES
+--       (NEW.id, NEW.customer_id, 'email', 'order_created', 'تم استلام طلبك رقم ' || COALESCE(NEW.order_number, '') || ' بنجاح.',
+--        jsonb_build_object('audience', 'customer', 'order_number', NEW.order_number)),
+--       (NEW.id, NEW.customer_id, 'email', 'order_created', 'طلب جديد رقم ' || COALESCE(NEW.order_number, ''),
+--        jsonb_build_object('audience', 'staff', 'order_number', NEW.order_number));
+--     RETURN NEW;
+--   END; $$;

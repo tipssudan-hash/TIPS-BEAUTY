@@ -139,7 +139,8 @@ Deno.serve(async (request) => {
   if (!queue?.length) return new Response(JSON.stringify({ processed: 0 }), { status: 200 });
 
   const { data: settings } = await service.from("app_settings").select("notification_emails").eq("id", true).maybeSingle();
-  const staffRecipients: string[] = (settings?.notification_emails ?? []).filter((e: string) => /\S+@\S+\.\S+/.test(e));
+  const looksLikeEmail = (e: string) => /\S+@\S+\.\S+/.test(e);
+  const staffRecipients: string[] = (settings?.notification_emails ?? []).filter(looksLikeEmail);
 
   let sent = 0, failed = 0, skipped = 0;
   for (const row of queue as QueueRow[]) {
@@ -165,6 +166,7 @@ Deno.serve(async (request) => {
       let content: { subject: string; html: string };
       if (row.payload?.audience === "staff") {
         // One row per recipient (T2-03); rows queued before that carry no recipient and fan out to the settings list.
+        if (row.payload.recipient && !looksLikeEmail(row.payload.recipient)) { await mark("cancelled", { error_message: "Invalid recipient" }); skipped++; continue; }
         to = row.payload.recipient ? [row.payload.recipient] : staffRecipients;
         content = staffEmail(typed, names);
       } else {
