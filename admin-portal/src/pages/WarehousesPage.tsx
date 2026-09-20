@@ -34,7 +34,7 @@ export const WarehousesPage: React.FC = () => {
         e.preventDefault();
         if (!editing) return;
         const data = editing.data;
-        if (!data.name.trim() || !data.code.trim() || !data.city.trim()) { setError('الاسم والرمز والمدينة مطلوبة.'); return; }
+        if (!data.name.trim() || !data.code.trim() || !data.city.trim()) { setError('الاسم والرمز والمحلية مطلوبة.'); return; }
         setSaving(true);
         setError(null);
         try {
@@ -61,7 +61,7 @@ export const WarehousesPage: React.FC = () => {
         <div className="space-y-8">
             <PageHeader
                 title="المخازن"
-                subtitle="عند إضافة مخزن جديد تُنشأ له سجلات مخزون بقيمة صفر لكل المنتجات تلقائياً. اجعلي اسم المدينة مطابقاً لأسماء مناطق التوصيل ليُفضَّل المخزن الأقرب."
+                subtitle="عند إضافة مخزن جديد تُنشأ له سجلات مخزون بقيمة صفر لكل المنتجات تلقائياً. اجعلي المحلية مطابقة لأسماء محليات التوصيل ليُفضَّل المخزن الأقرب."
                 icon={<WarehouseIcon className="w-8 h-8 text-brand-blue" />}
                 actions={<button type="button" onClick={() => setEditing({ id: null, data: emptyWarehouse })} className={primaryButtonClass}><Plus className="w-5 h-5" /> إضافة مخزن</button>}
             />
@@ -83,7 +83,7 @@ export const WarehousesPage: React.FC = () => {
                                     {SUDANESE_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
                                 </select>
                             </Field>
-                            <Field label="المدينة" required><input value={editing.data.city} onChange={(e) => update({ city: e.target.value })} className={inputClass} required /></Field>
+                            <Field label="المحلية" required><input value={editing.data.city} onChange={(e) => update({ city: e.target.value })} className={inputClass} required /></Field>
                             <Field label="العنوان"><input value={editing.data.address ?? ''} onChange={(e) => update({ address: e.target.value })} className={inputClass} /></Field>
                             <Field label="الهاتف"><input value={editing.data.phone ?? ''} onChange={(e) => update({ phone: e.target.value })} className={inputClass} dir="ltr" /></Field>
                         </div>

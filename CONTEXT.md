@@ -56,7 +56,7 @@ A Sudanese mobile-money transfer. The customer must enter the transfer Reference
 
 **Reference Number** (Arabic: الرقم المرجعي):
 The identifier of a Mycashi transfer, entered by the customer at checkout.
-_Avoid_: transaction ID, receipt number, رقم العملية
+_Avoid_: transaction ID, receipt number, رقم العملية, رقم عملية
 
 **Payment Proof** (Arabic: إثبات الدفع):
 The screenshot of a Mycashi transfer uploaded by the customer at checkout. Visible only to the customer who uploaded it and to staff.
@@ -87,7 +87,7 @@ _Avoid_: marketing campaign, promotion, ad
 ### Stock
 
 **Warehouse** (Arabic: المخزن):
-A physical location Tips Beauty ships Orders from (Khartoum and Port Sudan at launch). Each Warehouse holds its own Stock of each Product; an Order is fulfilled from one Warehouse.
+A physical location Tips Beauty ships Orders from (Khartoum and Port Sudan at launch). Each Warehouse holds its own Stock of each Product and is named for the Locality it serves, so Orders to that Locality are fulfilled from it first.
 _Avoid_: store, depot, branch
 
 **Stock**:
@@ -133,7 +133,7 @@ _Avoid_: region, province, city (a city is within a State)
 
 **Locality** (Arabic: المحلية):
 A delivery area within a State (e.g. Omdurman within Khartoum State), maintained by staff with its own Shipping Fee.
-_Avoid_: city, district, zone, area, المنطقة, المدينة
+_Avoid_: city, district, zone, area, منطقة, مناطق, المدينة
 
 **Shipping Fee**:
 The delivery charge for an Order, determined by the Locality, or by the State's default fee when no Locality is chosen.
