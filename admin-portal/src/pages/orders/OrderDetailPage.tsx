@@ -6,10 +6,8 @@ import {
     reviewPaymentProof, signedProofUrl, updateOrderOperation,
     type AdminOrder, type DriverOption, type OrderHistoryEntry, type PaymentProof, type WarehouseOption,
 } from '../../lib/adminApi';
-import {
-    ALLOWED_TRANSITIONS, errorMessage, formatDateTime, formatSDG, orderStatusDot, orderStatusLabel, orderStatusStyle,
-    paymentMethodLabel, paymentStatusLabel, paymentStatusStyle, type OrderStatus,
-} from '../../lib/format';
+import { ALLOWED_TRANSITIONS, formatDateTime, formatSDG, orderStatusDot, orderStatusLabel, orderStatusStyle, paymentMethodLabel, paymentStatusLabel, paymentStatusStyle, type OrderStatus } from '../../lib/format';
+import { errorMessage } from '../../lib/errors';
 
 const PROOF_STATUS_LABELS: Record<string, string> = { pending: 'بانتظار المراجعة', verified: 'تم التحقق', rejected: 'مرفوض' };
 

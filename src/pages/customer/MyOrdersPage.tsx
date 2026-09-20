@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Package, ChevronLeft } from 'lucide-react';
 import { Order, OrderStatus, PaymentStatus } from '../../types';
-import { fetchMyOrders, errorMessage } from '../../lib/api';
-import { formatSDG, formatDateTime } from '../../lib/pricing';
+import { fetchMyOrders } from '../../lib/api';
+import { errorMessage } from '../../lib/errors';
+import { formatSDG, formatDateTime } from '../../lib/format';
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
     new: 'جديد',

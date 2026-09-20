@@ -1,36 +1,8 @@
 import { supabase } from './supabase';
+import type { Json } from './database.types';
 import type { AdminReview, Banner, DeliveryZone, Driver, InventoryRow, Product, ProductInput, Warehouse } from '../types';
 
-// Admin data access for catalogue, logistics and settings. RPCs added by our migrations
-// are not in database.types.ts yet, so they go through rpcUntyped.
-
-const rpcUntyped = (name: string, args?: Record<string, unknown>) =>
-    (supabase.rpc as unknown as (fn: string, params?: Record<string, unknown>) => ReturnType<typeof supabase.rpc>)(name, args);
-
-const untypedFrom = (table: string) =>
-    (supabase.from as unknown as (t: string) => ReturnType<typeof supabase.from>)(table);
-
-export function errorMessage(error: unknown, fallback = 'حدث خطأ غير متوقع، حاولي مرة أخرى.'): string {
-    if (error && typeof error === 'object' && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
-        const message = (error as { message: string }).message;
-        for (const [pattern, text] of translations) {
-            if (pattern.test(message)) return text;
-        }
-        return /[؀-ۿ]/.test(message) ? message : fallback;
-    }
-    return fallback;
-}
-
-const translations: [RegExp, string][] = [
-    [/Administrator access required/i, 'هذا الإجراء يتطلب صلاحيات مدير.'],
-    [/Insufficient stock/i, 'الكمية المطلوبة غير متوفرة في هذا المخزن.'],
-    [/Quantity change cannot be zero/i, 'يجب أن يكون التغيير في الكمية مختلفاً عن صفر.'],
-    [/Source and destination/i, 'يجب أن يختلف مخزن المصدر عن مخزن الوجهة.'],
-    [/Transfer quantity must be positive/i, 'كمية التحويل يجب أن تكون أكبر من صفر.'],
-    [/duplicate key/i, 'هذه القيمة مستخدمة مسبقاً.'],
-    [/appears in orders/i, 'هذا المنتج مرتبط بطلبات ولا يمكن حذفه؛ يمكنك إيقافه بدلاً من ذلك.'],
-    [/row-level security/i, 'ليس لديك صلاحية لتنفيذ هذا الإجراء.'],
-];
+// Admin data access for catalogue, logistics and settings over the generated database types.
 
 // Products ------------------------------------------------------------------------
 
@@ -71,13 +43,13 @@ function mapProduct(row: ProductRow): Product {
 }
 
 export async function fetchAdminProducts(): Promise<Product[]> {
-    const { data, error } = await rpcUntyped('get_admin_products');
+    const { data, error } = await supabase.rpc('get_admin_products');
     if (error) throw error;
     return ((data ?? []) as ProductRow[]).map(mapProduct);
 }
 
 export async function fetchAdminProduct(id: string): Promise<Product | null> {
-    const { data, error } = await rpcUntyped('get_admin_product', { p_product_id: id });
+    const { data, error } = await supabase.rpc('get_admin_product', { p_product_id: id });
     if (error) throw error;
     const row = (data as ProductRow[] | null)?.[0];
     return row ? mapProduct(row) : null;
@@ -102,24 +74,25 @@ function toRow(input: ProductInput) {
         expiry: input.expiry,
         is_imported: input.is_imported,
         skin_type: input.skin_type,
-        variants: input.variants,
+        // Variants are stored as jsonb; the generated Json type has no room for a named interface.
+        variants: input.variants as unknown as Json,
         is_active: input.is_active,
     };
 }
 
 export async function createProduct(input: ProductInput): Promise<string> {
-    const { data, error } = await untypedFrom('products').insert(toRow(input)).select('id').single();
+    const { data, error } = await supabase.from('products').insert(toRow(input)).select('id').single();
     if (error) throw error;
     return (data as { id: string }).id;
 }
 
 export async function updateProduct(id: string, input: ProductInput): Promise<void> {
-    const { error } = await untypedFrom('products').update(toRow(input)).eq('id', id);
+    const { error } = await supabase.from('products').update(toRow(input)).eq('id', id);
     if (error) throw error;
 }
 
 export async function setProductActive(id: string, isActive: boolean): Promise<void> {
-    const { error } = await untypedFrom('products').update({ is_active: isActive }).eq('id', id);
+    const { error } = await supabase.from('products').update({ is_active: isActive }).eq('id', id);
     if (error) throw error;
 }
 
@@ -254,13 +227,13 @@ export async function deleteBanner(id: string): Promise<void> {
 // Settings -----------------------------------------------------------------------------
 
 export async function fetchNotificationEmails(): Promise<string[]> {
-    const { data, error } = await untypedFrom('app_settings').select('notification_emails').eq('id', true).maybeSingle();
+    const { data, error } = await supabase.from('app_settings').select('notification_emails').eq('id', true).maybeSingle();
     if (error) throw error;
     return ((data as { notification_emails: string[] } | null)?.notification_emails) ?? [];
 }
 
 export async function saveNotificationEmails(emails: string[]): Promise<void> {
-    const { error } = await untypedFrom('app_settings').update({ notification_emails: emails, updated_at: new Date().toISOString() }).eq('id', true);
+    const { error } = await supabase.from('app_settings').update({ notification_emails: emails, updated_at: new Date().toISOString() }).eq('id', true);
     if (error) throw error;
 }
 

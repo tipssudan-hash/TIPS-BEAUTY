@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ShoppingBag, DollarSign, PackageCheck, Clock, Plus, AlertTriangle, Loader2, MapPin } from 'lucide-react';
 import { fetchBusinessReport, type BusinessReport } from '../lib/adminApi';
-import { errorMessage, formatSDG } from '../lib/format';
+import { formatNumber, formatSDG } from '../lib/format';
+import { errorMessage } from '../lib/errors';
 
 const DAYS = 30;
 
@@ -28,8 +29,8 @@ export const AdminDashboard: React.FC = () => {
     const kpiCards = report ? [
         { label: 'الإيرادات (غير الملغاة)', value: formatSDG(report.revenue), icon: DollarSign, color: 'blue' as const },
         { label: 'الإيرادات المدفوعة', value: formatSDG(report.paid_revenue), icon: PackageCheck, color: 'emerald' as const },
-        { label: 'عدد الطلبات', value: report.orders.toLocaleString('ar-EG'), icon: ShoppingBag, color: 'purple' as const },
-        { label: 'مدفوعات بانتظار المراجعة', value: report.pending_payments.toLocaleString('ar-EG'), icon: Clock, color: 'amber' as const },
+        { label: 'عدد الطلبات', value: formatNumber(report.orders), icon: ShoppingBag, color: 'purple' as const },
+        { label: 'مدفوعات بانتظار المراجعة', value: formatNumber(report.pending_payments), icon: Clock, color: 'amber' as const },
     ] : [];
 
     return (
@@ -82,7 +83,7 @@ export const AdminDashboard: React.FC = () => {
                                 </Link>
                                 <Link to="/orders?status=delivered" className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl bg-slate-50 border border-slate-100 text-slate-700 hover:bg-purple-50 hover:border-purple-100 hover:text-purple-600 transition-all group">
                                     <div className="p-3 bg-white rounded-xl shadow-sm"><PackageCheck className="w-6 h-6" /></div>
-                                    <span className="font-bold text-sm">تم التوصيل ({report.delivered_orders.toLocaleString('ar-EG')})</span>
+                                    <span className="font-bold text-sm">تم التوصيل ({formatNumber(report.delivered_orders)})</span>
                                 </Link>
                             </div>
                         </div>
@@ -96,7 +97,7 @@ export const AdminDashboard: React.FC = () => {
                                     {report.by_city.slice(0, 8).map((row) => (
                                         <li key={row.city} className="flex items-center justify-between text-sm">
                                             <span className="font-bold text-slate-800">{row.city}</span>
-                                            <span className="text-slate-500">{row.orders.toLocaleString('ar-EG')} طلب · <span className="font-black text-slate-900">{formatSDG(row.revenue)}</span></span>
+                                            <span className="text-slate-500">{formatNumber(row.orders)} طلب · <span className="font-black text-slate-900">{formatSDG(row.revenue)}</span></span>
                                         </li>
                                     ))}
                                 </ul>
@@ -116,7 +117,7 @@ export const AdminDashboard: React.FC = () => {
                                                 <span className="text-xs text-slate-400">{row.warehouse}</span>
                                             </span>
                                             <span className={`shrink-0 px-2 py-0.5 rounded text-xs font-black ${row.quantity === 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                                                {row.quantity.toLocaleString('ar-EG')} / {row.reorder_level.toLocaleString('ar-EG')}
+                                                {formatNumber(row.quantity)} / {formatNumber(row.reorder_level)}
                                             </span>
                                         </li>
                                     ))}

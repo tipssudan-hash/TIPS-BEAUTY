@@ -2,7 +2,8 @@ import { formatDate } from '../lib/format';
 import React, { useEffect, useRef, useState } from 'react';
 import { Image as ImageIcon, Plus, Edit, Trash2, X, Upload, Loader2 } from 'lucide-react';
 import type { Banner, BannerActionType } from '../types';
-import { deleteBanner, fetchBanners, saveBanner, uploadPublicImage, validateImage, errorMessage, type BannerInput } from '../lib/catalogApi';
+import { deleteBanner, fetchBanners, saveBanner, uploadPublicImage, validateImage, type BannerInput } from '../lib/catalogApi';
+import { errorMessage } from '../lib/errors';
 import { Card, Field, Notice, PageHeader, Spinner, StatusPill, Table, inputClass, primaryButtonClass, secondaryButtonClass, smallButtonClass } from '../components/ui';
 
 const ACTION_LABELS: Record<BannerActionType, string> = { none: 'بدون إجراء', category: 'تصنيف', product: 'منتج', collection: 'مجموعة', url: 'رابط' };

@@ -1,14 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { signupErrorMessage } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
 import { Mail, Lock, User, Phone, Loader2, MailCheck } from 'lucide-react';
-
-function signupErrorMessage(message: string): string {
-    if (/already registered|already exists/i.test(message)) return 'هذا البريد الإلكتروني مسجل بالفعل';
-    if (/password/i.test(message)) return 'كلمة المرور يجب أن تكون 6 أحرف على الأقل';
-    if (/rate limit/i.test(message)) return 'تم تجاوز عدد المحاولات، حاولي لاحقاً';
-    return 'فشل إنشاء الحساب، حاولي مرة أخرى.';
-}
 
 export const SignupPage: React.FC = () => {
     const navigate = useNavigate();

@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Send, Sparkles } from 'lucide-react';
-import { askBeautyAdvice, errorMessage } from '../../lib/api';
+import { askBeautyAdvice } from '../../lib/api';
+import { errorMessage } from '../../lib/errors';
 import { useAuth } from '../../context/AuthContext';
 
 export const AIChatPage: React.FC = () => {

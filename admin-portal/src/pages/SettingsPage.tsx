@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Settings, Plus, Trash2, Save, Loader2 } from 'lucide-react';
-import { fetchNotificationEmails, saveNotificationEmails, errorMessage } from '../lib/catalogApi';
+import { fetchNotificationEmails, saveNotificationEmails } from '../lib/catalogApi';
+import { errorMessage } from '../lib/errors';
 import { Card, Notice, PageHeader, Spinner, inputClass, primaryButtonClass, secondaryButtonClass } from '../components/ui';
 
 const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);

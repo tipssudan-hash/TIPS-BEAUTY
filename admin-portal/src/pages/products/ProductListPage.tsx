@@ -2,10 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Edit, Search, Package, BarChart3, Boxes, EyeOff, Eye } from 'lucide-react';
 import type { Product } from '../../types';
-import { fetchAdminProducts, setProductActive, errorMessage } from '../../lib/catalogApi';
+import { fetchAdminProducts, setProductActive } from '../../lib/catalogApi';
+import { errorMessage } from '../../lib/errors';
+import { formatSDG } from '../../lib/format';
 import { Card, Notice, PageHeader, Spinner, Table, StatusPill, primaryButtonClass, smallButtonClass } from '../../components/ui';
 
-const money = (n: number) => `${Math.round(n).toLocaleString('ar-EG')} ج.س`;
 
 export const ProductListPage: React.FC = () => {
     const [products, setProducts] = useState<Product[]>([]);
@@ -73,7 +74,7 @@ export const ProductListPage: React.FC = () => {
                 </Card>
                 <Card className="p-6 flex items-center gap-5">
                     <div className="w-14 h-14 bg-emerald-50 text-emerald-500 rounded-2xl flex items-center justify-center"><Boxes className="w-7 h-7" /></div>
-                    <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">قيمة المخزون بسعر البيع</p><h4 className="text-2xl font-black text-slate-900">{money(stockValue)}</h4></div>
+                    <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">قيمة المخزون بسعر البيع</p><h4 className="text-2xl font-black text-slate-900">{formatSDG(stockValue)}</h4></div>
                 </Card>
                 <Card className="p-6 flex items-center gap-5">
                     <div className="w-14 h-14 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center"><Package className="w-7 h-7" /></div>
@@ -115,7 +116,7 @@ export const ProductListPage: React.FC = () => {
                                 </td>
                                 <td className="px-6 py-4"><span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-xl text-[10px] font-black">{product.category || '—'}</span></td>
                                 <td className="px-6 py-4">
-                                    <p className="font-black text-slate-900 text-sm">{money(product.price)}</p>
+                                    <p className="font-black text-slate-900 text-sm">{formatSDG(product.price)}</p>
                                     {product.discount_percentage > 0 && <p className="text-[10px] text-red-500 font-bold">خصم {product.discount_percentage}%</p>}
                                     {margin !== null && <p className="text-[10px] text-emerald-600 font-bold">هامش {margin.toFixed(0)}%</p>}
                                 </td>
