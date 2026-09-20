@@ -1666,10 +1666,15 @@ export type Database = {
         }
         Returns: number
       }
+      admin_backdate_test_order: {
+        Args: { p_created_at: string; p_order_id: string }
+        Returns: undefined
+      }
       admin_business_report: {
         Args: { p_end?: string; p_start?: string }
         Returns: Json
       }
+      admin_run_stale_order_sweep: { Args: never; Returns: number }
       admin_update_order_operation: {
         Args: {
           p_driver_id?: string
