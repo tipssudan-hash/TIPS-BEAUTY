@@ -9,7 +9,7 @@ type QueueRow = {
   order_id: string | null;
   customer_id: string | null;
   event_type: string;
-  payload: { audience?: "customer" | "staff"; order_number?: string };
+  payload: { audience?: "customer" | "staff"; order_number?: string; recipient?: string };
   attempts: number;
 };
 
@@ -164,7 +164,8 @@ Deno.serve(async (request) => {
       let to: string[] = [];
       let content: { subject: string; html: string };
       if (row.payload?.audience === "staff") {
-        to = staffRecipients;
+        // One row per recipient (T2-03); rows queued before that carry no recipient and fan out to the settings list.
+        to = row.payload.recipient ? [row.payload.recipient] : staffRecipients;
         content = staffEmail(typed, names);
       } else {
         const { data: profile } = await service.from("profiles").select("email").eq("id", typed.customer_id ?? "").maybeSingle();

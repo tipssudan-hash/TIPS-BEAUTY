@@ -135,12 +135,39 @@ suite('order lifecycle against the live backend', () => {
         expect((row as { viewed_at: string | null }).viewed_at).toBeTruthy();
     });
 
-    it('creating an order queues customer and staff email notifications', async () => {
-        const created = await rpc(customer, 'checkout_order_safe', checkoutArgs(zone, [{ id: product.id, quantity: 1 }], randomUUID()));
-        const orderId = (created.data as { order_id: string }[])[0].order_id;
-        const { data: queue } = await admin.from('notification_queue').select('channel,payload,status').eq('order_id', orderId).eq('channel', 'email');
-        const audiences = (queue ?? []).map((q) => (q.payload as { audience: string }).audience).sort();
-        expect(audiences).toEqual(['customer', 'staff']);
+    it('creating an order queues one customer email row and one staff row per configured recipient', async () => {
+        const { data: settings } = await admin.from('app_settings').select('notification_emails').eq('id', true).single();
+        const original = settings?.notification_emails ?? [];
+        const staff = ['test-staff-a@example.com', ' test-staff-b@example.com ', 'test-staff-a@example.com', ''];
+        const { error: setErr } = await admin.from('app_settings').update({ notification_emails: staff }).eq('id', true);
+        expect(setErr).toBeNull();
+        try {
+            const created = await rpc(customer, 'checkout_order_safe', checkoutArgs(zone, [{ id: product.id, quantity: 1 }], randomUUID()));
+            const orderId = (created.data as { order_id: string }[])[0].order_id;
+            const { data: queue } = await admin.from('notification_queue').select('channel,payload,status').eq('order_id', orderId).eq('channel', 'email');
+            const rows = (queue ?? []).map((q) => q.payload as { audience: string; recipient?: string });
+            expect(rows.filter((r) => r.audience === 'customer')).toHaveLength(1);
+            // Trimmed, de-duplicated, blanks dropped: one row per distinct recipient.
+            expect(rows.filter((r) => r.audience === 'staff').map((r) => r.recipient).sort())
+                .toEqual(['test-staff-a@example.com', 'test-staff-b@example.com']);
+        } finally {
+            await admin.from('app_settings').update({ notification_emails: original }).eq('id', true);
+        }
+    });
+
+    it('creating an order queues no staff email row when no recipient is configured', async () => {
+        const { data: settings } = await admin.from('app_settings').select('notification_emails').eq('id', true).single();
+        const original = settings?.notification_emails ?? [];
+        await admin.from('app_settings').update({ notification_emails: [] }).eq('id', true);
+        try {
+            const created = await rpc(customer, 'checkout_order_safe', checkoutArgs(zone, [{ id: product.id, quantity: 1 }], randomUUID()));
+            const orderId = (created.data as { order_id: string }[])[0].order_id;
+            const { data: queue } = await admin.from('notification_queue').select('payload').eq('order_id', orderId).eq('channel', 'email');
+            const audiences = (queue ?? []).map((q) => (q.payload as { audience: string }).audience);
+            expect(audiences).toEqual(['customer']);
+        } finally {
+            await admin.from('app_settings').update({ notification_emails: original }).eq('id', true);
+        }
     });
 
     it('Mycashi orders require a proof path under the caller uid and reject fake paths', async () => {
