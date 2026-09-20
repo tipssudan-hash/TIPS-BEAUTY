@@ -1,4 +1,4 @@
--- 0012 Atomic membership writes for storefront collections (product picker save path).
+-- 0014 Atomic membership writes for storefront collections (product picker save path).
 -- storefront_collections / storefront_collection_products / get_storefront_collections()
 -- already exist (baseline). This is the only new backend object the Collections feature needs:
 -- everything else is a direct table write under the existing is_admin() RLS, matching saveBanner.
