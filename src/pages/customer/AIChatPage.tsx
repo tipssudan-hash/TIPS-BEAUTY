@@ -95,10 +95,10 @@ export const AIChatPage: React.FC = () => {
                     {isTyping && (
                         <div className="flex justify-start">
                             <div className="bg-gray-100 rounded-2xl px-4 py-3">
-                                <div className="flex gap-1">
-                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                                <div className="flex gap-1" role="status" aria-label="جاري الكتابة">
+                                    <div className="w-2 h-2 bg-brand-blue rounded-full animate-pulse" style={{ animationDelay: '0ms' }}></div>
+                                    <div className="w-2 h-2 bg-brand-blue rounded-full animate-pulse" style={{ animationDelay: '200ms' }}></div>
+                                    <div className="w-2 h-2 bg-brand-blue rounded-full animate-pulse" style={{ animationDelay: '400ms' }}></div>
                                 </div>
                             </div>
                         </div>

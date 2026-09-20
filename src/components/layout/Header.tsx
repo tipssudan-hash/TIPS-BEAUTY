@@ -24,7 +24,9 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
                     {/* Mobile Menu Button */}
                     <button
                         onClick={() => setIsMenuOpen(!isMenuOpen)}
-                        className="md:hidden p-2 text-gray-600 hover:text-brand-blue transition-colors"
+                        aria-label={isMenuOpen ? 'إغلاق القائمة' : 'فتح القائمة'}
+                        aria-expanded={isMenuOpen}
+                        className="md:hidden p-2.5 text-gray-600 hover:text-brand-blue transition-colors"
                     >
                         {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                     </button>

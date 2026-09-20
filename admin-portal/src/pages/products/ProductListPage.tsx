@@ -128,7 +128,7 @@ export const ProductListPage: React.FC = () => {
                                 <td className="px-6 py-4"><StatusPill active={product.is_active} /></td>
                                 <td className="px-6 py-4">
                                     <div className="flex items-center gap-2">
-                                        <Link to={`/products/edit/${product.id}`} className="p-2 text-slate-400 hover:text-brand-blue hover:bg-blue-50 rounded-xl transition-all" aria-label="تعديل"><Edit className="w-5 h-5" /></Link>
+                                        <Link to={`/products/edit/${product.id}`} className="min-w-11 min-h-11 flex items-center justify-center text-slate-400 hover:text-brand-blue hover:bg-blue-50 rounded-xl transition-all" aria-label="تعديل"><Edit className="w-5 h-5" /></Link>
                                         <button
                                             type="button"
                                             disabled={busyId === product.id}
