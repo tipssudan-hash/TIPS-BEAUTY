@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Boxes, ArrowLeftRight, Diff, X } from 'lucide-react';
 import type { InventoryRow, Warehouse } from '../types';
-import { adjustInventory, fetchInventory, fetchWarehouses, transferInventory, errorMessage } from '../lib/catalogApi';
+import { adjustInventory, fetchInventory, fetchWarehouses, transferInventory } from '../lib/catalogApi';
+import { errorMessage } from '../lib/errors';
 import { Card, Field, Notice, PageHeader, Spinner, Table, inputClass, primaryButtonClass, secondaryButtonClass, smallButtonClass } from '../components/ui';
 
 type Dialog =

@@ -2,7 +2,8 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 import { Trash2, Plus, Minus, ShoppingBag } from 'lucide-react';
-import { discountedPrice, formatSDG } from '../../lib/pricing';
+import { discountedPrice } from '../../lib/pricing';
+import { formatSDG } from '../../lib/format';
 
 export const CartPage: React.FC = () => {
     const { cart, removeFromCart, updateQuantity } = useStore();

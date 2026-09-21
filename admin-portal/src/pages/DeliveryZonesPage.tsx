@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { MapPin, Plus, Edit, Trash2, X } from 'lucide-react';
 import type { DeliveryZone, Warehouse } from '../types';
 import { SUDANESE_STATES } from '../types';
-import { deleteDeliveryZone, fetchDeliveryZones, fetchWarehouses, saveDeliveryZone, errorMessage, type DeliveryZoneInput } from '../lib/catalogApi';
+import { deleteDeliveryZone, fetchDeliveryZones, fetchWarehouses, saveDeliveryZone, type DeliveryZoneInput } from '../lib/catalogApi';
+import { errorMessage } from '../lib/errors';
+import { formatSDG } from '../lib/format';
 import { Card, Field, Notice, PageHeader, Spinner, StatusPill, Table, inputClass, primaryButtonClass, secondaryButtonClass, smallButtonClass } from '../components/ui';
 
 const emptyZone: DeliveryZoneInput = { name: '', fee: 0, is_active: true, state: 'الخرطوم', warehouse_id: null };
@@ -125,7 +127,7 @@ export const DeliveryZonesPage: React.FC = () => {
                         <tr key={zone.id} className="hover:bg-slate-50/50">
                             <td className="px-6 py-4 text-sm font-bold text-slate-600">{zone.state ?? '—'}</td>
                             <td className="px-6 py-4 text-sm font-black text-slate-900">{zone.name}</td>
-                            <td className="px-6 py-4 text-sm font-black text-slate-900">{zone.fee.toLocaleString('ar-EG')} ج.س</td>
+                            <td className="px-6 py-4 text-sm font-black text-slate-900">{formatSDG(zone.fee)}</td>
                             <td className="px-6 py-4 text-sm font-bold text-slate-600">{warehouseName(zone.warehouse_id)}</td>
                             <td className="px-6 py-4"><StatusPill active={zone.is_active} /></td>
                             <td className="px-6 py-4">

@@ -2,7 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Star, User, Calendar, BadgeCheck } from 'lucide-react';
 import { Review, ReviewableItem } from '../../types';
 import { useAuth } from '../../context/AuthContext';
-import { fetchProductReviews, fetchReviewableItems, submitReview, errorMessage } from '../../lib/api';
+import { fetchProductReviews, fetchReviewableItems, submitReview } from '../../lib/api';
+import { errorMessage } from '../../lib/errors';
+import { formatDate } from '../../lib/format';
 
 interface ReviewSectionProps {
     productId: string;
@@ -98,7 +100,7 @@ export const ReviewSection: React.FC<ReviewSectionProps> = ({ productId }) => {
                                     </div>
                                     <span className="text-xs text-gray-400 flex items-center gap-1 whitespace-nowrap">
                                         <Calendar className="w-3 h-3" />
-                                        {new Date(review.createdAt).toLocaleDateString('ar-EG', { timeZone: 'Africa/Khartoum' })}
+                                        {formatDate(review.createdAt)}
                                     </span>
                                 </div>
                                 <div className="flex text-yellow-400 mb-2" aria-label={`${review.rating} من 5`}>

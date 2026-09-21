@@ -1858,6 +1858,22 @@ export type Database = {
         }[]
       }
       dispatch_email_queue: { Args: never; Returns: undefined }
+      effective_price: {
+        Args: {
+          p_base_price: number
+          p_brand: string
+          p_category: string
+          p_discount_percentage: number
+          p_product_id: string
+        }
+        Returns: {
+          effective_price: number
+          promotion_id: string
+          reduction: number
+          rule_kind: string
+          rule_label: string
+        }[]
+      }
       get_admin_product: {
         Args: { p_product_id: string }
         Returns: {
@@ -1953,6 +1969,7 @@ export type Database = {
           created_at: string
           description: string
           discount_percentage: number
+          effective_price: number
           expiry: string
           id: string
           image: string
@@ -1963,6 +1980,8 @@ export type Database = {
           name_en: string
           origin: string
           price: number
+          pricing_rule_kind: string
+          pricing_rule_label: string
           reviews_count: number
           skin_type: string[]
           stock: number
@@ -1999,6 +2018,7 @@ export type Database = {
           created_at: string
           description: string
           discount_percentage: number
+          effective_price: number
           expiry: string
           id: string
           image: string
@@ -2009,6 +2029,8 @@ export type Database = {
           name_en: string
           origin: string
           price: number
+          pricing_rule_kind: string
+          pricing_rule_label: string
           reviews_count: number
           skin_type: string[]
           stock: number

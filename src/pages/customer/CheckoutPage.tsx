@@ -3,8 +3,10 @@ import { useNavigate, Navigate } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 import { useAuth } from '../../context/AuthContext';
 import { DeliveryZone, PaymentMethod } from '../../types';
-import { checkout, uploadPaymentProof, submitPaymentProof, fetchPaymentMethods, fetchDeliveryZones, errorMessage } from '../../lib/api';
-import { discountedPrice, formatSDG } from '../../lib/pricing';
+import { checkout, uploadPaymentProof, submitPaymentProof, fetchPaymentMethods, fetchDeliveryZones } from '../../lib/api';
+import { errorMessage } from '../../lib/errors';
+import { discountedPrice } from '../../lib/pricing';
+import { formatSDG } from '../../lib/format';
 import { Banknote, Wallet, Loader2 } from 'lucide-react';
 
 const IDEMPOTENCY_KEY = 'checkout_idempotency_key';

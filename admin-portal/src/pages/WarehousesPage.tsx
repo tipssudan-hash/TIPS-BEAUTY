@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Warehouse as WarehouseIcon, Plus, Edit, X } from 'lucide-react';
 import type { Warehouse } from '../types';
 import { SUDANESE_STATES } from '../types';
-import { fetchWarehouses, saveWarehouse, errorMessage, type WarehouseInput } from '../lib/catalogApi';
+import { fetchWarehouses, saveWarehouse, type WarehouseInput } from '../lib/catalogApi';
+import { errorMessage } from '../lib/errors';
 import { Card, Field, Notice, PageHeader, Spinner, StatusPill, Table, inputClass, primaryButtonClass, secondaryButtonClass, smallButtonClass } from '../components/ui';
 
 const emptyWarehouse: WarehouseInput = { name: '', code: '', state: 'الخرطوم', city: '', address: null, phone: null, is_active: true };

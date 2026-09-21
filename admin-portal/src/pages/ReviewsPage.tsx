@@ -2,7 +2,8 @@ import { formatDate } from '../lib/format';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Star, MessageSquare, Eye, EyeOff } from 'lucide-react';
 import type { AdminReview } from '../types';
-import { fetchAdminReviews, moderateReview, errorMessage } from '../lib/catalogApi';
+import { fetchAdminReviews, moderateReview } from '../lib/catalogApi';
+import { errorMessage } from '../lib/errors';
 import { Card, Notice, PageHeader, Spinner, Table, smallButtonClass } from '../components/ui';
 
 const Stars: React.FC<{ rating: number }> = ({ rating }) => (

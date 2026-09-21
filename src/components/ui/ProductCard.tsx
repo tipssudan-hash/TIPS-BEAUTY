@@ -3,7 +3,8 @@ import { Heart, Share2, ShoppingCart } from 'lucide-react';
 import { Product } from '../../types';
 import clsx from 'clsx';
 import { Link } from 'react-router-dom';
-import { discountedPrice, formatSDG } from '../../lib/pricing';
+import { discountedPrice } from '../../lib/pricing';
+import { formatSDG } from '../../lib/format';
 
 interface ProductCardProps {
     product: Product;
