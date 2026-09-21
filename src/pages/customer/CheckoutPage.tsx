@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { DeliveryZone, PaymentMethod } from '../../types';
 import { checkout, uploadPaymentProof, submitPaymentProof, fetchPaymentMethods, fetchDeliveryZones } from '../../lib/api';
 import { errorMessage } from '../../lib/errors';
-import { discountedPrice } from '../../lib/pricing';
+import { cartUnitPrice } from '../../lib/pricing';
 import { formatSDG } from '../../lib/format';
 import { Banknote, Wallet, Loader2 } from 'lucide-react';
 
@@ -26,7 +26,8 @@ const isDefaultZone = (zone: DeliveryZone) => zone.name.endsWith(DEFAULT_SUFFIX)
 const zoneLabel = (zone: DeliveryZone) => isDefaultZone(zone) ? `محليات أخرى في ${zone.state ?? ''}` : zone.name;
 
 export const CheckoutPage: React.FC = () => {
-    const { cart, cartCount, clearCart } = useStore();
+    const { cart, cartCount, clearCart, products } = useStore();
+    const live = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
     const { user } = useAuth();
     const navigate = useNavigate();
 
@@ -93,7 +94,7 @@ export const CheckoutPage: React.FC = () => {
     const selectedZone = zones.find(z => z.id === formData.zoneId) ?? null;
     const selectedMethod = methods.find(m => m.code === formData.paymentMethod) ?? null;
 
-    const subtotal = cart.reduce((sum, item) => sum + discountedPrice(item.price, item.discountPercentage) * item.quantity, 0);
+    const subtotal = cart.reduce((sum, item) => sum + cartUnitPrice(item, live.get(item.productId)) * item.quantity, 0);
     const shipping = selectedZone?.fee ?? 0;
     const total = subtotal + shipping;
 
@@ -272,7 +273,7 @@ export const CheckoutPage: React.FC = () => {
                                     <p className="font-bold text-gray-800">{item.name_ar}</p>
                                     <div className="flex justify-between mt-1">
                                         <span className="text-gray-500">x{item.quantity}</span>
-                                        <span className="font-medium">{formatSDG(discountedPrice(item.price, item.discountPercentage))}</span>
+                                        <span className="font-medium">{formatSDG(cartUnitPrice(item, live.get(item.productId)))}</span>
                                     </div>
                                 </div>
                             </div>

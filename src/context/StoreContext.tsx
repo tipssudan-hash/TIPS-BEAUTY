@@ -81,6 +81,8 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 image: product.image,
                 price: product.price,
                 discountPercentage: product.discountPercentage,
+                effectivePrice: product.effectivePrice,
+                pricingRule: product.pricingRule,
                 quantity,
             }];
         });

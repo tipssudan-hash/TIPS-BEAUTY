@@ -7,6 +7,7 @@ import {
     type AdminOrder, type DriverOption, type OrderHistoryEntry, type PaymentProof, type WarehouseOption,
 } from '../../lib/adminApi';
 import { ALLOWED_TRANSITIONS, formatDateTime, formatSDG, orderStatusDot, orderStatusLabel, orderStatusStyle, paymentMethodLabel, paymentStatusLabel, paymentStatusStyle, type OrderStatus } from '../../lib/format';
+import { orderLineRuleLabel, orderUnitPrice } from '../../lib/pricing';
 import { errorMessage } from '../../lib/errors';
 
 const PROOF_STATUS_LABELS: Record<string, string> = { pending: 'بانتظار المراجعة', verified: 'تم التحقق', rejected: 'مرفوض' };
@@ -156,12 +157,13 @@ export const OrderDetailPage: React.FC = () => {
                             </thead>
                             <tbody className="divide-y divide-slate-50 text-sm">
                                 {order.items.map((item, idx) => {
-                                    const unit = item.unit_price != null ? item.unit_price * (1 - (item.discount_percentage ?? 0) / 100) : null;
+                                    const unit = orderUnitPrice(item);
+                                    const rule = orderLineRuleLabel(item);
                                     return (
                                         <tr key={`${item.id}-${idx}`}>
                                             <td className="px-6 py-4 font-bold text-slate-900">
                                                 {item.name_ar ?? 'منتج'}
-                                                {item.discount_percentage ? <span className="mr-2 text-[10px] text-red-500 font-black">خصم {item.discount_percentage}%</span> : null}
+                                                {rule ? <span className="mr-2 text-[10px] text-red-500 font-black">{rule}</span> : null}
                                             </td>
                                             <td className="px-6 py-4 text-center font-bold">{item.quantity}</td>
                                             <td className="px-6 py-4 text-slate-600">{unit != null ? formatSDG(unit) : '—'}</td>
