@@ -103,3 +103,16 @@ export function formatDate(iso: string | null | undefined): string {
     if (!iso) return '—';
     return new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium', timeZone: TIMEZONE }).format(new Date(iso));
 }
+
+// <input type="datetime-local"> speaks the browser's local time without a zone; these convert to
+// and from the ISO instants the backend stores.
+export function toLocalInput(iso: string | null | undefined): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+export function fromLocalInput(value: string): string | null {
+    return value ? new Date(value).toISOString() : null;
+}

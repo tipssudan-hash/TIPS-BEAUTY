@@ -71,6 +71,11 @@ suite('coupons over the backend RPCs', () => {
         expect(badPct.error?.message ?? '').toMatch(/value is invalid/i);
     });
 
+    it('preview refuses a cart checkout would refuse', async () => {
+        const gone = await rpc(customer, 'preview_coupon', { p_code: code('ANY'), p_items: [{ id: randomUUID(), quantity: 1 }] });
+        expect(gone.error?.message ?? '').toMatch(/product not found/i);
+    });
+
     it('preview refuses with a typed reason and never for anonymous callers', async () => {
         await saveCoupon({ p_code: code('MIN'), p_min_order_amount: basePrice * 10 });
         await saveCoupon({ p_code: code('LATER'), p_starts_at: new Date(Date.now() + 86_400_000).toISOString() });
@@ -106,7 +111,7 @@ suite('coupons over the backend RPCs', () => {
             expect(losing.reason).toBe('not_best');
             expect(Number(losing.line_reductions)).toBe(Number((basePrice * 0.2).toFixed(2)));
             const refused = await checkoutWith(code('SMALL'));
-            expect(refused.error?.message ?? '').toMatch(/does not beat/i);
+            expect(refused.error?.message ?? '').toMatch(/Coupon refused: not_best/);
 
             await saveCoupon({ p_code: code('BIG'), p_discount_value: Math.ceil(basePrice * 0.3) });
             const winning = await preview(customer, code('BIG'));
@@ -128,10 +133,14 @@ suite('coupons over the backend RPCs', () => {
 
     it('the per-customer limit holds across two orders placed at the same time', async () => {
         await saveCoupon({ p_code: code('ONCE'), p_per_user_limit: 1, p_discount_value: 10 });
-        const [a, b] = await Promise.all([checkoutWith(code('ONCE')), checkoutWith(code('ONCE'))]);
+        // Two different Products, so the two checkouts meet on the Coupon row lock, not the product lock.
+        const { data: catalogue } = await customer.rpc('get_public_products');
+        const other = (catalogue as { id: string; stock: number }[]).find((p) => p.id !== product.id && p.stock > 0) ?? { id: product.id };
+        const second = rpc(customer, 'checkout_order_safe', { ...checkoutArgs(zone, [{ id: other.id, quantity: 1 }], randomUUID()), p_coupon_code: code('ONCE') });
+        const [a, b] = await Promise.all([checkoutWith(code('ONCE')), second]);
         const errors = [a, b].filter((r) => r.error);
         expect(errors).toHaveLength(1);
-        expect(errors[0].error?.message ?? '').toMatch(/limit for this account/i);
+        expect(errors[0].error?.message ?? '').toMatch(/Coupon refused: customer_limit/);
         expect((await preview(customer, code('ONCE'))).reason).toBe('customer_limit');
         const { data: c } = await admin.from('coupons').select('usage_count').eq('code', code('ONCE')).single();
         expect(c!.usage_count).toBe(1);
@@ -141,10 +150,10 @@ suite('coupons over the backend RPCs', () => {
         await saveCoupon({ p_code: code('LAST'), p_usage_limit: 1, p_discount_value: 10 });
         expect((await checkoutWith(code('LAST'))).error).toBeNull();
         expect((await preview(customer, code('LAST'))).reason).toBe('used_up');
-        expect((await checkoutWith(code('LAST'))).error?.message ?? '').toMatch(/usage limit has been reached/i);
+        expect((await checkoutWith(code('LAST'))).error?.message ?? '').toMatch(/Coupon refused: used_up/);
         const del = await rpc(admin, 'admin_delete_coupon', { p_id: couponIds[couponIds.length - 1] });
         expect(del.error?.message ?? '').toMatch(/redemptions/i);
-        await cleanupTestOrders(admin); // cancels (releasing the redemption) and deletes the tagged orders
+        await cleanupTestOrders(admin); // deleting the tagged orders removes their redemptions (reversal itself is proven in reversal.test.ts)
         expect((await rpc(admin, 'admin_delete_coupon', { p_id: couponIds.pop()! })).error).toBeNull();
     });
 });

@@ -18,7 +18,7 @@ const backendMessages: [RegExp, string][] = [
     [/Transfer quantity must be positive/i, 'كمية التحويل يجب أن تكون أكبر من صفر.'],
     [/Coupon code already exists/i, 'هذا الكود مستخدم لكود خصم آخر.'],
     [/Coupon code is invalid/i, 'الكود يجب أن يكون من 3 إلى 30 حرفاً إنجليزياً أو رقماً أو شرطة.'],
-    [/Coupon value is invalid/i, 'قيمة التخفيض غير صحيحة.'],
+    [/Coupon value is invalid/i, 'قيمة الخصم غير صحيحة.'],
     [/Coupon window is invalid/i, 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية.'],
     [/Coupon has redemptions/i, 'هذا الكود استُخدم في طلبات ولا يمكن حذفه؛ يمكنك إيقافه بدلاً من ذلك.'],
     [/duplicate key/i, 'هذه القيمة مستخدمة مسبقاً.'],

@@ -106,7 +106,6 @@ export interface CheckoutResult {
     orderNumber: string;
     total: number;
     shippingFee: number;
-    couponDiscount: number;
 }
 
 export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
@@ -122,9 +121,9 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
         p_idempotency_key: input.idempotencyKey,
     });
     if (error) throw error;
-    const row = (data as { order_id: string; order_number: string; total: number; shipping_fee: number; discount_amount: number }[] | null)?.[0];
+    const row = (data as { order_id: string; order_number: string; total: number; shipping_fee: number }[] | null)?.[0];
     if (!row) throw new Error('Checkout returned no order');
-    return { orderId: row.order_id, orderNumber: row.order_number, total: Number(row.total), shippingFee: Number(row.shipping_fee), couponDiscount: Number(row.discount_amount ?? 0) };
+    return { orderId: row.order_id, orderNumber: row.order_number, total: Number(row.total), shippingFee: Number(row.shipping_fee) };
 }
 
 // Asks the backend what a Coupon would do to this Cart; a refusal comes back as a typed reason.

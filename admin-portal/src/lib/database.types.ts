@@ -1692,6 +1692,32 @@ export type Database = {
           updated_at: string
         }[]
       }
+      admin_get_coupons: {
+        Args: never
+        Returns: {
+          code: string
+          created_at: string
+          description: string | null
+          discount_type: string
+          discount_value: number
+          ends_at: string | null
+          id: string
+          is_active: boolean
+          max_discount_amount: number | null
+          min_order_amount: number
+          name: string
+          per_user_limit: number
+          starts_at: string
+          usage_count: number
+          usage_limit: number | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "coupons"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       admin_run_stale_order_sweep: { Args: never; Returns: number }
       admin_save_collection: {
         Args: {

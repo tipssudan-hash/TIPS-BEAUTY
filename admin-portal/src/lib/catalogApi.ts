@@ -296,9 +296,7 @@ export async function deleteCollection(id: string): Promise<void> {
 // Eligibility data: reads under the admin policy, every write through the admin RPCs.
 
 export async function fetchCoupons(): Promise<Coupon[]> {
-    const { data, error } = await supabase.from('coupons')
-        .select('id,code,name,description,discount_type,discount_value,max_discount_amount,min_order_amount,usage_limit,per_user_limit,usage_count,starts_at,ends_at,is_active')
-        .order('created_at', { ascending: false });
+    const { data, error } = await supabase.rpc('admin_get_coupons');
     if (error) throw error;
     return (data ?? []).map((row) => ({
         ...row,

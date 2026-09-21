@@ -129,6 +129,9 @@ export const CheckoutPage: React.FC = () => {
         }
     };
     const removeCoupon = () => { setCoupon(null); setCouponError(null); setCouponInput(''); };
+    // A preview is only good for the Cart it was computed on: drop it when the lines change.
+    const cartSignature = cart.map(i => `${i.productId}:${i.quantity}`).join(',');
+    useEffect(() => { setCoupon(null); }, [cartSignature]);
 
     if (cartCount === 0 && !submitting) return <Navigate to="/cart" replace />;
 
@@ -180,7 +183,7 @@ export const CheckoutPage: React.FC = () => {
             }
 
             sessionStorage.removeItem(IDEMPOTENCY_KEY);
-            navigate(`/orders/${result.orderId}`, { state: { justOrdered: true, orderNumber: result.orderNumber, proofWarning, couponDiscount: result.couponDiscount }, replace: true });
+            navigate(`/orders/${result.orderId}`, { state: { justOrdered: true, orderNumber: result.orderNumber, proofWarning }, replace: true });
             clearCart();
         } catch (err) {
             console.error(err);
@@ -349,6 +352,9 @@ export const CheckoutPage: React.FC = () => {
                                 <span>كود الخصم ({couponApplied.code})</span>
                                 <span>- {formatSDG(couponApplied.reduction)}</span>
                             </div>
+                        )}
+                        {couponApplied && couponApplied.lineReductions > 0 && (
+                            <p className="text-xs text-gray-500">يُحسب كود الخصم على السعر الأصلي للمنتجات بدلاً من تخفيضاتها؛ لا تتراكم التخفيضات.</p>
                         )}
                         <div className="flex justify-between text-gray-600">
                             <span>التوصيل{selectedZone ? ` (${zoneLabel(selectedZone)})` : ''}</span>

@@ -3,11 +3,8 @@ import { Ticket, Plus, Edit, Trash2, X, Loader2 } from 'lucide-react';
 import type { Coupon, CouponInput } from '../types';
 import { deleteCoupon, fetchCoupons, saveCoupon } from '../lib/catalogApi';
 import { errorMessage } from '../lib/errors';
-import { formatDateTime, formatNumber, formatSDG } from '../lib/format';
+import { formatDateTime, formatNumber, formatSDG, fromLocalInput, toLocalInput } from '../lib/format';
 import { Card, Field, Notice, PageHeader, Spinner, StatusPill, Table, inputClass, primaryButtonClass, secondaryButtonClass, smallButtonClass } from '../components/ui';
-
-const toLocalInput = (iso: string | null) => iso ? new Date(iso).toISOString().slice(0, 16) : '';
-const fromLocalInput = (value: string) => value ? new Date(value).toISOString() : null;
 
 const emptyCoupon = (): CouponInput => ({
     code: '', name: '', description: null, discount_type: 'percentage', discount_value: 10, max_discount_amount: null,
@@ -15,6 +12,7 @@ const emptyCoupon = (): CouponInput => ({
 });
 
 const numberOrNull = (value: string) => value === '' ? null : Number(value);
+const toInput = ({ id: _id, usage_count: _count, ...input }: Coupon): CouponInput => { void _id; void _count; return input; };
 
 export const CouponsPage: React.FC = () => {
     const [coupons, setCoupons] = useState<Coupon[]>([]);
@@ -45,7 +43,7 @@ export const CouponsPage: React.FC = () => {
         const data = editing.data;
         if (!/^[A-Za-z0-9-]{3,30}$/.test(data.code.trim())) { setError('الكود يجب أن يكون من 3 إلى 30 حرفاً إنجليزياً أو رقماً أو شرطة.'); return; }
         if (!data.name.trim()) { setError('اسم كود الخصم مطلوب.'); return; }
-        if (!(data.discount_value > 0) || (data.discount_type === 'percentage' && data.discount_value > 100)) { setError('قيمة التخفيض غير صحيحة.'); return; }
+        if (!(data.discount_value > 0) || (data.discount_type === 'percentage' && data.discount_value > 100)) { setError('قيمة الخصم غير صحيحة.'); return; }
         if (data.ends_at && data.ends_at <= data.starts_at) { setError('تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية.'); return; }
         setSaving(true);
         setError(null);
@@ -62,9 +60,7 @@ export const CouponsPage: React.FC = () => {
 
     const toggle = async (coupon: Coupon) => {
         try {
-            const { id, usage_count: _count, ...input } = coupon;
-            void _count;
-            await saveCoupon(id, { ...input, is_active: !coupon.is_active });
+            await saveCoupon(coupon.id, { ...toInput(coupon), is_active: !coupon.is_active });
             await load();
         } catch (err) {
             setError(errorMessage(err));
@@ -81,11 +77,7 @@ export const CouponsPage: React.FC = () => {
         }
     };
 
-    const edit = (coupon: Coupon) => {
-        const { id, usage_count: _count, ...input } = coupon;
-        void _count;
-        setEditing({ id, data: input });
-    };
+    const edit = (coupon: Coupon) => setEditing({ id: coupon.id, data: toInput(coupon) });
 
     const valueLabel = (c: Coupon) => c.discount_type === 'percentage' ? `${formatNumber(c.discount_value)}%` : formatSDG(c.discount_value);
     const isLive = (c: Coupon) => c.is_active && new Date(c.starts_at) <= new Date() && (!c.ends_at || new Date(c.ends_at) >= new Date());
@@ -96,7 +88,7 @@ export const CouponsPage: React.FC = () => {
         <div className="space-y-8">
             <PageHeader
                 title="أكواد الخصم"
-                subtitle="كود يكتبه العميل عند إتمام الطلب. يُطبَّق فقط إذا كان تخفيضه أكبر من التخفيضات على المنتجات؛ لا تتراكم التخفيضات."
+                subtitle="كود يكتبه العميل عند إتمام الطلب. يُطبَّق فقط إذا كان خصمه أكبر من الخصومات على المنتجات؛ لا تتراكم الخصومات."
                 icon={<Ticket className="w-8 h-8 text-brand-blue" />}
                 actions={<button type="button" onClick={() => setEditing({ id: null, data: emptyCoupon() })} className={primaryButtonClass}><Plus className="w-5 h-5" /> إضافة كود</button>}
             />
@@ -116,7 +108,7 @@ export const CouponsPage: React.FC = () => {
                             </Field>
                             <Field label="الاسم" required><input value={editing.data.name} onChange={(e) => update({ name: e.target.value })} className={inputClass} required /></Field>
                             <Field label="الوصف" hint="اختياري"><input value={editing.data.description ?? ''} onChange={(e) => update({ description: e.target.value || null })} className={inputClass} /></Field>
-                            <Field label="نوع التخفيض" required>
+                            <Field label="نوع الخصم" required>
                                 <select value={editing.data.discount_type} onChange={(e) => update({ discount_type: e.target.value as CouponInput['discount_type'] })} className={inputClass}>
                                     <option value="percentage">نسبة مئوية</option>
                                     <option value="fixed">مبلغ ثابت (ج.س)</option>
@@ -125,7 +117,7 @@ export const CouponsPage: React.FC = () => {
                             <Field label={editing.data.discount_type === 'percentage' ? 'النسبة (%)' : 'المبلغ (ج.س)'} required>
                                 <input type="number" min={1} max={editing.data.discount_type === 'percentage' ? 100 : undefined} step="1" value={editing.data.discount_value} onChange={(e) => update({ discount_value: Number(e.target.value) })} className={inputClass} dir="ltr" required />
                             </Field>
-                            <Field label="الحد الأقصى للتخفيض (ج.س)" hint="اختياري، مفيد مع النسبة المئوية">
+                            <Field label="الحد الأقصى للخصم (ج.س)" hint="اختياري، مفيد مع النسبة المئوية">
                                 <input type="number" min={1} step="1" value={editing.data.max_discount_amount ?? ''} onChange={(e) => update({ max_discount_amount: numberOrNull(e.target.value) })} className={inputClass} dir="ltr" />
                             </Field>
                             <Field label="الحد الأدنى لقيمة الطلب (ج.س)">
@@ -154,7 +146,7 @@ export const CouponsPage: React.FC = () => {
             )}
 
             <Card className="overflow-hidden">
-                <Table headers={['الكود', 'التخفيض', 'الشروط', 'الفترة', 'الاستخدام', 'الحالة', 'الإجراءات']} empty={coupons.length === 0} emptyText="لا توجد أكواد خصم بعد">
+                <Table headers={['الكود', 'الخصم', 'الشروط', 'الفترة', 'الاستخدام', 'الحالة', 'الإجراءات']} empty={coupons.length === 0} emptyText="لا توجد أكواد خصم بعد">
                     {coupons.map((c) => (
                         <tr key={c.id} className="hover:bg-slate-50/50">
                             <td className="px-6 py-4">

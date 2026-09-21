@@ -20,6 +20,7 @@ DECLARE
   v_coupon public.coupons%ROWTYPE;
   v_now timestamp with time zone := now();
   v_reduction numeric := 0;
+  v_reason text := NULL;
 BEGIN
   IF v_code = '' THEN RETURN QUERY SELECT NULL::uuid, NULL::text, NULL::text, 0::numeric, 'unknown'::text; RETURN; END IF;
   IF p_lock THEN
@@ -29,30 +30,21 @@ BEGIN
   END IF;
   IF NOT FOUND THEN RETURN QUERY SELECT NULL::uuid, v_code, NULL::text, 0::numeric, 'unknown'::text; RETURN; END IF;
 
-  IF NOT v_coupon.is_active THEN
-    RETURN QUERY SELECT v_coupon.id, v_coupon.code, v_coupon.name, 0::numeric, 'inactive'::text; RETURN;
-  ELSIF v_coupon.starts_at > v_now THEN
-    RETURN QUERY SELECT v_coupon.id, v_coupon.code, v_coupon.name, 0::numeric, 'not_started'::text; RETURN;
-  ELSIF v_coupon.ends_at IS NOT NULL AND v_coupon.ends_at < v_now THEN
-    RETURN QUERY SELECT v_coupon.id, v_coupon.code, v_coupon.name, 0::numeric, 'expired'::text; RETURN;
-  ELSIF v_coupon.usage_limit IS NOT NULL AND v_coupon.usage_count >= v_coupon.usage_limit THEN
-    RETURN QUERY SELECT v_coupon.id, v_coupon.code, v_coupon.name, 0::numeric, 'used_up'::text; RETURN;
-  ELSIF p_customer_id IS NOT NULL AND (SELECT count(*) FROM public.coupon_redemptions r WHERE r.coupon_id = v_coupon.id AND r.customer_id = p_customer_id) >= v_coupon.per_user_limit THEN
-    RETURN QUERY SELECT v_coupon.id, v_coupon.code, v_coupon.name, 0::numeric, 'customer_limit'::text; RETURN;
-  ELSIF COALESCE(p_base_subtotal, 0) < v_coupon.min_order_amount THEN
-    RETURN QUERY SELECT v_coupon.id, v_coupon.code, v_coupon.name, 0::numeric, 'below_minimum'::text; RETURN;
+  IF NOT v_coupon.is_active THEN v_reason := 'inactive';
+  ELSIF v_coupon.starts_at > v_now THEN v_reason := 'not_started';
+  ELSIF v_coupon.ends_at IS NOT NULL AND v_coupon.ends_at < v_now THEN v_reason := 'expired';
+  ELSIF v_coupon.usage_limit IS NOT NULL AND v_coupon.usage_count >= v_coupon.usage_limit THEN v_reason := 'used_up';
+  ELSIF p_customer_id IS NOT NULL AND (SELECT count(*) FROM public.coupon_redemptions r WHERE r.coupon_id = v_coupon.id AND r.customer_id = p_customer_id) >= v_coupon.per_user_limit THEN v_reason := 'customer_limit';
+  ELSIF COALESCE(p_base_subtotal, 0) < v_coupon.min_order_amount THEN v_reason := 'below_minimum';
+  ELSE
+    v_reduction := CASE WHEN v_coupon.discount_type = 'percentage'
+                        THEN COALESCE(p_base_subtotal, 0) * v_coupon.discount_value / 100
+                        ELSE v_coupon.discount_value END;
+    IF v_coupon.max_discount_amount IS NOT NULL THEN v_reduction := LEAST(v_reduction, v_coupon.max_discount_amount); END IF;
+    v_reduction := round(LEAST(v_reduction, COALESCE(p_base_subtotal, 0)), 2);
+    IF v_reduction <= COALESCE(p_line_reductions, 0) THEN v_reason := 'not_best'; END IF;
   END IF;
-
-  v_reduction := CASE WHEN v_coupon.discount_type = 'percentage'
-                      THEN COALESCE(p_base_subtotal, 0) * v_coupon.discount_value / 100
-                      ELSE v_coupon.discount_value END;
-  IF v_coupon.max_discount_amount IS NOT NULL THEN v_reduction := LEAST(v_reduction, v_coupon.max_discount_amount); END IF;
-  v_reduction := round(LEAST(v_reduction, COALESCE(p_base_subtotal, 0)), 2);
-
-  IF v_reduction <= COALESCE(p_line_reductions, 0) THEN
-    RETURN QUERY SELECT v_coupon.id, v_coupon.code, v_coupon.name, v_reduction, 'not_best'::text; RETURN;
-  END IF;
-  RETURN QUERY SELECT v_coupon.id, v_coupon.code, v_coupon.name, v_reduction, NULL::text;
+  RETURN QUERY SELECT v_coupon.id, v_coupon.code, v_coupon.name, v_reduction, v_reason;
 END;
 $$;
 
@@ -78,9 +70,10 @@ BEGIN
   IF jsonb_typeof(p_items) <> 'array' THEN RAISE EXCEPTION 'Cart is empty'; END IF;
   FOR v_item IN SELECT value FROM jsonb_array_elements(p_items) LOOP
     v_qty := GREATEST(COALESCE((v_item->>'quantity')::integer, 0), 0);
-    SELECT p.price, COALESCE(p.discount_percentage, 0) AS discount_percentage, p.category, p.brand INTO v_p
-    FROM public.products p WHERE p.id = (v_item->>'id')::uuid AND p.is_active;
-    IF NOT FOUND THEN CONTINUE; END IF;
+    SELECT p.price, COALESCE(p.discount_percentage, 0) AS discount_percentage, p.category, p.brand, p.is_active INTO v_p
+    FROM public.products p WHERE p.id = (v_item->>'id')::uuid;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Product not found'; END IF;
+    IF NOT v_p.is_active THEN RAISE EXCEPTION 'Product % is no longer available', (v_item->>'id'); END IF;
     SELECT * INTO v_ep FROM public.effective_price((v_item->>'id')::uuid, v_p.price, v_p.discount_percentage, v_p.category, v_p.brand);
     v_base := v_base + v_p.price * v_qty;
     v_lines := v_lines + v_ep.reduction * v_qty;
@@ -93,6 +86,17 @@ $$;
 
 REVOKE ALL ON FUNCTION public.preview_coupon(text, jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.preview_coupon(text, jsonb) TO authenticated, service_role;
+
+-- Admin read -------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.admin_get_coupons() RETURNS SETOF public.coupons
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  SELECT c.* FROM public.coupons c WHERE public.is_admin() ORDER BY c.created_at DESC;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_get_coupons() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_get_coupons() TO authenticated, service_role;
 
 -- Admin write ------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.admin_save_coupon(
@@ -194,14 +198,8 @@ BEGIN
   -- Coupon (T2-08): competes with the line reductions; the larger single reduction wins.
   IF NULLIF(trim(coalesce(p_coupon_code, '')), '') IS NOT NULL THEN
     SELECT * INTO v_coupon FROM public.evaluate_coupon(p_coupon_code, v_user_id, v_base_subtotal, v_line_reductions, true);
-    IF v_coupon.reason = 'not_started' THEN RAISE EXCEPTION 'Coupon is not active yet';
-    ELSIF v_coupon.reason IN ('unknown', 'inactive', 'expired') THEN RAISE EXCEPTION 'Coupon is invalid or expired';
-    ELSIF v_coupon.reason = 'below_minimum' THEN RAISE EXCEPTION 'Coupon minimum order amount was not reached';
-    ELSIF v_coupon.reason = 'used_up' THEN RAISE EXCEPTION 'Coupon usage limit has been reached';
-    ELSIF v_coupon.reason = 'customer_limit' THEN RAISE EXCEPTION 'Coupon usage limit for this account has been reached';
-    ELSIF v_coupon.reason = 'not_best' THEN RAISE EXCEPTION 'Coupon does not beat the current reductions';
-    ELSIF v_coupon.reason IS NOT NULL THEN RAISE EXCEPTION 'Coupon is invalid or expired';
-    END IF;
+    -- The typed reason travels to the Storefront, which owns the one Arabic map (couponRefusalMessage).
+    IF v_coupon.reason IS NOT NULL THEN RAISE EXCEPTION 'Coupon refused: %', v_coupon.reason; END IF;
     v_coupon_id := v_coupon.coupon_id; v_coupon_code := v_coupon.code; v_coupon_discount := v_coupon.reduction;
     -- The Coupon won: lines are charged at their base price and carry no line rule.
     v_subtotal := v_base_subtotal;
@@ -226,6 +224,7 @@ END; $$;
 --   recreate checkout_order from 20260920001500;
 --   GRANT INSERT, UPDATE, DELETE ON TABLE public.coupons TO authenticated;
 --   DROP FUNCTION public.admin_delete_coupon(uuid);
+--   DROP FUNCTION public.admin_get_coupons();
 --   DROP FUNCTION public.admin_save_coupon(text, text, text, numeric, uuid, text, numeric, numeric, integer, integer, timestamp with time zone, timestamp with time zone, boolean);
 --   DROP FUNCTION public.preview_coupon(text, jsonb);
 --   DROP FUNCTION public.evaluate_coupon(text, uuid, numeric, numeric, boolean);
