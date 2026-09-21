@@ -4,7 +4,7 @@ import { CheckCircle2, Loader2 } from 'lucide-react';
 import { Order, OrderStatusEntry, PaymentMethod } from '../../types';
 import { fetchMyOrder, fetchOrderHistory, fetchPaymentMethods, cancelMyOrder, uploadPaymentProof, submitPaymentProof } from '../../lib/api';
 import { errorMessage } from '../../lib/errors';
-import { discountedPrice } from '../../lib/pricing';
+import { orderUnitPrice } from '../../lib/pricing';
 import { formatSDG, formatDateTime } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_METHOD_LABELS, StatusBadge } from './MyOrdersPage';
@@ -155,13 +155,13 @@ export const OrderDetailPage: React.FC = () => {
                         </thead>
                         <tbody>
                             {order.items.map((item, idx) => {
-                                const unit = item.unit_price != null ? discountedPrice(Number(item.unit_price), item.discount_percentage) : null;
+                                const unit = orderUnitPrice(item);
                                 const line = item.line_total != null ? Number(item.line_total) : unit != null ? unit * item.quantity : null;
                                 return (
                                     <tr key={`${item.id}-${idx}`} className="border-b border-gray-50">
                                         <td className="py-3">
                                             <p className="font-bold text-gray-800">{item.name_ar ?? 'منتج'}</p>
-                                            {unit != null && <p className="text-xs text-gray-500">{formatSDG(unit)} للقطعة</p>}
+                                            {unit != null && <p className="text-xs text-gray-500">{formatSDG(unit)} للقطعة{item.pricing_rule_label ? ` · ${item.pricing_rule_label}` : ''}</p>}
                                         </td>
                                         <td className="py-3 text-center">{item.quantity}</td>
                                         <td className="py-3 text-left font-medium">{line != null ? formatSDG(line) : '—'}</td>

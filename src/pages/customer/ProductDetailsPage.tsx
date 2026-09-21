@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Product } from '../../types';
 import { fetchProduct } from '../../lib/api';
-import { discountedPrice } from '../../lib/pricing';
 import { formatSDG } from '../../lib/format';
 import { Heart, Share2, ShoppingCart, Check } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
@@ -85,7 +84,7 @@ export const ProductDetailsPage: React.FC = () => {
 
     const images = product.images.length > 0 ? product.images : [product.image];
     const isInWishlist = wishlist.includes(product.id);
-    const finalPrice = discountedPrice(product.price, product.discountPercentage);
+    const finalPrice = product.effectivePrice;
     const hasDiscount = finalPrice < product.price;
 
     return (
@@ -153,7 +152,7 @@ export const ProductDetailsPage: React.FC = () => {
                             {hasDiscount && (
                                 <>
                                     <p className="text-lg text-gray-400 line-through">{formatSDG(product.price)}</p>
-                                    <span className="text-xs font-bold bg-red-100 text-red-600 rounded-full px-2 py-1">خصم {product.discountPercentage}%</span>
+                                    <span className="text-xs font-bold bg-red-100 text-red-600 rounded-full px-2 py-1">{product.pricingRule?.label}</span>
                                 </>
                             )}
                         </div>

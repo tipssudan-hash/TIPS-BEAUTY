@@ -1674,7 +1674,43 @@ export type Database = {
         Args: { p_end?: string; p_start?: string }
         Returns: Json
       }
+      admin_delete_collection: { Args: { p_id: string }; Returns: undefined }
+      admin_get_collections: {
+        Args: never
+        Returns: {
+          description_ar: string
+          display_order: number
+          icon: string
+          id: string
+          is_active: boolean
+          name_ar: string
+          product_ids: string[]
+          rule_config: Json
+          rule_type: string
+          slug: string
+          updated_at: string
+        }[]
+      }
       admin_run_stale_order_sweep: { Args: never; Returns: number }
+      admin_save_collection: {
+        Args: {
+          p_description_ar?: string
+          p_display_order?: number
+          p_icon?: string
+          p_id?: string
+          p_is_active?: boolean
+          p_name_ar: string
+          p_product_ids?: string[]
+          p_rule_config?: Json
+          p_rule_type: string
+          p_slug: string
+        }
+        Returns: string
+      }
+      admin_set_collection_products: {
+        Args: { p_collection_id: string; p_product_ids: string[] }
+        Returns: undefined
+      }
       admin_update_order_operation: {
         Args: {
           p_driver_id?: string
@@ -1822,6 +1858,22 @@ export type Database = {
         }[]
       }
       dispatch_email_queue: { Args: never; Returns: undefined }
+      effective_price: {
+        Args: {
+          p_base_price: number
+          p_brand: string
+          p_category: string
+          p_discount_percentage: number
+          p_product_id: string
+        }
+        Returns: {
+          effective_price: number
+          promotion_id: string
+          reduction: number
+          rule_kind: string
+          rule_label: string
+        }[]
+      }
       get_admin_product: {
         Args: { p_product_id: string }
         Returns: {
@@ -1917,6 +1969,7 @@ export type Database = {
           created_at: string
           description: string
           discount_percentage: number
+          effective_price: number
           expiry: string
           id: string
           image: string
@@ -1927,6 +1980,8 @@ export type Database = {
           name_en: string
           origin: string
           price: number
+          pricing_rule_kind: string
+          pricing_rule_label: string
           reviews_count: number
           skin_type: string[]
           stock: number
@@ -1963,6 +2018,7 @@ export type Database = {
           created_at: string
           description: string
           discount_percentage: number
+          effective_price: number
           expiry: string
           id: string
           image: string
@@ -1973,6 +2029,8 @@ export type Database = {
           name_en: string
           origin: string
           price: number
+          pricing_rule_kind: string
+          pricing_rule_label: string
           reviews_count: number
           skin_type: string[]
           stock: number

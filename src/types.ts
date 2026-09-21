@@ -6,12 +6,22 @@ export interface ProductVariant {
   stock?: number;
 }
 
+export type PricingRuleKind = 'discount' | 'promotion';
+
+export interface PricingRule {
+  kind: PricingRuleKind;
+  label: string;
+}
+
 export interface Product {
   id: string;
   name_ar: string;
   name_en: string;
   price: number;
   discountPercentage: number;
+  // Decided by the backend (effective_price): the price charged at checkout and the rule that set it.
+  effectivePrice: number;
+  pricingRule: PricingRule | null;
   category: string;
   brand: string;
   image: string;
@@ -37,6 +47,8 @@ export interface CartItem {
   image: string;
   price: number;
   discountPercentage: number;
+  effectivePrice: number;
+  pricingRule: PricingRule | null;
   quantity: number;
 }
 
@@ -49,6 +61,9 @@ export interface OrderItem {
   name_ar?: string;
   unit_price?: number;
   discount_percentage?: number;
+  effective_unit_price?: number;
+  pricing_rule_kind?: PricingRuleKind | null;
+  pricing_rule_label?: string | null;
   line_total?: number;
 }
 

@@ -2,13 +2,13 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 import { Trash2, Plus, Minus, ShoppingBag } from 'lucide-react';
-import { discountedPrice } from '../../lib/pricing';
+import { cartUnitPrice } from '../../lib/pricing';
 import { formatSDG } from '../../lib/format';
 
 export const CartPage: React.FC = () => {
     const { cart, removeFromCart, updateQuantity } = useStore();
 
-    const subtotal = cart.reduce((sum, item) => sum + discountedPrice(item.price, item.discountPercentage) * item.quantity, 0);
+    const subtotal = cart.reduce((sum, item) => sum + cartUnitPrice(item) * item.quantity, 0);
 
     if (cart.length === 0) {
         return (
@@ -54,7 +54,7 @@ export const CartPage: React.FC = () => {
                             <div className="flex-1">
                                 <h3 className="font-bold text-gray-800 mb-1">{item.name_ar}</h3>
                                 <p className="text-brand-blue font-bold">
-                                    {formatSDG(discountedPrice(item.price, item.discountPercentage))}
+                                    {formatSDG(cartUnitPrice(item))}
                                 </p>
                             </div>
                             <div className="flex flex-col items-end justify-between">

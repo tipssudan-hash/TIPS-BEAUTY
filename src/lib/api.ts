@@ -6,6 +6,7 @@ import type { DeliveryZone, Order, OrderItem, OrderStatusEntry, PaymentMethod, P
 
 type ProductRow = {
     id: string; name_ar: string; name_en: string | null; price: number; discount_percentage: number | null;
+    effective_price: number | null; pricing_rule_kind: string | null; pricing_rule_label: string | null;
     category: string | null; brand: string | null; image: string | null; images: string[] | null; description: string | null;
     benefits: string[] | null; ingredients: string[] | null; usage: string | null; origin: string | null; expiry: string | null;
     stock: number | null; is_imported: boolean | null; skin_type: string[] | null; reviews_count: number | null;
@@ -19,6 +20,10 @@ export function mapProduct(row: ProductRow): Product {
         name_en: row.name_en ?? '',
         price: Number(row.price),
         discountPercentage: Number(row.discount_percentage ?? 0),
+        effectivePrice: Number(row.effective_price ?? row.price),
+        pricingRule: row.pricing_rule_kind === 'discount' || row.pricing_rule_kind === 'promotion'
+            ? { kind: row.pricing_rule_kind, label: row.pricing_rule_label ?? '' }
+            : null,
         category: row.category ?? '',
         brand: row.brand ?? '',
         image: row.image ?? (row.images?.[0] ?? ''),

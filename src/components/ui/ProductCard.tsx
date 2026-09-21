@@ -3,7 +3,6 @@ import { Heart, Share2, ShoppingCart } from 'lucide-react';
 import { Product } from '../../types';
 import clsx from 'clsx';
 import { Link } from 'react-router-dom';
-import { discountedPrice } from '../../lib/pricing';
 import { formatSDG } from '../../lib/format';
 
 interface ProductCardProps {
@@ -14,7 +13,7 @@ interface ProductCardProps {
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, isInWishlist, onToggleWishlist, onAddToCart }) => {
-    const finalPrice = discountedPrice(product.price, product.discountPercentage);
+    const finalPrice = product.effectivePrice;
     const hasDiscount = finalPrice < product.price;
     const outOfStock = product.stock <= 0;
     const productUrl = `${window.location.origin}/product/${product.id}`;
@@ -58,7 +57,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, isInWishlist,
             <div className="relative aspect-[4/5] overflow-hidden shrink-0 bg-gray-50">
                 <img src={product.image} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={product.name_ar} />
                 {hasDiscount && (
-                    <span className="absolute bottom-2 right-2 bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black shadow">خصم {product.discountPercentage}%</span>
+                    <span className="absolute bottom-2 right-2 bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black shadow">{product.pricingRule?.label}</span>
                 )}
                 {outOfStock && (
                     <span className="absolute inset-0 bg-white/70 flex items-center justify-center text-xs font-bold text-gray-700">غير متوفر</span>

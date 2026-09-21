@@ -8,6 +8,9 @@ export interface OrderItem {
     name_ar?: string;
     unit_price?: number;
     discount_percentage?: number;
+    effective_unit_price?: number;
+    pricing_rule_kind?: 'discount' | 'promotion' | null;
+    pricing_rule_label?: string | null;
     line_total?: number;
 }
 
