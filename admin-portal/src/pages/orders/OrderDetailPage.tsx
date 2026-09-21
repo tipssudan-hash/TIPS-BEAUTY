@@ -7,6 +7,7 @@ import {
     type AdminOrder, type DriverOption, type OrderHistoryEntry, type PaymentProof, type WarehouseOption,
 } from '../../lib/adminApi';
 import { ALLOWED_TRANSITIONS, formatDateTime, formatSDG, orderStatusDot, orderStatusLabel, orderStatusStyle, paymentMethodLabel, paymentStatusLabel, paymentStatusStyle, type OrderStatus } from '../../lib/format';
+import { orderLineRuleLabel, orderUnitPrice } from '../../lib/pricing';
 import { errorMessage } from '../../lib/errors';
 
 const PROOF_STATUS_LABELS: Record<string, string> = { pending: 'بانتظار المراجعة', verified: 'تم التحقق', rejected: 'مرفوض' };
@@ -156,9 +157,8 @@ export const OrderDetailPage: React.FC = () => {
                             </thead>
                             <tbody className="divide-y divide-slate-50 text-sm">
                                 {order.items.map((item, idx) => {
-                                    // Lines snapshot the effective unit price (T2-07); older orders carry only the Discount.
-                                    const unit = item.effective_unit_price != null ? Number(item.effective_unit_price) : item.unit_price != null ? item.unit_price * (1 - (item.discount_percentage ?? 0) / 100) : null;
-                                    const rule = item.pricing_rule_label ?? (item.discount_percentage ? `خصم ${item.discount_percentage}%` : null);
+                                    const unit = orderUnitPrice(item);
+                                    const rule = orderLineRuleLabel(item);
                                     return (
                                         <tr key={`${item.id}-${idx}`}>
                                             <td className="px-6 py-4 font-bold text-slate-900">

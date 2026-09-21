@@ -68,10 +68,22 @@ suite('effective price over the backend', () => {
 
     it('a Discount reduces the price and is labelled', async () => {
         await setDiscount(10);
-        const p = await publicProduct();
+        let p = await publicProduct();
         expect(Number(p.effective_price)).toBe(Number((basePrice * 0.9).toFixed(2)));
         expect(p.pricing_rule_kind).toBe('discount');
-        expect(p.pricing_rule_label).toMatch(/10/);
+        expect(p.pricing_rule_label).toBe('خصم 10%');
+        await setDiscount(12.5);
+        p = await publicProduct();
+        expect(p.pricing_rule_label).toBe('خصم 12.5%');
+    });
+
+    it('a tie between Discount and Promotion goes to the Discount', async () => {
+        await setDiscount(10);
+        await clearPromotions();
+        await addPromotion({ discount_value: 10, title: `${TEST_TAG} tie` });
+        const p = await publicProduct();
+        expect(p.pricing_rule_kind).toBe('discount');
+        expect(Number(p.effective_price)).toBe(Number((basePrice * 0.9).toFixed(2)));
     });
 
     it('the larger of Discount and Promotion wins; they never stack', async () => {
@@ -108,15 +120,18 @@ suite('effective price over the backend', () => {
         await clearPromotions();
         await addPromotion({ discount_value: 25, title: `${TEST_TAG} quarter` });
         const shown = await publicProduct();
+        const { data: list } = await customer.rpc('get_public_products');
+        expect(Number((list as unknown as PublicProduct[]).find((x) => x.id === product.id)?.effective_price)).toBe(Number(shown.effective_price));
         const created = await rpc(customer, 'checkout_order_safe', checkoutArgs(zone, [{ id: product.id, quantity: 2 }], randomUUID()));
         expect(created.error).toBeNull();
         const order = (created.data as { order_id: string; total: number }[])[0];
         expect(Number(order.total)).toBe(Number((Number(shown.effective_price) * 2 + zone.fee).toFixed(2)));
         const { data: row } = await admin.from('orders').select('items').eq('id', order.order_id).single();
-        const line = (row!.items as { effective_unit_price: number; pricing_rule_kind: string; pricing_rule_label: string; line_total: number }[])[0];
+        const line = (row!.items as { effective_unit_price: number; pricing_rule_kind: string; pricing_rule_label: string; promotion_id: string | null; line_total: number }[])[0];
         expect(Number(line.effective_unit_price)).toBe(Number(shown.effective_price));
         expect(line.pricing_rule_kind).toBe('promotion');
         expect(line.pricing_rule_label).toBe(`${TEST_TAG} quarter`);
+        expect(line.promotion_id).toBe(promotionIds[0]);
         expect(Number(line.line_total)).toBe(Number((Number(shown.effective_price) * 2).toFixed(2)));
     });
 });

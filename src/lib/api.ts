@@ -21,8 +21,8 @@ export function mapProduct(row: ProductRow): Product {
         price: Number(row.price),
         discountPercentage: Number(row.discount_percentage ?? 0),
         effectivePrice: Number(row.effective_price ?? row.price),
-        pricingRule: row.pricing_rule_kind === 'discount' || row.pricing_rule_kind === 'promotion'
-            ? { kind: row.pricing_rule_kind, label: row.pricing_rule_label ?? '' }
+        pricingRule: (row.pricing_rule_kind === 'discount' || row.pricing_rule_kind === 'promotion') && row.pricing_rule_label
+            ? { kind: row.pricing_rule_kind, label: row.pricing_rule_label }
             : null,
         category: row.category ?? '',
         brand: row.brand ?? '',

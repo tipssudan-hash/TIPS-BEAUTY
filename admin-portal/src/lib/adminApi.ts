@@ -11,6 +11,7 @@ export interface OrderItem {
     effective_unit_price?: number;
     pricing_rule_kind?: 'discount' | 'promotion' | null;
     pricing_rule_label?: string | null;
+    promotion_id?: string | null;
     line_total?: number;
 }
 

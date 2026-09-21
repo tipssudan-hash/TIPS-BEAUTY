@@ -85,7 +85,6 @@ export const ProductDetailsPage: React.FC = () => {
     const images = product.images.length > 0 ? product.images : [product.image];
     const isInWishlist = wishlist.includes(product.id);
     const finalPrice = product.effectivePrice;
-    const hasDiscount = finalPrice < product.price;
 
     return (
         <div className="max-w-4xl mx-auto p-4 animate-fadeIn">
@@ -149,10 +148,10 @@ export const ProductDetailsPage: React.FC = () => {
                     <div className="mb-6">
                         <div className="flex items-baseline gap-3 flex-wrap">
                             <p className="text-3xl font-black text-brand-blue">{formatSDG(finalPrice)}</p>
-                            {hasDiscount && (
+                            {product.pricingRule && (
                                 <>
                                     <p className="text-lg text-gray-400 line-through">{formatSDG(product.price)}</p>
-                                    <span className="text-xs font-bold bg-red-100 text-red-600 rounded-full px-2 py-1">{product.pricingRule?.label}</span>
+                                    <span className="text-xs font-bold bg-red-100 text-red-600 rounded-full px-2 py-1">{product.pricingRule.label}</span>
                                 </>
                             )}
                         </div>

@@ -4,7 +4,9 @@
 -- the result and the winning rule's label, and checkout_order charges the same number, so the
 -- price a customer sees is the price they pay. Promotions currently match on target_group = 'all'
 -- (the only target the table has); T2-10 widens the match to categories, brands and products.
--- Coupons are Order-level and stay in checkout_order (T2-08).
+-- Coupons are Order-level and stay in checkout_order (T2-08 makes them compete with the best line
+-- reduction). Rounding: the effective unit price is rounded to 2 dp, then multiplied by the quantity
+-- (the customer sees the unit price); before this the line was rounded after multiplying.
 
 CREATE OR REPLACE FUNCTION public.effective_price(
   p_product_id uuid, p_base_price numeric, p_discount_percentage numeric, p_category text, p_brand text
@@ -15,7 +17,7 @@ CREATE OR REPLACE FUNCTION public.effective_price(
   WITH base AS (SELECT GREATEST(COALESCE(p_base_price, 0), 0) AS price),
   discount AS (
     SELECT round(b.price * COALESCE(p_discount_percentage, 0) / 100, 2) AS reduction,
-           'discount'::text AS kind, 'خصم ' || trim(to_char(COALESCE(p_discount_percentage, 0), 'FM999990.##')) || '%' AS label,
+           'discount'::text AS kind, 'خصم ' || rtrim(rtrim(to_char(COALESCE(p_discount_percentage, 0), 'FM999990.99'), '0'), '.') || '%' AS label,
            NULL::uuid AS promotion_id
     FROM base b WHERE COALESCE(p_discount_percentage, 0) > 0
   ),
@@ -41,8 +43,9 @@ CREATE OR REPLACE FUNCTION public.effective_price(
   FROM base b LEFT JOIN winner w ON true;
 $$;
 
-REVOKE ALL ON FUNCTION public.effective_price(uuid, numeric, numeric, text, text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.effective_price(uuid, numeric, numeric, text, text) TO anon, authenticated, service_role;
+-- Only ever called from the SECURITY DEFINER catalogue and checkout functions (owner-executed).
+REVOKE ALL ON FUNCTION public.effective_price(uuid, numeric, numeric, text, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.effective_price(uuid, numeric, numeric, text, text) TO service_role;
 
 -- Public catalogue: same columns as before plus the effective price and the winning rule.
 DROP FUNCTION IF EXISTS public.get_public_products();
@@ -89,7 +92,7 @@ CREATE OR REPLACE FUNCTION public.checkout_order(p_customer_name text, p_phone t
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions'
     AS $$
-DECLARE v_user_id uuid := (SELECT auth.uid()); v_item jsonb; v_product_id uuid; v_quantity integer; v_unit_price numeric; v_discount numeric; v_stock integer; v_name text; v_active boolean; v_subtotal numeric := 0; v_shipping numeric := 1500; v_order_id uuid; v_order_number text; v_warehouse_id uuid; v_has_warehouse_inventory boolean; v_coupon public.coupons%ROWTYPE; v_coupon_discount numeric := 0; v_points integer := 0; v_points_discount numeric := 0; v_point_value numeric; v_minimum_points integer; v_items_snapshot jsonb := '[]'::jsonb; v_line_price numeric; v_category text; v_brand text; v_rule_kind text; v_rule_label text;
+DECLARE v_user_id uuid := (SELECT auth.uid()); v_item jsonb; v_product_id uuid; v_quantity integer; v_unit_price numeric; v_discount numeric; v_stock integer; v_name text; v_active boolean; v_subtotal numeric := 0; v_shipping numeric := 1500; v_order_id uuid; v_order_number text; v_warehouse_id uuid; v_has_warehouse_inventory boolean; v_coupon public.coupons%ROWTYPE; v_coupon_discount numeric := 0; v_points integer := 0; v_points_discount numeric := 0; v_point_value numeric; v_minimum_points integer; v_items_snapshot jsonb := '[]'::jsonb; v_line_price numeric; v_category text; v_brand text; v_rule_kind text; v_rule_label text; v_promotion_id uuid;
 BEGIN
   IF v_user_id IS NULL THEN RAISE EXCEPTION 'Authentication required'; END IF;
   IF p_customer_name IS NULL OR length(trim(p_customer_name)) < 2 THEN RAISE EXCEPTION 'Customer name is required'; END IF;
@@ -108,10 +111,10 @@ BEGIN
     IF NOT v_active THEN RAISE EXCEPTION 'Product % is no longer available', v_product_id; END IF;
     IF NOT v_has_warehouse_inventory AND v_stock < v_quantity THEN RAISE EXCEPTION 'Insufficient stock for product %', v_product_id; END IF;
     -- The same Pricing Rule resolution the catalogue showed (T2-07).
-    SELECT ep.effective_price, ep.rule_kind, ep.rule_label INTO v_line_price, v_rule_kind, v_rule_label
+    SELECT ep.effective_price, ep.rule_kind, ep.rule_label, ep.promotion_id INTO v_line_price, v_rule_kind, v_rule_label, v_promotion_id
     FROM public.effective_price(v_product_id, v_unit_price, v_discount, v_category, v_brand) ep;
     v_subtotal := v_subtotal + v_line_price * v_quantity;
-    v_items_snapshot := v_items_snapshot || jsonb_build_object('id', v_product_id, 'quantity', v_quantity, 'name_ar', v_name, 'unit_price', round(v_unit_price, 2), 'discount_percentage', v_discount, 'effective_unit_price', v_line_price, 'pricing_rule_kind', v_rule_kind, 'pricing_rule_label', v_rule_label, 'line_total', round(v_line_price * v_quantity, 2));
+    v_items_snapshot := v_items_snapshot || jsonb_build_object('id', v_product_id, 'quantity', v_quantity, 'name_ar', v_name, 'unit_price', round(v_unit_price, 2), 'discount_percentage', v_discount, 'effective_unit_price', v_line_price, 'pricing_rule_kind', v_rule_kind, 'pricing_rule_label', v_rule_label, 'promotion_id', v_promotion_id, 'line_total', round(v_line_price * v_quantity, 2));
   END LOOP;
   IF NULLIF(trim(coalesce(p_coupon_code, '')), '') IS NOT NULL THEN SELECT * INTO v_coupon FROM public.coupons WHERE code = upper(trim(p_coupon_code)) AND is_active AND starts_at <= timezone('utc', now()) AND (ends_at IS NULL OR ends_at >= timezone('utc', now())) FOR UPDATE; IF NOT FOUND THEN RAISE EXCEPTION 'Coupon is invalid or expired'; END IF; IF v_subtotal < v_coupon.min_order_amount THEN RAISE EXCEPTION 'Coupon minimum order amount was not reached'; END IF; IF v_coupon.usage_limit IS NOT NULL AND v_coupon.usage_count >= v_coupon.usage_limit THEN RAISE EXCEPTION 'Coupon usage limit has been reached'; END IF; IF (SELECT count(*) FROM public.coupon_redemptions WHERE coupon_id = v_coupon.id AND customer_id = v_user_id) >= v_coupon.per_user_limit THEN RAISE EXCEPTION 'Coupon usage limit for this account has been reached'; END IF; v_coupon_discount := CASE WHEN v_coupon.discount_type = 'percentage' THEN v_subtotal * v_coupon.discount_value / 100 ELSE v_coupon.discount_value END; IF v_coupon.max_discount_amount IS NOT NULL THEN v_coupon_discount := LEAST(v_coupon_discount, v_coupon.max_discount_amount); END IF; v_coupon_discount := LEAST(v_coupon_discount, v_subtotal); END IF;
   SELECT beauty_points INTO v_points FROM public.profiles WHERE id = v_user_id FOR UPDATE; SELECT currency_per_point, minimum_redemption_points INTO v_point_value, v_minimum_points FROM public.loyalty_settings WHERE id = true; IF p_points_to_redeem > 0 THEN IF p_points_to_redeem < v_minimum_points THEN RAISE EXCEPTION 'Minimum points for redemption was not reached'; END IF; IF p_points_to_redeem > COALESCE(v_points, 0) THEN RAISE EXCEPTION 'Insufficient loyalty points'; END IF; v_points_discount := LEAST(p_points_to_redeem * v_point_value, GREATEST(v_subtotal - v_coupon_discount, 0)); END IF;

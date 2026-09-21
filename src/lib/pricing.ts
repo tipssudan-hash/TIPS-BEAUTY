@@ -1,10 +1,12 @@
-import type { CartItem, OrderItem } from '../types';
+import type { CartItem, OrderItem, Product } from '../types';
 
 // Prices are decided by the backend (effective_price). The Storefront only reads them back.
 
-// A Cart line's unit price as the catalogue showed it; carts persisted before effective prices
-// existed fall back to the Product's own Discount.
-export function cartUnitPrice(item: Pick<CartItem, 'price' | 'discountPercentage' | 'effectivePrice'>): number {
+// A Cart line's unit price. The live catalogue wins (a Promotion may have started or ended since
+// the line was added); otherwise the price snapshotted when it was added; carts persisted before
+// effective prices existed fall back to the Product's own Discount.
+export function cartUnitPrice(item: Pick<CartItem, 'price' | 'discountPercentage' | 'effectivePrice'>, live?: Pick<Product, 'effectivePrice'>): number {
+    if (live) return live.effectivePrice;
     if (typeof item.effectivePrice === 'number' && Number.isFinite(item.effectivePrice)) return item.effectivePrice;
     return discountedPrice(item.price, item.discountPercentage);
 }
@@ -18,7 +20,7 @@ export function orderUnitPrice(item: Pick<OrderItem, 'unit_price' | 'discount_pe
 }
 
 // Legacy fallback only (matches the pre-T2-07 checkout_order arithmetic).
-export function discountedPrice(price: number, discountPercentage: number | null | undefined): number {
+function discountedPrice(price: number, discountPercentage: number | null | undefined): number {
     const pct = discountPercentage ?? 0;
     return pct > 0 ? Number((price * (1 - pct / 100)).toFixed(2)) : price;
 }

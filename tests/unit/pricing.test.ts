@@ -1,15 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { discountedPrice } from '../../src/lib/pricing';
+import { cartUnitPrice, orderUnitPrice } from '../../src/lib/pricing';
 
-describe('discountedPrice', () => {
-    it('returns the price unchanged without a discount', () => {
-        expect(discountedPrice(1000, 0)).toBe(1000);
-        expect(discountedPrice(1000, null)).toBe(1000);
-        expect(discountedPrice(1000, undefined)).toBe(1000);
+// Prices come from the backend (effective_price); these helpers only choose which snapshot to show.
+
+describe('cartUnitPrice', () => {
+    it('prefers the live catalogue, then the price snapshotted when the line was added', () => {
+        const item = { price: 1000, discountPercentage: 15, effectivePrice: 850 };
+        expect(cartUnitPrice(item, { effectivePrice: 800 })).toBe(800);
+        expect(cartUnitPrice(item)).toBe(850);
     });
 
-    it('applies a percentage discount rounded to 2 decimals, matching checkout_order', () => {
-        expect(discountedPrice(1000, 15)).toBe(850);
-        expect(discountedPrice(1999, 33)).toBe(1339.33);
+    it('falls back to the Product Discount for carts persisted before effective prices', () => {
+        const legacy = { price: 1999, discountPercentage: 33 } as { price: number; discountPercentage: number; effectivePrice: number };
+        expect(cartUnitPrice(legacy)).toBe(1339.33);
+        expect(cartUnitPrice({ price: 1000, discountPercentage: 0 } as typeof legacy)).toBe(1000);
+    });
+});
+
+describe('orderUnitPrice', () => {
+    it('reads the snapshotted effective unit price, else derives it from the Discount, else nothing', () => {
+        expect(orderUnitPrice({ unit_price: 1000, discount_percentage: 15, effective_unit_price: 700 })).toBe(700);
+        expect(orderUnitPrice({ unit_price: 1000, discount_percentage: 15 })).toBe(850);
+        expect(orderUnitPrice({})).toBeNull();
     });
 });

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 import { Trash2, Plus, Minus, ShoppingBag } from 'lucide-react';
@@ -6,9 +6,10 @@ import { cartUnitPrice } from '../../lib/pricing';
 import { formatSDG } from '../../lib/format';
 
 export const CartPage: React.FC = () => {
-    const { cart, removeFromCart, updateQuantity } = useStore();
+    const { cart, products, removeFromCart, updateQuantity } = useStore();
+    const live = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
-    const subtotal = cart.reduce((sum, item) => sum + cartUnitPrice(item) * item.quantity, 0);
+    const subtotal = cart.reduce((sum, item) => sum + cartUnitPrice(item, live.get(item.productId)) * item.quantity, 0);
 
     if (cart.length === 0) {
         return (
@@ -54,7 +55,7 @@ export const CartPage: React.FC = () => {
                             <div className="flex-1">
                                 <h3 className="font-bold text-gray-800 mb-1">{item.name_ar}</h3>
                                 <p className="text-brand-blue font-bold">
-                                    {formatSDG(cartUnitPrice(item))}
+                                    {formatSDG(cartUnitPrice(item, live.get(item.productId)))}
                                 </p>
                             </div>
                             <div className="flex flex-col items-end justify-between">
