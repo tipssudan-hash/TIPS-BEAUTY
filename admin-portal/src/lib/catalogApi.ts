@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { AdminReview, Banner, Collection, Coupon, CouponInput, CollectionInput, CollectionRuleConfig, CollectionRuleType, DeliveryZone, Driver, InventoryRow, Product, ProductInput, Warehouse } from '../types';
+import type { AdminReview, Banner, Collection, Coupon, CouponInput, CollectionInput, CollectionRuleConfig, CollectionRuleType, DeliveryZone, Driver, InventoryRow, Product, ProductInput, ProductVariant, Warehouse } from '../types';
 import type { Json } from './database.types';
 
 // Admin data access for catalogue, logistics and settings over the generated database types.
@@ -12,6 +12,18 @@ type ProductRow = Omit<Product, 'variants' | 'images' | 'benefits' | 'ingredient
     usage: string | null; origin: string | null; expiry: string | null; discount_percentage: number | null; cost_price: number | null;
     stock: number | null; reviews_count: number | null; average_rating: number | null; is_imported: boolean | null; is_active: boolean | null;
 };
+
+function mapVariants(raw: unknown): ProductVariant[] {
+    if (!Array.isArray(raw)) return [];
+    return (raw as Partial<ProductVariant>[])
+        .filter((v) => v && typeof v.id === 'string' && typeof v.name_ar === 'string')
+        .map((v) => ({ id: v.id!, name_ar: v.name_ar!, name_en: v.name_en ?? '', price: v.price == null ? null : Number(v.price) }));
+}
+
+// Only the keys the CHECK constraint knows; a blank price means "the Product's price".
+function variantRows(variants: ProductVariant[]) {
+    return variants.map((v) => ({ id: v.id, name_ar: v.name_ar.trim(), name_en: v.name_en?.trim() || null, price: v.price == null || Number.isNaN(v.price) ? null : v.price }));
+}
 
 function mapProduct(row: ProductRow): Product {
     return {
@@ -36,7 +48,7 @@ function mapProduct(row: ProductRow): Product {
         skin_type: row.skin_type ?? [],
         reviews_count: Number(row.reviews_count ?? 0),
         average_rating: Number(row.average_rating ?? 0),
-        variants: Array.isArray(row.variants) ? (row.variants as Product['variants']) : [],
+        variants: mapVariants(row.variants),
         is_active: row.is_active ?? true,
         created_at: row.created_at,
     };
@@ -74,7 +86,7 @@ function toRow(input: ProductInput) {
         expiry: input.expiry,
         is_imported: input.is_imported,
         skin_type: input.skin_type,
-        variants: input.variants,
+        variants: variantRows(input.variants),
         is_active: input.is_active,
     };
 }

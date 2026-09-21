@@ -89,12 +89,14 @@ export async function createTestOrder(customer: Client, zone: { name: string; st
     return (created.data as { order_id: string; discount_amount: number; points_discount: number }[])[0];
 }
 
+// Cancels every tagged Order still open (so stock, coupon uses and points are released), then
+// deletes the cancelled ones through the admin-only helper (migration 20260920001800); the
+// lockdown gives authenticated no DELETE on orders.
 export async function cleanupTestOrders(admin: Client) {
-    const { data } = await admin.from('orders').select('id,status').eq('customer_name', TEST_TAG);
+    const { data } = await admin.from('orders').select('id,status').eq('customer_name', TEST_TAG).neq('status', 'cancelled');
     for (const order of data ?? []) {
-        if (order.status !== 'cancelled') {
-            await rpc(admin, 'admin_update_order_operation', { p_order_id: order.id, p_expected_status: order.status, p_status: 'cancelled', p_note: 'cleanup' });
-        }
-        await admin.from('orders').delete().eq('id', order.id);
+        await rpc(admin, 'admin_update_order_operation', { p_order_id: order.id, p_expected_status: order.status, p_status: 'cancelled', p_note: 'cleanup' });
     }
+    const { error } = await rpc(admin, 'admin_delete_test_orders');
+    if (error) throw error;
 }

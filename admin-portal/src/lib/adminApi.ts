@@ -6,6 +6,9 @@ export interface OrderItem {
     id: string;
     quantity: number;
     name_ar?: string;
+    variant_id?: string | null;
+    variant_name?: string | null;
+    variant_price?: number | null;
     unit_price?: number;
     discount_percentage?: number;
     effective_unit_price?: number;

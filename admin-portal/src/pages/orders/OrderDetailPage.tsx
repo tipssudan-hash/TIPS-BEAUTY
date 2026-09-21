@@ -162,6 +162,7 @@ export const OrderDetailPage: React.FC = () => {
                                         <tr key={`${item.id}-${idx}`}>
                                             <td className="px-6 py-4 font-bold text-slate-900">
                                                 {item.name_ar ?? 'منتج'}
+                                                {item.variant_name ? <span className="block text-xs font-bold text-slate-500">الخيار: {item.variant_name}</span> : null}
                                                 {rule ? <span className="mr-2 text-[10px] text-red-500 font-black">{rule}</span> : null}
                                             </td>
                                             <td className="px-6 py-4 text-center font-bold">{item.quantity}</td>

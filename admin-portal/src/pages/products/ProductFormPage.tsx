@@ -96,6 +96,7 @@ export const ProductFormPage: React.FC = () => {
         if (form.price <= 0) { setError('السعر يجب أن يكون أكبر من صفر.'); return; }
         if (form.discount_percentage < 0 || form.discount_percentage >= 100) { setError('نسبة الخصم يجب أن تكون بين 0 و 99.'); return; }
         if (!form.image && form.images.length === 0) { setError('أضيفي صورة واحدة على الأقل.'); return; }
+        if (form.variants.some((v) => v.price != null && v.price <= 0)) { setError('سعر الخيار يجب أن يكون أكبر من صفر أو فارغاً.'); return; }
         setSaving(true);
         try {
             const payload: ProductInput = { ...form, variants: form.variants.filter((v) => v.name_ar.trim()) };
@@ -237,17 +238,17 @@ export const ProductFormPage: React.FC = () => {
                 <Card className="p-8 space-y-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h3 className="text-lg font-black text-slate-900">الأنواع (اختياري)</h3>
-                            <p className="text-xs text-slate-400 font-bold mt-1">مثل اللون أو الحجم. تُعرض للعميل كمعلومات؛ التسعير والمخزون على مستوى المنتج.</p>
+                            <h3 className="text-lg font-black text-slate-900">الخيارات (اختياري)</h3>
+                            <p className="text-xs text-slate-400 font-bold mt-1">مثل الدرجة أو الحجم. العميلة تختار واحداً عند الشراء؛ اتركي السعر فارغاً ليُستخدم سعر المنتج. المخزون على مستوى المنتج.</p>
                         </div>
-                        <button type="button" onClick={() => set('variants', [...form.variants, { name_ar: '', name_en: '', sku: '' }])} className={`${secondaryButtonClass} flex items-center gap-1 text-sm`}><Plus className="w-4 h-4" /> إضافة نوع</button>
+                        <button type="button" onClick={() => set('variants', [...form.variants, { id: crypto.randomUUID(), name_ar: '', name_en: '', price: null }])} className={`${secondaryButtonClass} flex items-center gap-1 text-sm`}><Plus className="w-4 h-4" /> إضافة خيار</button>
                     </div>
                     {form.variants.map((variant, idx) => (
-                        <div key={idx} className="grid md:grid-cols-4 gap-3 items-end">
+                        <div key={variant.id} className="grid md:grid-cols-4 gap-3 items-end">
                             <Field label="الاسم بالعربية"><input value={variant.name_ar} onChange={(e) => updateVariant(idx, { name_ar: e.target.value })} className={inputClass} /></Field>
                             <Field label="الاسم بالإنجليزية"><input value={variant.name_en ?? ''} onChange={(e) => updateVariant(idx, { name_en: e.target.value })} className={inputClass} dir="ltr" /></Field>
-                            <Field label="SKU"><input value={variant.sku ?? ''} onChange={(e) => updateVariant(idx, { sku: e.target.value })} className={inputClass} dir="ltr" /></Field>
-                            <button type="button" onClick={() => set('variants', form.variants.filter((_, i) => i !== idx))} className="p-3 text-red-500 hover:bg-red-50 rounded-2xl justify-self-start" aria-label="حذف النوع"><Trash2 className="w-5 h-5" /></button>
+                            <Field label="السعر (اختياري)"><input type="number" min={0} step="0.01" value={variant.price ?? ''} onChange={(e) => updateVariant(idx, { price: e.target.value === '' ? null : Number(e.target.value) })} className={inputClass} dir="ltr" placeholder={String(form.price)} /></Field>
+                            <button type="button" onClick={() => set('variants', form.variants.filter((_, i) => i !== idx))} className="p-3 text-red-500 hover:bg-red-50 rounded-2xl justify-self-start" aria-label="حذف الخيار"><Trash2 className="w-5 h-5" /></button>
                         </div>
                     ))}
                 </Card>

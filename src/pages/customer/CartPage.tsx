@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 import { Trash2, Plus, Minus, ShoppingBag } from 'lucide-react';
-import { cartUnitPrice } from '../../lib/pricing';
+import { cartLineKey, cartLineUnavailable, cartUnitPrice } from '../../lib/pricing';
 import { formatSDG } from '../../lib/format';
 
 export const CartPage: React.FC = () => {
@@ -44,7 +44,7 @@ export const CartPage: React.FC = () => {
                 <div className="md:col-span-2 space-y-4">
                     {cart.map((item) => (
                         <div
-                            key={item.productId}
+                            key={cartLineKey(item)}
                             className="bg-white rounded-xl shadow-sm border border-brand-blue-soft p-4 flex gap-4"
                         >
                             <img
@@ -54,6 +54,8 @@ export const CartPage: React.FC = () => {
                             />
                             <div className="flex-1">
                                 <h3 className="font-bold text-gray-800 mb-1">{item.name_ar}</h3>
+                                {item.variantName && <p className="text-xs text-gray-500 mb-1">الخيار: {item.variantName}</p>}
+                                {cartLineUnavailable(item, live.get(item.productId)) && <p role="alert" className="text-xs text-red-600 mb-1">هذا الخيار لم يعد متاحاً، احذفيه من السلة</p>}
                                 <p className="text-brand-blue font-bold">
                                     {formatSDG(cartUnitPrice(item, live.get(item.productId)))}
                                 </p>
@@ -61,7 +63,7 @@ export const CartPage: React.FC = () => {
                             <div className="flex flex-col items-end justify-between">
                                 <button
                                     aria-label="إزالة"
-                                    onClick={() => removeFromCart(item.productId)}
+                                    onClick={() => removeFromCart(cartLineKey(item))}
                                     className="text-red-500 hover:text-red-700 p-1"
                                 >
                                     <Trash2 className="w-4 h-4" />
@@ -69,7 +71,7 @@ export const CartPage: React.FC = () => {
                                 <div className="flex items-center gap-2 bg-gray-50 rounded-lg">
                                     <button
                                         aria-label="تقليل الكمية"
-                                        onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                                        onClick={() => updateQuantity(cartLineKey(item), item.quantity - 1)}
                                         className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
                                     >
                                         <Minus className="w-4 h-4" />
@@ -77,7 +79,7 @@ export const CartPage: React.FC = () => {
                                     <span className="w-8 text-center font-bold">{item.quantity}</span>
                                     <button
                                         aria-label="زيادة الكمية"
-                                        onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                                        onClick={() => updateQuantity(cartLineKey(item), item.quantity + 1)}
                                         className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
                                     >
                                         <Plus className="w-4 h-4" />
