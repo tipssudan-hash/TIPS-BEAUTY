@@ -14,6 +14,12 @@
         -webkit-text-size-adjust: 100%;
     }
 
+    /* One keyboard focus ring for every interactive element (DESIGN.md: sky blue is the focus colour). */
+    :focus-visible {
+        outline: 2px solid theme('colors.ring-focus');
+        outline-offset: 2px;
+    }
+
     body {
         font-family: 'Cairo', sans-serif;
         background-color: #f8fafc;

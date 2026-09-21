@@ -1,33 +1,32 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Header } from './src/components/layout/Header';
+import { BottomNav } from './src/components/layout/BottomNav';
+import { ErrorBoundary } from './src/components/layout/ErrorBoundary';
+import { Spinner } from './src/components/ui';
 import { HomePage } from './src/pages/customer/HomePage';
-import { SearchPage } from './src/pages/customer/SearchPage';
-import { ProductDetailsPage } from './src/pages/customer/ProductDetailsPage';
-import { CartPage } from './src/pages/customer/CartPage';
-import { CheckoutPage } from './src/pages/customer/CheckoutPage';
-import { MyOrdersPage } from './src/pages/customer/MyOrdersPage';
-import { OrderDetailPage } from './src/pages/customer/OrderDetailPage';
-import { SettingsPage } from './src/pages/customer/SettingsPage';
-import { AIChatPage } from './src/pages/customer/AIChatPage';
 import { useStore } from './src/context/StoreContext';
-import { LoginPage } from './src/pages/auth/LoginPage';
-import { SignupPage } from './src/pages/auth/SignupPage';
 import { useAuth } from './src/context/AuthContext';
-import { Loader2 } from 'lucide-react';
+
+// Home ships in the main bundle (it is the landing page); every other route loads on demand so the
+// first paint on a phone is not paying for checkout, orders and the AI chat.
+const SearchPage = lazy(() => import('./src/pages/customer/SearchPage').then((m) => ({ default: m.SearchPage })));
+const ProductDetailsPage = lazy(() => import('./src/pages/customer/ProductDetailsPage').then((m) => ({ default: m.ProductDetailsPage })));
+const CartPage = lazy(() => import('./src/pages/customer/CartPage').then((m) => ({ default: m.CartPage })));
+const CheckoutPage = lazy(() => import('./src/pages/customer/CheckoutPage').then((m) => ({ default: m.CheckoutPage })));
+const MyOrdersPage = lazy(() => import('./src/pages/customer/MyOrdersPage').then((m) => ({ default: m.MyOrdersPage })));
+const OrderDetailPage = lazy(() => import('./src/pages/customer/OrderDetailPage').then((m) => ({ default: m.OrderDetailPage })));
+const SettingsPage = lazy(() => import('./src/pages/customer/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const AIChatPage = lazy(() => import('./src/pages/customer/AIChatPage').then((m) => ({ default: m.AIChatPage })));
+const LoginPage = lazy(() => import('./src/pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
+const SignupPage = lazy(() => import('./src/pages/auth/SignupPage').then((m) => ({ default: m.SignupPage })));
+const NotFoundPage = lazy(() => import('./src/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   const location = useLocation();
 
-  if (loading) {
-    return (
-      <div className="min-h-[50vh] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
-
+  if (loading) return <Spinner />;
   if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
 
   return <>{children}</>;
@@ -40,25 +39,30 @@ function App() {
     <div className="min-h-screen bg-gray-50/50 pb-20 font-sans text-gray-900" dir="rtl">
       <Header cartCount={cartCount} />
       <main>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/search" element={<SearchPage />} />
-          <Route path="/product/:id" element={<ProductDetailsPage />} />
-          <Route path="/cart" element={<CartPage />} />
+        <ErrorBoundary>
+          <Suspense fallback={<Spinner />}>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="/product/:id" element={<ProductDetailsPage />} />
+              <Route path="/cart" element={<CartPage />} />
 
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignupPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/signup" element={<SignupPage />} />
 
-          <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
-          <Route path="/orders" element={<ProtectedRoute><MyOrdersPage /></ProtectedRoute>} />
-          <Route path="/orders/:id" element={<ProtectedRoute><OrderDetailPage /></ProtectedRoute>} />
-          <Route path="/ai-chat" element={<ProtectedRoute><AIChatPage /></ProtectedRoute>} />
-          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+              <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
+              <Route path="/orders" element={<ProtectedRoute><MyOrdersPage /></ProtectedRoute>} />
+              <Route path="/orders/:id" element={<ProtectedRoute><OrderDetailPage /></ProtectedRoute>} />
+              <Route path="/ai-chat" element={<ProtectedRoute><AIChatPage /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
 
-          <Route path="/track-order" element={<Navigate to="/orders" replace />} />
-          <Route path="*" element={<div className="p-10 text-center">الصفحة غير موجودة</div>} />
-        </Routes>
+              <Route path="/track-order" element={<Navigate to="/orders" replace />} />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
       </main>
+      <BottomNav cartCount={cartCount} />
     </div>
   );
 }
