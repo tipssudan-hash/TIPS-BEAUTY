@@ -19,6 +19,9 @@ RETURNS TABLE(id uuid, slug text, name_ar text, description_ar text, icon text, 
     FROM public.products p
     WHERE p.is_active AND COALESCE(p.stock, 0) > 0
   ),
+  newest AS (
+    SELECT id, created_at FROM sellable ORDER BY created_at DESC
+  ),
   sales AS (
     SELECT (item->>'id')::uuid AS product_id, count(*) AS order_count, max(o.created_at) AS latest_order
     FROM public.orders o
@@ -33,14 +36,13 @@ RETURNS TABLE(id uuid, slug text, name_ar text, description_ar text, icon text, 
         FROM public.storefront_collection_products m JOIN sellable s ON s.id = m.product_id
         WHERE m.collection_id = c.id)
       WHEN 'newest' THEN (
-        SELECT array_agg(s.id ORDER BY s.created_at DESC) FROM (
-          SELECT id, created_at FROM sellable ORDER BY created_at DESC LIMIT lim.n) s)
+        SELECT array_agg(n.id ORDER BY n.created_at DESC) FROM (SELECT id, created_at FROM newest LIMIT lim.n) n)
       WHEN 'best_sellers' THEN COALESCE((
-        SELECT array_agg(s.id ORDER BY s.order_count DESC, s.latest_order DESC) FROM (
-          SELECT s.id, sa.order_count, sa.latest_order FROM sellable s JOIN sales sa ON sa.product_id = s.id
-          ORDER BY sa.order_count DESC, sa.latest_order DESC LIMIT lim.n) s),
-        (SELECT array_agg(s.id ORDER BY s.created_at DESC) FROM (
-          SELECT id, created_at FROM sellable ORDER BY created_at DESC LIMIT lim.n) s))
+        SELECT array_agg(b.id ORDER BY b.order_count DESC, b.latest_order DESC) FROM (
+          SELECT se.id, sa.order_count, sa.latest_order FROM sellable se JOIN sales sa ON sa.product_id = se.id
+          ORDER BY sa.order_count DESC, sa.latest_order DESC LIMIT lim.n) b),
+        -- No sales yet: fall back to the newest sellable Products.
+        (SELECT array_agg(n.id ORDER BY n.created_at DESC) FROM (SELECT id, created_at FROM newest LIMIT lim.n) n))
       WHEN 'discount' THEN (
         SELECT array_agg(s.id ORDER BY s.discount_percentage DESC, s.created_at DESC) FROM (
           SELECT id, discount_percentage, created_at FROM sellable
@@ -49,7 +51,7 @@ RETURNS TABLE(id uuid, slug text, name_ar text, description_ar text, icon text, 
       WHEN 'price_under' THEN (
         SELECT array_agg(s.id ORDER BY s.final_price, s.created_at DESC) FROM (
           SELECT id, final_price, created_at FROM sellable
-          WHERE final_price <= COALESCE((c.rule_config->>'price')::numeric, 10000)
+          WHERE final_price <= (c.rule_config->>'price')::numeric
           ORDER BY final_price, created_at DESC LIMIT lim.n) s)
       WHEN 'category' THEN (
         SELECT array_agg(s.id ORDER BY s.created_at DESC) FROM (
@@ -105,7 +107,8 @@ $$;
 CREATE OR REPLACE FUNCTION public.admin_save_collection(
   p_slug text, p_name_ar text, p_rule_type text,
   p_id uuid DEFAULT NULL, p_description_ar text DEFAULT NULL, p_icon text DEFAULT 'auto-awesome',
-  p_rule_config jsonb DEFAULT '{}'::jsonb, p_display_order integer DEFAULT 100, p_is_active boolean DEFAULT true
+  p_rule_config jsonb DEFAULT '{}'::jsonb, p_display_order integer DEFAULT 100, p_is_active boolean DEFAULT true,
+  p_product_ids uuid[] DEFAULT NULL
 ) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
@@ -119,6 +122,10 @@ BEGIN
   IF p_slug IS NULL OR p_slug !~ '^[a-z0-9-]+$' THEN RAISE EXCEPTION 'Collection slug is invalid'; END IF;
   IF p_rule_type NOT IN ('manual', 'newest', 'best_sellers', 'discount', 'price_under', 'category') THEN
     RAISE EXCEPTION 'Collection rule is invalid';
+  END IF;
+  -- Names the Storefront can draw (src/lib/collectionIcons.tsx).
+  IF COALESCE(NULLIF(trim(p_icon), ''), 'auto-awesome') NOT IN ('auto-awesome', 'star', 'tag', 'gift', 'flame', 'heart', 'leaf') THEN
+    RAISE EXCEPTION 'Collection icon is invalid';
   END IF;
   IF p_rule_type = 'price_under' AND COALESCE((v_config->>'price')::numeric, 0) <= 0 THEN
     RAISE EXCEPTION 'Collection rule needs a price ceiling';
@@ -140,8 +147,13 @@ BEGIN
       display_order = COALESCE(p_display_order, 100), is_active = COALESCE(p_is_active, true), updated_at = timezone('utc', now())
     WHERE id = p_id RETURNING id INTO v_id;
     IF v_id IS NULL THEN RAISE EXCEPTION 'Collection not found'; END IF;
-    -- A rule-based Collection keeps no hand-picked members.
-    IF p_rule_type <> 'manual' THEN DELETE FROM public.storefront_collection_products WHERE collection_id = v_id; END IF;
+  END IF;
+  -- A rule-based Collection keeps no hand-picked members; a hand-picked one may set them in the
+  -- same transaction so a failed save never leaves a half-created row.
+  IF p_rule_type <> 'manual' THEN
+    DELETE FROM public.storefront_collection_products WHERE collection_id = v_id;
+  ELSIF p_product_ids IS NOT NULL THEN
+    PERFORM public.admin_set_collection_products(v_id, p_product_ids);
   END IF;
   RETURN v_id;
 END;
@@ -163,14 +175,14 @@ REVOKE ALL ON FUNCTION public.admin_get_collections() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_get_collections() TO authenticated, service_role;
 REVOKE ALL ON FUNCTION public.admin_set_collection_products(uuid, uuid[]) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_set_collection_products(uuid, uuid[]) TO authenticated, service_role;
-REVOKE ALL ON FUNCTION public.admin_save_collection(text, text, text, uuid, text, text, jsonb, integer, boolean) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.admin_save_collection(text, text, text, uuid, text, text, jsonb, integer, boolean) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.admin_save_collection(text, text, text, uuid, text, text, jsonb, integer, boolean, uuid[]) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_save_collection(text, text, text, uuid, text, text, jsonb, integer, boolean, uuid[]) TO authenticated, service_role;
 REVOKE ALL ON FUNCTION public.admin_delete_collection(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_delete_collection(uuid) TO authenticated, service_role;
 
 -- DOWN:
 --   DROP FUNCTION public.admin_delete_collection(uuid);
---   DROP FUNCTION public.admin_save_collection(text, text, text, uuid, text, text, jsonb, integer, boolean);
+--   DROP FUNCTION public.admin_save_collection(text, text, text, uuid, text, text, jsonb, integer, boolean, uuid[]);
 --   DROP FUNCTION public.admin_set_collection_products(uuid, uuid[]);
 --   DROP FUNCTION public.admin_get_collections();
 --   recreate get_storefront_collections() from the baseline migration.

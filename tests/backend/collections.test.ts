@@ -52,6 +52,10 @@ suite('collections over the backend RPCs', () => {
         expect(asCustomer.error?.message ?? '').toMatch(/administrator/i);
         const asAnon = await rpc(anon, 'admin_get_collections');
         expect(asAnon.error).toBeTruthy();
+        const asCustomerRead = await rpc(customer, 'admin_get_collections');
+        expect(asCustomerRead.data).toEqual([]);
+        const badIcon = await save(admin, { p_icon: 'unicorn' });
+        expect(badIcon.error?.message ?? '').toMatch(/icon is invalid/i);
     });
 
     it('a hand-picked collection shows its sellable products in order, and hides a deactivated one', async () => {
@@ -67,13 +71,30 @@ suite('collections over the backend RPCs', () => {
         expect(mine?.product_ids).toEqual([product.id]);
         expect((await adminCollections()).find((c) => c.id === id)?.product_ids).toEqual([product.id]);
 
-        await admin.from('products').update({ is_active: false }).eq('id', product.id);
+        const { error: hideErr } = await admin.from('products').update({ is_active: false }).eq('id', product.id);
+        expect(hideErr).toBeNull();
         try {
             const hidden = (await publicCollections(customer)).find((c) => c.id === id);
             expect(hidden?.product_ids).toEqual([]);
         } finally {
             await admin.from('products').update({ is_active: true }).eq('id', product.id);
         }
+    });
+
+    it('save with members is one transaction and keeps the given order', async () => {
+        const { data: catalogue } = await customer.rpc('get_public_products');
+        const other = (catalogue as { id: string }[]).find((p) => p.id !== product.id);
+        if (!other) return;
+        const ordered = [other.id, product.id];
+        const saved = await save(admin, { p_slug: `${slug}-ordered`, p_product_ids: ordered });
+        expect(saved.error).toBeNull();
+        created.push(saved.data as unknown as string);
+        expect((await adminCollections()).find((c) => c.slug === `${slug}-ordered`)?.product_ids).toEqual(ordered);
+
+        // A failing members write rolls the whole save back: no row owns the slug afterwards.
+        const failed = await save(admin, { p_slug: `${slug}-rolled-back`, p_product_ids: [randomUUID()] });
+        expect(failed.error?.message ?? '').toMatch(/product not found/i);
+        expect((await adminCollections()).some((c) => c.slug === `${slug}-rolled-back`)).toBe(false);
     });
 
     it('setting members is all-or-nothing: an unknown product leaves the row untouched', async () => {

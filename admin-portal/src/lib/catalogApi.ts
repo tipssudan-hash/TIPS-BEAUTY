@@ -298,7 +298,8 @@ export async function fetchCollection(id: string): Promise<Collection | null> {
     return (await fetchCollections()).find((c) => c.id === id) ?? null;
 }
 
-export async function saveCollection(id: string | null, input: CollectionInput): Promise<string> {
+// For a hand-picked Collection pass its members: the backend writes row and members in one transaction.
+export async function saveCollection(id: string | null, input: CollectionInput, productIds?: string[]): Promise<string> {
     const { data, error } = await supabase.rpc('admin_save_collection', {
         p_id: id ?? undefined,
         p_slug: input.slug.trim(),
@@ -309,6 +310,7 @@ export async function saveCollection(id: string | null, input: CollectionInput):
         p_rule_config: input.rule_type === 'manual' ? {} : (input.rule_config as Json),
         p_display_order: input.display_order,
         p_is_active: input.is_active,
+        p_product_ids: input.rule_type === 'manual' ? productIds : undefined,
     });
     if (error) throw error;
     return data;
@@ -316,11 +318,6 @@ export async function saveCollection(id: string | null, input: CollectionInput):
 
 export async function deleteCollection(id: string): Promise<void> {
     const { error } = await supabase.rpc('admin_delete_collection', { p_id: id });
-    if (error) throw error;
-}
-
-export async function setCollectionProducts(collectionId: string, productIds: string[]): Promise<void> {
-    const { error } = await supabase.rpc('admin_set_collection_products', { p_collection_id: collectionId, p_product_ids: productIds });
     if (error) throw error;
 }
 

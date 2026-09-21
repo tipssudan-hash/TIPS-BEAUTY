@@ -1700,6 +1700,7 @@ export type Database = {
           p_id?: string
           p_is_active?: boolean
           p_name_ar: string
+          p_product_ids?: string[]
           p_rule_config?: Json
           p_rule_type: string
           p_slug: string

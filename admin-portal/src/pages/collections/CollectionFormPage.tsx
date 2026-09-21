@@ -4,7 +4,7 @@ import { Save, ArrowRight, Loader2, Search, X, ChevronUp, ChevronDown, Plus } fr
 import type { CollectionInput, CollectionRuleType, Product } from '../../types';
 import {
     COLLECTION_ICONS, COLLECTION_RULE_LABELS, fetchAdminProducts, fetchCollection,
-    saveCollection, setCollectionProducts, validateCollectionSlug, errorMessage,
+    saveCollection, validateCollectionSlug, errorMessage,
 } from '../../lib/catalogApi';
 import { Card, Field, Notice, Spinner, inputClass, primaryButtonClass } from '../../components/ui';
 
@@ -83,13 +83,7 @@ export const CollectionFormPage: React.FC = () => {
 
         setSaving(true);
         try {
-            // A new hand-picked Collection is saved hidden first so it is never live with 0 Products;
-            // the members write is atomic (admin_set_collection_products) and the flag is applied last.
-            const collectionId = await saveCollection(id ?? null, isManual && !id ? { ...form, is_active: false } : form);
-            if (isManual) {
-                await setCollectionProducts(collectionId, selectedIds);
-                if (!id && form.is_active) await saveCollection(collectionId, form);
-            }
+            await saveCollection(id ?? null, form, selectedIds);
             navigate('/collections');
         } catch (err) {
             setError(errorMessage(err, 'فشل حفظ التشكيلة.'));
