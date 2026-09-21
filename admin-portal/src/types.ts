@@ -90,6 +90,32 @@ export interface Banner {
     ends_at: string | null;
 }
 
+export type CollectionRuleType = 'manual' | 'newest' | 'best_sellers' | 'discount' | 'price_under' | 'category';
+
+// rule_config keys read by get_storefront_collections: limit (all rules), price (price_under),
+// category (category), minimum_discount (discount).
+export interface CollectionRuleConfig {
+    limit?: number;
+    price?: number;
+    category?: string;
+    minimum_discount?: number;
+}
+
+export interface Collection {
+    id: string;
+    slug: string;
+    name_ar: string;
+    description_ar: string | null;
+    icon: string;
+    rule_type: CollectionRuleType;
+    rule_config: CollectionRuleConfig;
+    display_order: number;
+    is_active: boolean;
+    product_ids: string[];
+}
+
+export type CollectionInput = Omit<Collection, 'id' | 'product_ids'>;
+
 export interface AdminReview {
     id: string;
     product_id: string;
