@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ShoppingCart, Search, User, LogOut, Menu, X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { NotificationBell } from './NotificationBell';
 
 interface HeaderProps {
     cartCount: number;
@@ -38,7 +39,9 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
                         <img src="/logo.PNG" alt="Tips Beauty" className="h-16 md:h-24 w-auto object-contain hover:scale-105 transition-transform duration-300 mix-blend-multiply" />
                     </Link>
 
-                    {/* Mobile Menu Button */}
+                    {/* Mobile: bell + menu (cart and the main destinations live in the bottom bar) */}
+                    <div className="md:hidden flex items-center gap-1">
+                    {user && <NotificationBell />}
                     <button
                         ref={menuToggleRef}
                         onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -49,6 +52,7 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
                     >
                         {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                     </button>
+                    </div>
 
                     {/* Desktop Navigation */}
                     <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
@@ -84,6 +88,7 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
                             </div>
                         )}
 
+                        {user && <NotificationBell />}
                         <Link id="cart-icon-target" to="/cart" className="relative group p-2">
                             <ShoppingCart className={`w-6 h-6 transition-colors ${cartCount > 0 ? 'text-brand-blue' : 'text-gray-400 group-hover:text-brand-blue'}`} />
                             {cartCount > 0 && (

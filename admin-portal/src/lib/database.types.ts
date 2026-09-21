@@ -2159,6 +2159,8 @@ export type Database = {
       }
       is_admin: { Args: never; Returns: boolean }
       is_driver: { Args: never; Returns: boolean }
+      mark_all_notifications_read: { Args: never; Returns: number }
+      mark_notification_read: { Args: { p_id: string }; Returns: undefined }
       mark_order_viewed: { Args: { p_order_id: string }; Returns: undefined }
       moderate_product_review: {
         Args: {
