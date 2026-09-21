@@ -116,6 +116,25 @@ export interface Collection {
 
 export type CollectionInput = Omit<Collection, 'id' | 'product_ids'>;
 
+export interface Coupon {
+    id: string;
+    code: string;
+    name: string;
+    description: string | null;
+    discount_type: 'percentage' | 'fixed';
+    discount_value: number;
+    max_discount_amount: number | null;
+    min_order_amount: number;
+    usage_limit: number | null;
+    per_user_limit: number;
+    usage_count: number;
+    starts_at: string;
+    ends_at: string | null;
+    is_active: boolean;
+}
+
+export type CouponInput = Omit<Coupon, 'id' | 'usage_count'>;
+
 export interface AdminReview {
     id: string;
     product_id: string;

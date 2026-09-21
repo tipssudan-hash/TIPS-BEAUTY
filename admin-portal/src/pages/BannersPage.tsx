@@ -1,4 +1,4 @@
-import { formatDate } from '../lib/format';
+import { formatDate, fromLocalInput, toLocalInput } from '../lib/format';
 import React, { useEffect, useRef, useState } from 'react';
 import { Image as ImageIcon, Plus, Edit, Trash2, X, Upload, Loader2 } from 'lucide-react';
 import type { Banner, BannerActionType } from '../types';
@@ -7,9 +7,6 @@ import { errorMessage } from '../lib/errors';
 import { Card, Field, Notice, PageHeader, Spinner, StatusPill, Table, inputClass, primaryButtonClass, secondaryButtonClass, smallButtonClass } from '../components/ui';
 
 const ACTION_LABELS: Record<BannerActionType, string> = { none: 'بدون إجراء', category: 'تصنيف', product: 'منتج', collection: 'مجموعة', url: 'رابط' };
-
-const toLocalInput = (iso: string | null) => iso ? new Date(iso).toISOString().slice(0, 16) : '';
-const fromLocalInput = (value: string) => value ? new Date(value).toISOString() : null;
 
 const emptyBanner = (): BannerInput => ({ title_ar: '', subtitle_ar: null, image_url: '', action_type: 'none', action_value: null, display_order: 100, is_active: true, starts_at: new Date().toISOString(), ends_at: null });
 

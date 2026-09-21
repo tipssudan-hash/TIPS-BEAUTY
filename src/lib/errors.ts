@@ -16,6 +16,9 @@ const backendMessages: [RegExp, string][] = [
 export function errorMessage(error: unknown, fallback = 'حدث خطأ غير متوقع، حاولي مرة أخرى.'): string {
     if (error && typeof error === 'object' && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
         const message = (error as { message: string }).message;
+        // checkout_order raises the same typed reason preview_coupon returns.
+        const refused = /Coupon refused: (\w+)/.exec(message);
+        if (refused) return couponRefusalMessage(refused[1]);
         for (const [pattern, text] of backendMessages) {
             if (pattern.test(message)) return text;
         }
@@ -35,4 +38,20 @@ export function signupErrorMessage(message: string): string {
     if (/password/i.test(message)) return 'كلمة المرور يجب أن تكون 6 أحرف على الأقل';
     if (/rate limit/i.test(message)) return 'تم تجاوز عدد المحاولات، حاولي لاحقاً';
     return 'فشل إنشاء الحساب، حاولي مرة أخرى.';
+}
+
+// Why the backend refused a Coupon (preview_coupon reasons), in the customer's words.
+const couponRefusals: Record<string, string> = {
+    unknown: 'كود الخصم غير صحيح.',
+    inactive: 'كود الخصم غير مفعّل.',
+    not_started: 'كود الخصم لم يبدأ بعد.',
+    expired: 'كود الخصم منتهي.',
+    used_up: 'انتهت مرات استخدام هذا الكود.',
+    customer_limit: 'لقد استخدمتِ هذا الكود الحد الأقصى من المرات.',
+    below_minimum: 'قيمة الطلب أقل من الحد الأدنى لكود الخصم.',
+    not_best: 'المنتجات في سلتك عليها تخفيض أكبر بالفعل، لذا لا يُطبَّق الكود.',
+};
+
+export function couponRefusalMessage(reason: string | null | undefined): string {
+    return (reason && couponRefusals[reason]) || 'تعذر تطبيق كود الخصم.';
 }

@@ -24,6 +24,7 @@ type OrderRow = {
   items: OrderItem[];
   total: number;
   shipping_fee: number | null;
+  coupon_code: string | null;
   discount_amount: number | null;
   points_discount: number | null;
   status: string;
@@ -59,14 +60,16 @@ function orderTable(order: OrderRow, names: Map<string, string>): string {
     return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee">${escape(name)}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">${item.quantity}</td><td style="padding:6px 8px;border-bottom:1px solid #eee">${line != null ? money(line) : "—"}</td></tr>`;
   }).join("");
   const subtotal = order.items.reduce((sum, item) => sum + (item.line_total ?? 0), 0);
-  const discount = Number(order.discount_amount ?? 0) + Number(order.points_discount ?? 0);
+  const coupon = Number(order.discount_amount ?? 0);
+  const points = Number(order.points_discount ?? 0);
   return `
     <table dir="rtl" style="border-collapse:collapse;width:100%;font-family:Tahoma,Arial,sans-serif;font-size:14px">
       <thead><tr style="background:#f5f5f5"><th style="padding:6px 8px;text-align:right">المنتج</th><th style="padding:6px 8px">الكمية</th><th style="padding:6px 8px;text-align:right">الإجمالي</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot>
         <tr><td colspan="2" style="padding:6px 8px">المجموع الفرعي</td><td style="padding:6px 8px">${money(subtotal)}</td></tr>
-        ${discount > 0 ? `<tr><td colspan="2" style="padding:6px 8px">الخصم</td><td style="padding:6px 8px">- ${money(discount)}</td></tr>` : ""}
+        ${coupon > 0 ? `<tr><td colspan="2" style="padding:6px 8px">كود الخصم${order.coupon_code ? ` (${escape(order.coupon_code)})` : ""}</td><td style="padding:6px 8px">- ${money(coupon)}</td></tr>` : ""}
+        ${points > 0 ? `<tr><td colspan="2" style="padding:6px 8px">خصم النقاط</td><td style="padding:6px 8px">- ${money(points)}</td></tr>` : ""}
         <tr><td colspan="2" style="padding:6px 8px">رسوم التوصيل</td><td style="padding:6px 8px">${money(order.shipping_fee)}</td></tr>
         <tr style="font-weight:bold"><td colspan="2" style="padding:6px 8px">الإجمالي النهائي</td><td style="padding:6px 8px">${money(order.total)}</td></tr>
       </tfoot>
@@ -150,7 +153,7 @@ Deno.serve(async (request) => {
     try {
       if (!row.order_id) { await mark("cancelled", { error_message: "No order" }); skipped++; continue; }
       const { data: order, error: orderError } = await service.from("orders")
-        .select("id,order_number,customer_id,customer_name,phone,items,total,shipping_fee,discount_amount,points_discount,status,payment_method,payment_status,shipping_address,city,state,created_at")
+        .select("id,order_number,customer_id,customer_name,phone,items,total,shipping_fee,coupon_code,discount_amount,points_discount,status,payment_method,payment_status,shipping_address,city,state,created_at")
         .eq("id", row.order_id).maybeSingle();
       if (orderError || !order) { await mark("cancelled", { error_message: "Order not found" }); skipped++; continue; }
 

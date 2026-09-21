@@ -121,7 +121,6 @@ export const OrderDetailPage: React.FC = () => {
 
     const transitions = ALLOWED_TRANSITIONS[order.status as OrderStatus] ?? [];
     const assignmentLocked = !['new', 'confirmed', 'preparing', 'delivery_failed'].includes(order.status);
-    const discount = order.discount_amount + order.points_discount;
     const canReviewProof = proof?.status === 'pending';
 
     return (
@@ -174,7 +173,8 @@ export const OrderDetailPage: React.FC = () => {
                             </tbody>
                             <tfoot className="text-sm bg-slate-50/50">
                                 <tr><td colSpan={3} className="px-6 py-2 text-slate-500 font-bold">المجموع الفرعي</td><td className="px-6 py-2 text-left font-bold">{formatSDG(subtotal)}</td></tr>
-                                {discount > 0 && <tr><td colSpan={3} className="px-6 py-2 text-slate-500 font-bold">الخصم</td><td className="px-6 py-2 text-left font-bold text-red-600">- {formatSDG(discount)}</td></tr>}
+                                {order.discount_amount > 0 && <tr><td colSpan={3} className="px-6 py-2 text-slate-500 font-bold">كود الخصم{order.coupon_code ? <span className="mr-2 text-xs text-slate-400" dir="ltr">{order.coupon_code}</span> : null}</td><td className="px-6 py-2 text-left font-bold text-red-600">- {formatSDG(order.discount_amount)}</td></tr>}
+                                {order.points_discount > 0 && <tr><td colSpan={3} className="px-6 py-2 text-slate-500 font-bold">خصم النقاط</td><td className="px-6 py-2 text-left font-bold text-red-600">- {formatSDG(order.points_discount)}</td></tr>}
                                 <tr><td colSpan={3} className="px-6 py-2 text-slate-500 font-bold">رسوم التوصيل</td><td className="px-6 py-2 text-left font-bold">{formatSDG(order.shipping_fee)}</td></tr>
                                 <tr className="border-t border-slate-200"><td colSpan={3} className="px-6 py-3 font-black text-slate-900">الإجمالي النهائي</td><td className="px-6 py-3 text-left font-black text-brand-blue text-lg">{formatSDG(order.total)}</td></tr>
                             </tfoot>
