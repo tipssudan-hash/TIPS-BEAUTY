@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Layers, Plus, Edit, Trash2 } from 'lucide-react';
 import type { Collection } from '../../types';
-import { COLLECTION_RULE_LABELS, deleteCollection, fetchCollections, errorMessage } from '../../lib/catalogApi';
+import { COLLECTION_RULE_LABELS, deleteCollection, fetchCollections } from '../../lib/catalogApi';
+import { errorMessage } from '../../lib/errors';
 import { Card, Notice, PageHeader, Spinner, StatusPill, Table, primaryButtonClass, smallButtonClass } from '../../components/ui';
 
 export const CollectionsPage: React.FC = () => {

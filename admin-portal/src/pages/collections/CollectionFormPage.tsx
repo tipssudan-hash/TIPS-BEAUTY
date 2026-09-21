@@ -4,8 +4,9 @@ import { Save, ArrowRight, Loader2, Search, X, ChevronUp, ChevronDown, Plus } fr
 import type { CollectionInput, CollectionRuleType, Product } from '../../types';
 import {
     COLLECTION_ICONS, COLLECTION_RULE_LABELS, fetchAdminProducts, fetchCollection,
-    saveCollection, validateCollectionSlug, errorMessage,
+    saveCollection, validateCollectionSlug
 } from '../../lib/catalogApi';
+import { errorMessage } from '../../lib/errors';
 import { Card, Field, Notice, Spinner, inputClass, primaryButtonClass } from '../../components/ui';
 
 const emptyCollection: CollectionInput = {
