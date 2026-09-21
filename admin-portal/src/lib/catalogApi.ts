@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { AdminReview, Banner, Collection, CollectionInput, CollectionRuleConfig, CollectionRuleType, DeliveryZone, Driver, InventoryRow, Product, ProductInput, Warehouse } from '../types';
+import type { AdminReview, Banner, Collection, Coupon, CouponInput, CollectionInput, CollectionRuleConfig, CollectionRuleType, DeliveryZone, Driver, InventoryRow, Product, ProductInput, Warehouse } from '../types';
 import type { Json } from './database.types';
 
 // Admin data access for catalogue, logistics and settings over the generated database types.
@@ -289,6 +289,48 @@ export async function saveCollection(id: string | null, input: CollectionInput, 
 
 export async function deleteCollection(id: string): Promise<void> {
     const { error } = await supabase.rpc('admin_delete_collection', { p_id: id });
+    if (error) throw error;
+}
+
+// Coupons ------------------------------------------------------------------------------
+// Eligibility data: reads under the admin policy, every write through the admin RPCs.
+
+export async function fetchCoupons(): Promise<Coupon[]> {
+    const { data, error } = await supabase.from('coupons')
+        .select('id,code,name,description,discount_type,discount_value,max_discount_amount,min_order_amount,usage_limit,per_user_limit,usage_count,starts_at,ends_at,is_active')
+        .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map((row) => ({
+        ...row,
+        discount_type: row.discount_type as Coupon['discount_type'],
+        discount_value: Number(row.discount_value),
+        max_discount_amount: row.max_discount_amount == null ? null : Number(row.max_discount_amount),
+        min_order_amount: Number(row.min_order_amount),
+    }));
+}
+
+export async function saveCoupon(id: string | null, input: CouponInput): Promise<string> {
+    const { data, error } = await supabase.rpc('admin_save_coupon', {
+        p_id: id ?? undefined,
+        p_code: input.code.trim(),
+        p_name: input.name.trim(),
+        p_description: input.description?.trim() || undefined,
+        p_discount_type: input.discount_type,
+        p_discount_value: input.discount_value,
+        p_max_discount_amount: input.max_discount_amount ?? undefined,
+        p_min_order_amount: input.min_order_amount,
+        p_usage_limit: input.usage_limit ?? undefined,
+        p_per_user_limit: input.per_user_limit,
+        p_starts_at: input.starts_at,
+        p_ends_at: input.ends_at ?? undefined,
+        p_is_active: input.is_active,
+    });
+    if (error) throw error;
+    return data;
+}
+
+export async function deleteCoupon(id: string): Promise<void> {
+    const { error } = await supabase.rpc('admin_delete_coupon', { p_id: id });
     if (error) throw error;
 }
 

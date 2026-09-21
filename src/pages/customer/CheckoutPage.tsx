@@ -2,12 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 import { useAuth } from '../../context/AuthContext';
-import { DeliveryZone, PaymentMethod } from '../../types';
-import { checkout, uploadPaymentProof, submitPaymentProof, fetchPaymentMethods, fetchDeliveryZones } from '../../lib/api';
-import { errorMessage } from '../../lib/errors';
+import { CouponPreview, DeliveryZone, PaymentMethod } from '../../types';
+import { checkout, previewCoupon, uploadPaymentProof, submitPaymentProof, fetchPaymentMethods, fetchDeliveryZones } from '../../lib/api';
+import { couponRefusalMessage, errorMessage } from '../../lib/errors';
 import { cartUnitPrice } from '../../lib/pricing';
 import { formatSDG } from '../../lib/format';
-import { Banknote, Wallet, Loader2 } from 'lucide-react';
+import { Banknote, Wallet, Loader2, Ticket, X } from 'lucide-react';
 
 const IDEMPOTENCY_KEY = 'checkout_idempotency_key';
 const MAX_PROOF_BYTES = 5 * 1024 * 1024;
@@ -50,6 +50,12 @@ export const CheckoutPage: React.FC = () => {
     });
     const [proofFile, setProofFile] = useState<File | null>(null);
     const [proofError, setProofError] = useState<string | null>(null);
+
+    // Coupon: typed, previewed by the backend, and only an accepted preview is sent with the Order.
+    const [couponInput, setCouponInput] = useState('');
+    const [coupon, setCoupon] = useState<CouponPreview | null>(null);
+    const [couponError, setCouponError] = useState<string | null>(null);
+    const [couponChecking, setCouponChecking] = useState(false);
 
     useEffect(() => {
         if (user) {
@@ -94,9 +100,35 @@ export const CheckoutPage: React.FC = () => {
     const selectedZone = zones.find(z => z.id === formData.zoneId) ?? null;
     const selectedMethod = methods.find(m => m.code === formData.paymentMethod) ?? null;
 
-    const subtotal = cart.reduce((sum, item) => sum + cartUnitPrice(item, live.get(item.productId)) * item.quantity, 0);
+    const lineSubtotal = cart.reduce((sum, item) => sum + cartUnitPrice(item, live.get(item.productId)) * item.quantity, 0);
+    // An accepted Coupon replaces the line rules: the Order is priced from the base subtotal minus the Coupon.
+    const couponApplied = coupon?.ok ? coupon : null;
+    const subtotal = couponApplied ? couponApplied.baseSubtotal : lineSubtotal;
     const shipping = selectedZone?.fee ?? 0;
-    const total = subtotal + shipping;
+    const total = Math.max(subtotal - (couponApplied?.reduction ?? 0), 0) + shipping;
+    const cartItems = cart.map(i => ({ id: i.productId, quantity: i.quantity }));
+
+    const applyCoupon = async () => {
+        const code = couponInput.trim();
+        if (!code) return;
+        setCouponChecking(true);
+        setCouponError(null);
+        try {
+            const result = await previewCoupon(code, cartItems);
+            if (result.ok) {
+                setCoupon(result);
+            } else {
+                setCoupon(null);
+                setCouponError(couponRefusalMessage(result.reason));
+            }
+        } catch (err) {
+            setCoupon(null);
+            setCouponError(errorMessage(err, 'تعذر التحقق من كود الخصم.'));
+        } finally {
+            setCouponChecking(false);
+        }
+    };
+    const removeCoupon = () => { setCoupon(null); setCouponError(null); setCouponInput(''); };
 
     if (cartCount === 0 && !submitting) return <Navigate to="/cart" replace />;
 
@@ -132,7 +164,8 @@ export const CheckoutPage: React.FC = () => {
                 zoneName: selectedZone.name,
                 state: formData.state,
                 paymentMethod: selectedMethod.code,
-                items: cart.map(i => ({ id: i.productId, quantity: i.quantity })),
+                items: cartItems,
+                couponCode: couponApplied?.code ?? null,
                 idempotencyKey,
             });
 
@@ -147,7 +180,7 @@ export const CheckoutPage: React.FC = () => {
             }
 
             sessionStorage.removeItem(IDEMPOTENCY_KEY);
-            navigate(`/orders/${result.orderId}`, { state: { justOrdered: true, orderNumber: result.orderNumber, proofWarning }, replace: true });
+            navigate(`/orders/${result.orderId}`, { state: { justOrdered: true, orderNumber: result.orderNumber, proofWarning, couponDiscount: result.couponDiscount }, replace: true });
             clearCart();
         } catch (err) {
             console.error(err);
@@ -279,11 +312,44 @@ export const CheckoutPage: React.FC = () => {
                             </div>
                         ))}
                     </div>
+                    <div className="mb-4">
+                        <label className="text-sm font-bold text-gray-700 flex items-center gap-1 mb-1"><Ticket className="w-4 h-4" /> كود الخصم</label>
+                        {couponApplied ? (
+                            <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-sm">
+                                <span className="font-bold text-green-700" dir="ltr">{couponApplied.code}</span>
+                                <span className="text-green-700">- {formatSDG(couponApplied.reduction)}</span>
+                                <button type="button" onClick={removeCoupon} className="text-gray-400 hover:text-red-500 min-w-8 min-h-8 flex items-center justify-center" aria-label="إزالة كود الخصم"><X className="w-4 h-4" /></button>
+                            </div>
+                        ) : (
+                            <div className="flex gap-2">
+                                <input
+                                    value={couponInput}
+                                    onChange={e => { setCouponInput(e.target.value); setCouponError(null); }}
+                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void applyCoupon(); } }}
+                                    className={`${inputClass} flex-1`}
+                                    placeholder="أدخلي الكود"
+                                    dir="ltr"
+                                    autoCapitalize="characters"
+                                    aria-label="كود الخصم"
+                                />
+                                <button type="button" onClick={() => void applyCoupon()} disabled={couponChecking || !couponInput.trim()} className="px-4 rounded-lg bg-gray-800 text-white text-sm font-bold disabled:bg-gray-300">
+                                    {couponChecking ? <Loader2 className="w-4 h-4 animate-spin" /> : 'تطبيق'}
+                                </button>
+                            </div>
+                        )}
+                        {couponError && <p className="text-xs text-red-600 mt-1">{couponError}</p>}
+                    </div>
                     <div className="space-y-2 border-t border-gray-200 pt-4">
                         <div className="flex justify-between text-gray-600">
                             <span>المجموع</span>
                             <span>{formatSDG(subtotal)}</span>
                         </div>
+                        {couponApplied && (
+                            <div className="flex justify-between text-green-700">
+                                <span>كود الخصم ({couponApplied.code})</span>
+                                <span>- {formatSDG(couponApplied.reduction)}</span>
+                            </div>
+                        )}
                         <div className="flex justify-between text-gray-600">
                             <span>التوصيل{selectedZone ? ` (${zoneLabel(selectedZone)})` : ''}</span>
                             <span>{selectedZone ? formatSDG(shipping) : '—'}</span>

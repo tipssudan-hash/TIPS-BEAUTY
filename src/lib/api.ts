@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Collection, DeliveryZone, Order, OrderItem, OrderStatusEntry, PaymentMethod, Product, Review, ReviewableItem } from '../types';
+import type { Collection, CouponPreview, DeliveryZone, Order, OrderItem, OrderStatusEntry, PaymentMethod, Product, Review, ReviewableItem } from '../types';
 
 // Thin typed wrappers over the backend RPCs. All pricing, stock and permission rules live in
 // the database; this file only maps rows to app types.
@@ -97,6 +97,7 @@ export interface CheckoutInput {
     state: string;
     paymentMethod: string;
     items: { id: string; quantity: number }[];
+    couponCode?: string | null;
     idempotencyKey: string;
 }
 
@@ -105,6 +106,7 @@ export interface CheckoutResult {
     orderNumber: string;
     total: number;
     shippingFee: number;
+    couponDiscount: number;
 }
 
 export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
@@ -116,12 +118,30 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
         p_state: input.state,
         p_payment_method: input.paymentMethod,
         p_items: input.items,
+        p_coupon_code: input.couponCode?.trim() || undefined,
         p_idempotency_key: input.idempotencyKey,
     });
     if (error) throw error;
-    const row = (data as { order_id: string; order_number: string; total: number; shipping_fee: number }[] | null)?.[0];
+    const row = (data as { order_id: string; order_number: string; total: number; shipping_fee: number; discount_amount: number }[] | null)?.[0];
     if (!row) throw new Error('Checkout returned no order');
-    return { orderId: row.order_id, orderNumber: row.order_number, total: Number(row.total), shippingFee: Number(row.shipping_fee) };
+    return { orderId: row.order_id, orderNumber: row.order_number, total: Number(row.total), shippingFee: Number(row.shipping_fee), couponDiscount: Number(row.discount_amount ?? 0) };
+}
+
+// Asks the backend what a Coupon would do to this Cart; a refusal comes back as a typed reason.
+export async function previewCoupon(code: string, items: { id: string; quantity: number }[]): Promise<CouponPreview> {
+    const { data, error } = await supabase.rpc('preview_coupon', { p_code: code.trim(), p_items: items });
+    if (error) throw error;
+    const row = (data as { ok: boolean; reason: string | null; code: string | null; name: string | null; reduction: number; base_subtotal: number; line_reductions: number }[] | null)?.[0];
+    if (!row) throw new Error('Coupon preview returned nothing');
+    return {
+        ok: row.ok,
+        reason: row.reason as CouponPreview['reason'],
+        code: row.code,
+        name: row.name,
+        reduction: Number(row.reduction ?? 0),
+        baseSubtotal: Number(row.base_subtotal ?? 0),
+        lineReductions: Number(row.line_reductions ?? 0),
+    };
 }
 
 // Customers may only INSERT into payment-proofs, so every attempt gets its own object name.
@@ -145,12 +165,12 @@ export async function submitPaymentProof(orderId: string, paymentMethod: string,
 }
 
 type OrderRow = {
-    id: string; order_number: string | null; items: unknown; total: number; shipping_fee: number | null; discount_amount: number | null;
+    id: string; order_number: string | null; items: unknown; total: number; shipping_fee: number | null; discount_amount: number | null; coupon_code: string | null;
     points_discount: number | null; status: string; payment_method: string; payment_status: string; payment_reference: string | null;
     shipping_address: string; city: string | null; state: string | null; created_at: string;
 };
 
-const ORDER_COLUMNS = 'id,order_number,items,total,shipping_fee,discount_amount,points_discount,status,payment_method,payment_status,payment_reference,shipping_address,city,state,created_at';
+const ORDER_COLUMNS = 'id,order_number,items,total,shipping_fee,discount_amount,coupon_code,points_discount,status,payment_method,payment_status,payment_reference,shipping_address,city,state,created_at';
 
 function mapOrder(row: OrderRow): Order {
     return {
@@ -159,6 +179,9 @@ function mapOrder(row: OrderRow): Order {
         items: Array.isArray(row.items) ? (row.items as OrderItem[]) : [],
         total: Number(row.total),
         shippingFee: Number(row.shipping_fee ?? 0),
+        couponCode: row.coupon_code,
+        couponDiscount: Number(row.discount_amount ?? 0),
+        pointsDiscount: Number(row.points_discount ?? 0),
         discountAmount: Number(row.discount_amount ?? 0) + Number(row.points_discount ?? 0),
         status: row.status as Order['status'],
         paymentMethod: row.payment_method,

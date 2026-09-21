@@ -24,6 +24,7 @@ export interface AdminOrder {
     items: OrderItem[];
     total: number;
     shipping_fee: number;
+    coupon_code: string | null;
     discount_amount: number;
     points_discount: number;
     status: string;
@@ -41,7 +42,7 @@ export interface AdminOrder {
 }
 
 export const ORDER_LIST_COLUMNS = 'id,order_number,customer_name,phone,total,status,payment_method,payment_status,created_at,viewed_at';
-const ORDER_DETAIL_COLUMNS = `${ORDER_LIST_COLUMNS},customer_id,items,shipping_fee,discount_amount,points_discount,payment_reference,shipping_address,city,state,notes,driver_id,fulfillment_warehouse_id`;
+const ORDER_DETAIL_COLUMNS = `${ORDER_LIST_COLUMNS},customer_id,items,shipping_fee,coupon_code,discount_amount,points_discount,payment_reference,shipping_address,city,state,notes,driver_id,fulfillment_warehouse_id`;
 
 export type OrderListRow = Pick<AdminOrder, 'id' | 'order_number' | 'customer_name' | 'phone' | 'total' | 'status' | 'payment_method' | 'payment_status' | 'created_at' | 'viewed_at'>;
 
@@ -85,6 +86,7 @@ export async function fetchOrder(id: string): Promise<AdminOrder | null> {
         items: Array.isArray(row.items) ? (row.items as OrderItem[]) : [],
         total: Number(row.total),
         shipping_fee: Number(row.shipping_fee ?? 0),
+        coupon_code: row.coupon_code ?? null,
         discount_amount: Number(row.discount_amount ?? 0),
         points_discount: Number(row.points_discount ?? 0),
     };

@@ -74,6 +74,10 @@ export interface Order {
   items: OrderItem[];
   total: number;
   shippingFee: number;
+  // Coupon reduction (the code it came from) and points reduction, as charged by the backend.
+  couponCode: string | null;
+  couponDiscount: number;
+  pointsDiscount: number;
   discountAmount: number;
   status: OrderStatus;
   paymentMethod: string;
@@ -83,6 +87,18 @@ export interface Order {
   city: string | null;
   state: string | null;
   createdAt: string;
+}
+
+export type CouponRefusal = 'unknown' | 'inactive' | 'not_started' | 'expired' | 'used_up' | 'customer_limit' | 'below_minimum' | 'not_best';
+
+export interface CouponPreview {
+  ok: boolean;
+  reason: CouponRefusal | null;
+  code: string | null;
+  name: string | null;
+  reduction: number;
+  baseSubtotal: number;
+  lineReductions: number;
 }
 
 export interface OrderStatusEntry {

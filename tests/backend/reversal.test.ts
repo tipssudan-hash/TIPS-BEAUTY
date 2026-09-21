@@ -13,6 +13,7 @@ suite('order cancellation reverses coupon and points exactly once', () => {
     let product: { id: string; release: () => Promise<void> };
     let zone: { name: string; state: string | null; fee: number };
     let couponId: string;
+    let originalDiscount: number | null;
     const couponCode = `${TEST_TAG}-${Date.now().toString(36).toUpperCase()}`;
 
     const couponUsage = async () => {
@@ -39,17 +40,20 @@ suite('order cancellation reverses coupon and points exactly once', () => {
         await cleanupTestOrders(admin);
         product = await provisionProduct(admin);
         zone = await pickZone(customer);
-        const { data, error } = await admin.from('coupons')
-            .insert({ code: couponCode, name: `${TEST_TAG} coupon`, discount_type: 'fixed', discount_value: 100, per_user_limit: 5, usage_limit: 10 })
-            .select('id').single();
+        // A Coupon only applies when it beats the line reductions (T2-08): run without a Discount.
+        const { data: p } = await admin.from('products').select('discount_percentage').eq('id', product.id).single();
+        originalDiscount = p!.discount_percentage;
+        await admin.from('products').update({ discount_percentage: null }).eq('id', product.id);
+        const { data, error } = await rpc(admin, 'admin_save_coupon', { p_code: couponCode, p_name: `${TEST_TAG} coupon`, p_discount_type: 'fixed', p_discount_value: 100, p_per_user_limit: 5, p_usage_limit: 10 });
         if (error) throw error;
-        couponId = data.id;
+        couponId = data as unknown as string;
     });
 
     afterAll(async () => {
         if (!admin) return;
         await cleanupTestOrders(admin);
-        if (couponId) await admin.from('coupons').delete().eq('id', couponId);
+        if (couponId) await rpc(admin, 'admin_delete_coupon', { p_id: couponId });
+        await admin.from('products').update({ discount_percentage: originalDiscount }).eq('id', product.id);
         await product?.release();
     });
 

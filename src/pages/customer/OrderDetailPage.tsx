@@ -176,8 +176,11 @@ export const OrderDetailPage: React.FC = () => {
                     {subtotal != null && (
                         <div className="flex justify-between text-gray-600"><span>المجموع الفرعي</span><span>{formatSDG(subtotal)}</span></div>
                     )}
-                    {order.discountAmount > 0 && (
-                        <div className="flex justify-between text-gray-600"><span>الخصم</span><span>- {formatSDG(order.discountAmount)}</span></div>
+                    {order.couponDiscount > 0 && (
+                        <div className="flex justify-between text-green-700"><span>كود الخصم{order.couponCode ? ` (${order.couponCode})` : ''}</span><span>- {formatSDG(order.couponDiscount)}</span></div>
+                    )}
+                    {order.pointsDiscount > 0 && (
+                        <div className="flex justify-between text-gray-600"><span>خصم النقاط</span><span>- {formatSDG(order.pointsDiscount)}</span></div>
                     )}
                     <div className="flex justify-between text-gray-600"><span>رسوم التوصيل</span><span>{formatSDG(order.shippingFee)}</span></div>
                     <div className="flex justify-between font-bold text-lg text-gray-800 pt-2"><span>الإجمالي النهائي</span><span className="text-brand-blue">{formatSDG(order.total)}</span></div>

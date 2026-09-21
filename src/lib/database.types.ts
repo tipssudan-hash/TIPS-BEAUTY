@@ -1675,6 +1675,7 @@ export type Database = {
         Returns: Json
       }
       admin_delete_collection: { Args: { p_id: string }; Returns: undefined }
+      admin_delete_coupon: { Args: { p_id: string }; Returns: undefined }
       admin_get_collections: {
         Args: never
         Returns: {
@@ -1704,6 +1705,24 @@ export type Database = {
           p_rule_config?: Json
           p_rule_type: string
           p_slug: string
+        }
+        Returns: string
+      }
+      admin_save_coupon: {
+        Args: {
+          p_code: string
+          p_description?: string
+          p_discount_type: string
+          p_discount_value: number
+          p_ends_at?: string
+          p_id?: string
+          p_is_active?: boolean
+          p_max_discount_amount?: number
+          p_min_order_amount?: number
+          p_name: string
+          p_per_user_limit?: number
+          p_starts_at?: string
+          p_usage_limit?: number
         }
         Returns: string
       }
@@ -1872,6 +1891,22 @@ export type Database = {
           reduction: number
           rule_kind: string
           rule_label: string
+        }[]
+      }
+      evaluate_coupon: {
+        Args: {
+          p_base_subtotal: number
+          p_code: string
+          p_customer_id: string
+          p_line_reductions: number
+          p_lock: boolean
+        }
+        Returns: {
+          code: string
+          coupon_id: string
+          name: string
+          reason: string
+          reduction: number
         }[]
       }
       get_admin_product: {
@@ -2079,6 +2114,18 @@ export type Database = {
       notify_restock_subscribers: {
         Args: { p_product_id: string }
         Returns: undefined
+      }
+      preview_coupon: {
+        Args: { p_code: string; p_items: Json }
+        Returns: {
+          base_subtotal: number
+          code: string
+          line_reductions: number
+          name: string
+          ok: boolean
+          reason: string
+          reduction: number
+        }[]
       }
       refresh_product_review_summary: {
         Args: { p_product_id: string }
