@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { CouponPreview, DeliveryZone, PaymentMethod } from '../../types';
 import { checkout, previewCoupon, uploadPaymentProof, submitPaymentProof, fetchPaymentMethods, fetchDeliveryZones } from '../../lib/api';
 import { couponRefusalMessage, errorMessage } from '../../lib/errors';
-import { cartLineKey, cartUnitPrice } from '../../lib/pricing';
+import { cartLineKey, cartLineUnavailable, cartUnitPrice } from '../../lib/pricing';
 import { formatSDG } from '../../lib/format';
 import { Banknote, Wallet, Loader2, Ticket, X } from 'lucide-react';
 
@@ -107,6 +107,8 @@ export const CheckoutPage: React.FC = () => {
     const shipping = selectedZone?.fee ?? 0;
     const total = Math.max(subtotal - (couponApplied?.reduction ?? 0), 0) + shipping;
     const cartItems = cart.map(i => ({ id: i.productId, variant_id: i.variantId, quantity: i.quantity }));
+    // A line whose Variant is gone would be refused by checkout_order: block the Order until it is removed.
+    const hasUnavailableLine = cart.some(i => cartLineUnavailable(i, live.get(i.productId)));
 
     const applyCoupon = async () => {
         const code = couponInput.trim();
@@ -292,7 +294,7 @@ export const CheckoutPage: React.FC = () => {
 
                     <button
                         type="submit"
-                        disabled={submitting || loadingOptions || !selectedZone || !selectedMethod}
+                        disabled={submitting || loadingOptions || !selectedZone || !selectedMethod || hasUnavailableLine}
                         className="w-full bg-brand-blue hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2"
                     >
                         {submitting ? <><Loader2 className="w-5 h-5 animate-spin" /> جاري المعالجة...</> : `تأكيد الطلب (${formatSDG(total)})`}
@@ -308,6 +310,7 @@ export const CheckoutPage: React.FC = () => {
                                 <div className="flex-1">
                                     <p className="font-bold text-gray-800">{item.name_ar}</p>
                                     {item.variantName && <p className="text-xs text-gray-500">الخيار: {item.variantName}</p>}
+                                    {cartLineUnavailable(item, live.get(item.productId)) && <p role="alert" className="text-xs text-red-600">هذا الخيار لم يعد متاحاً، احذفيه من السلة</p>}
                                     <div className="flex justify-between mt-1">
                                         <span className="text-gray-500">x{item.quantity}</span>
                                         <span className="font-medium">{formatSDG(cartUnitPrice(item, live.get(item.productId)))}</span>

@@ -10,7 +10,7 @@ const suite = haveCreds ? describe : describe.skip;
 
 type PublicVariant = { id: string; name_ar: string; price: number | null; effective_price: number; pricing_rule_kind: string | null; pricing_rule_label: string | null };
 type PublicProduct = { id: string; price: number; effective_price: number; variants: PublicVariant[] };
-type OrderLine = { id: string; variant_id: string | null; variant_name: string | null; quantity: number; unit_price: number; effective_unit_price: number; line_total: number };
+type OrderLine = { id: string; variant_id: string | null; variant_name: string | null; variant_price: number | null; quantity: number; unit_price: number; effective_unit_price: number; line_total: number };
 
 suite('variants over the backend RPCs', () => {
     let customer: Client;
@@ -99,6 +99,7 @@ suite('variants over the backend RPCs', () => {
         const [line] = await orderLines(order.order_id);
         expect(line.variant_id).toBe(nude.id);
         expect(line.variant_name).toBe(nude.name_ar);
+        expect(Number(line.variant_price)).toBe(nude.price);
         expect(Number(line.unit_price)).toBe(nude.price);
         expect(Number(line.effective_unit_price)).toBe(Number(shown.effective_price));
         expect(Number(line.line_total)).toBe(Number((Number(shown.effective_price) * 2).toFixed(2)));
@@ -109,12 +110,28 @@ suite('variants over the backend RPCs', () => {
         expect(created.error).toBeNull();
         const [line] = await orderLines((created.data as { order_id: string }[])[0].order_id);
         expect(line.variant_id).toBe(rose.id);
+        expect(line.variant_price).toBeNull();
         expect(Number(line.unit_price)).toBe(basePrice);
     });
 
-    it('a Variant of another Product (or none) is refused', async () => {
-        const stranger = await checkout([{ id: product.id, variant_id: randomUUID(), quantity: 1 }]);
-        expect(stranger.error?.message).toContain('Variant not found');
+    it('a Variant of another Product, or an unknown one, is refused', async () => {
+        const unknown = await checkout([{ id: product.id, variant_id: randomUUID(), quantity: 1 }]);
+        expect(unknown.error?.message).toContain('Variant not found');
+
+        // A real Variant that belongs to a different Product.
+        const { data: products } = await admin.rpc('get_admin_products');
+        const other = (products as { id: string; is_active: boolean; variants: unknown }[]).find((p) => p.id !== product.id && p.is_active)!;
+        const foreign = { id: randomUUID(), name_ar: `${TEST_TAG} غريب`, price: null };
+        const { error } = await admin.from('products').update({ variants: [foreign] as never }).eq('id', other.id);
+        if (error) throw error;
+        try {
+            const stranger = await checkout([{ id: product.id, variant_id: foreign.id, quantity: 1 }]);
+            expect(stranger.error?.message).toContain('Variant not found');
+            const preview = await rpc(customer, 'preview_coupon', { p_code: 'X', p_items: [{ id: product.id, variant_id: foreign.id, quantity: 1 }] });
+            expect(preview.error?.message).toContain('Variant not found');
+        } finally {
+            await admin.from('products').update({ variants: other.variants as never }).eq('id', other.id);
+        }
     });
 
     it('two Variants of one Product are two lines drawing on one Stock', async () => {

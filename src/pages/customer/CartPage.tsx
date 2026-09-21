@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 import { Trash2, Plus, Minus, ShoppingBag } from 'lucide-react';
-import { cartLineKey, cartUnitPrice } from '../../lib/pricing';
+import { cartLineKey, cartLineUnavailable, cartUnitPrice } from '../../lib/pricing';
 import { formatSDG } from '../../lib/format';
 
 export const CartPage: React.FC = () => {
@@ -55,6 +55,7 @@ export const CartPage: React.FC = () => {
                             <div className="flex-1">
                                 <h3 className="font-bold text-gray-800 mb-1">{item.name_ar}</h3>
                                 {item.variantName && <p className="text-xs text-gray-500 mb-1">الخيار: {item.variantName}</p>}
+                                {cartLineUnavailable(item, live.get(item.productId)) && <p role="alert" className="text-xs text-red-600 mb-1">هذا الخيار لم يعد متاحاً، احذفيه من السلة</p>}
                                 <p className="text-brand-blue font-bold">
                                     {formatSDG(cartUnitPrice(item, live.get(item.productId)))}
                                 </p>

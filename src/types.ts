@@ -67,6 +67,8 @@ export interface OrderItem {
   name_ar?: string;
   variant_id?: string | null;
   variant_name?: string | null;
+  // The Variant's own price when it had one; unit_price is what the line was charged at.
+  variant_price?: number | null;
   unit_price?: number;
   discount_percentage?: number;
   effective_unit_price?: number;

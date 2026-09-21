@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cartLineKey, cartUnitPrice, orderUnitPrice } from '../../src/lib/pricing';
+import { cartLineKey, cartLineUnavailable, cartUnitPrice, orderUnitPrice } from '../../src/lib/pricing';
 
 // Prices come from the backend (effective_price); these helpers only choose which snapshot to show.
 
@@ -15,6 +15,10 @@ describe('cartUnitPrice', () => {
         const item = { price: 1200, discountPercentage: 0, effectivePrice: 1200, variantId: 'v1' };
         expect(cartUnitPrice(item, { effectivePrice: 800, variants: [variant] })).toBe(1100);
         expect(cartUnitPrice(item, { effectivePrice: 800, variants: [] })).toBe(1200);
+        expect(cartLineUnavailable(item, { variants: [variant] })).toBe(false);
+        expect(cartLineUnavailable(item, { variants: [] })).toBe(true);
+        expect(cartLineUnavailable({ variantId: null }, { variants: [] })).toBe(false);
+        expect(cartLineUnavailable(item)).toBe(false);
     });
 
     it('falls back to the Product Discount for carts persisted before effective prices', () => {

@@ -1,6 +1,6 @@
 -- 0017 Variant-aware checkout (T2-09).
 -- Variants stay on products.variants (jsonb); this migration fixes their shape so a Variant can be
--- referenced by id and priced: [{id, name_ar, name_en?, sku?, price?}]. The public catalogue
+-- referenced by id and priced: [{id, name_ar, name_en?, price?}]. The public catalogue
 -- reports each Variant's effective price (its own price, or the Product's, through effective_price),
 -- checkout accepts an optional variant_id per line, refuses a Variant of another Product, charges
 -- the Variant's price and snapshots its id and name into the Order item. Stock is still reserved
@@ -27,14 +27,14 @@ CREATE OR REPLACE FUNCTION public.variants_are_valid(p_variants jsonb) RETURNS b
 $$;
 
 -- Rows written before this ticket: {name, value} pairs (and null). Keep the Arabic label, give
--- each an id so it can be ordered.
+-- each an id so it can be ordered. A legacy row whose `name` was the attribute (e.g. "الدرجة")
+-- rather than the option keeps that label until staff rename it in the Product form.
 UPDATE public.products
 SET variants = COALESCE((
   SELECT jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
            'id', COALESCE(NULLIF(trim(v->>'id'), ''), gen_random_uuid()::text),
            'name_ar', COALESCE(NULLIF(trim(v->>'name_ar'), ''), NULLIF(trim(v->>'name'), ''), NULLIF(trim(v->>'value'), ''), 'خيار'),
            'name_en', COALESCE(NULLIF(trim(v->>'name_en'), ''), NULLIF(trim(v->>'value'), '')),
-           'sku', NULLIF(trim(v->>'sku'), ''),
            'price', CASE WHEN jsonb_typeof(v->'price') = 'number' THEN v->'price'
                          WHEN jsonb_typeof(v->'priceOverride') = 'number' THEN v->'priceOverride' END
          )) ORDER BY ord)
@@ -47,12 +47,28 @@ ALTER TABLE public.products ALTER COLUMN variants SET DEFAULT '[]'::jsonb;
 ALTER TABLE public.products ALTER COLUMN variants SET NOT NULL;
 ALTER TABLE public.products ADD CONSTRAINT products_variants_shape CHECK (public.variants_are_valid(variants));
 
--- One place resolves "which Variant, at what price" for the catalogue and checkout.
+-- Pure lookups (no table access, so no SECURITY DEFINER): only the owner-executed RPCs call them.
 CREATE OR REPLACE FUNCTION public.product_variant(p_variants jsonb, p_variant_id text) RETURNS jsonb
     LANGUAGE sql IMMUTABLE
     SET search_path TO 'public'
     AS $$
   SELECT v FROM jsonb_array_elements(COALESCE(p_variants, '[]'::jsonb)) v WHERE v->>'id' = p_variant_id LIMIT 1;
+$$;
+
+-- One place resolves a checkout line's Variant: it must belong to the Product, its price (when set)
+-- replaces the Product's before the Pricing Rule. Used by checkout_order and preview_coupon.
+CREATE OR REPLACE FUNCTION public.variant_line(p_product_id uuid, p_variants jsonb, p_variant_id text, p_product_price numeric)
+RETURNS TABLE(variant_id text, variant_name text, variant_price numeric, unit_price numeric)
+    LANGUAGE plpgsql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+DECLARE v_id text := NULLIF(trim(coalesce(p_variant_id, '')), ''); v_variant jsonb;
+BEGIN
+  IF v_id IS NULL THEN RETURN QUERY SELECT NULL::text, NULL::text, NULL::numeric, p_product_price; RETURN; END IF;
+  v_variant := public.product_variant(p_variants, v_id);
+  IF v_variant IS NULL THEN RAISE EXCEPTION 'Variant not found for product %', p_product_id; END IF;
+  RETURN QUERY SELECT v_id, v_variant->>'name_ar', (v_variant->>'price')::numeric, COALESCE((v_variant->>'price')::numeric, p_product_price);
+END;
 $$;
 
 -- Catalogue ------------------------------------------------------------------------------------
@@ -64,7 +80,7 @@ CREATE OR REPLACE FUNCTION public.public_variants(p_product_id uuid, p_variants 
     SET search_path TO 'public'
     AS $$
   SELECT COALESCE(jsonb_agg(
-           jsonb_build_object('id', v->>'id', 'name_ar', v->>'name_ar', 'name_en', v->>'name_en', 'sku', v->>'sku', 'price', v->'price',
+           jsonb_build_object('id', v->>'id', 'name_ar', v->>'name_ar', 'name_en', v->>'name_en', 'price', v->'price',
                               'effective_price', ep.effective_price, 'pricing_rule_kind', ep.rule_kind, 'pricing_rule_label', ep.rule_label)
            ORDER BY ord), '[]'::jsonb)
   FROM jsonb_array_elements(COALESCE(p_variants, '[]'::jsonb)) WITH ORDINALITY t(v, ord)
@@ -77,6 +93,9 @@ GRANT EXECUTE ON FUNCTION public.public_variants(uuid, jsonb, numeric, numeric, 
 REVOKE ALL ON FUNCTION public.variants_are_valid(jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.variants_are_valid(jsonb) TO authenticated, service_role;
 REVOKE ALL ON FUNCTION public.product_variant(jsonb, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.product_variant(jsonb, text) TO service_role;
+REVOKE ALL ON FUNCTION public.variant_line(uuid, jsonb, text, numeric) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.variant_line(uuid, jsonb, text, numeric) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.get_public_products() RETURNS TABLE(id uuid, name_ar text, name_en text, price numeric, discount_percentage numeric, category text, brand text, image text, images text[], description text, benefits text[], ingredients text[], usage text, origin text, expiry text, stock integer, is_imported boolean, skin_type text[], reviews_count integer, average_rating numeric, created_at timestamp with time zone, variants jsonb, effective_price numeric, pricing_rule_kind text, pricing_rule_label text)
     LANGUAGE sql STABLE SECURITY DEFINER
@@ -95,6 +114,9 @@ CREATE OR REPLACE FUNCTION public.get_public_products() RETURNS TABLE(id uuid, n
   ORDER BY p.created_at DESC;
 $$;
 
+REVOKE ALL ON FUNCTION public.get_public_products() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_public_products() TO anon, authenticated, service_role;
+
 CREATE OR REPLACE FUNCTION public.get_public_product(p_product_id uuid) RETURNS TABLE(id uuid, name_ar text, name_en text, price numeric, discount_percentage numeric, category text, brand text, image text, images text[], description text, benefits text[], ingredients text[], usage text, origin text, expiry text, stock integer, is_imported boolean, skin_type text[], reviews_count integer, average_rating numeric, created_at timestamp with time zone, variants jsonb, effective_price numeric, pricing_rule_kind text, pricing_rule_label text)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
@@ -110,6 +132,9 @@ CREATE OR REPLACE FUNCTION public.get_public_product(p_product_id uuid) RETURNS 
   CROSS JOIN LATERAL public.effective_price(p.id, p.price, COALESCE(p.discount_percentage, 0), p.category, p.brand) ep
   WHERE p.id = p_product_id AND p.is_active;
 $$;
+
+REVOKE ALL ON FUNCTION public.get_public_product(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_public_product(uuid) TO anon, authenticated, service_role;
 
 -- Reviews are per Product: an Order with two Variants of one Product lists it once.
 CREATE OR REPLACE FUNCTION public.get_reviewable_order_items() RETURNS TABLE(order_id uuid, order_number text, product_id uuid, product_name_ar text, product_image text, has_review boolean)
@@ -131,6 +156,9 @@ CREATE OR REPLACE FUNCTION public.get_reviewable_order_items() RETURNS TABLE(ord
   ORDER BY o.created_at DESC, p.name_ar ASC, o.id, p.id;
 $$;
 
+REVOKE ALL ON FUNCTION public.get_reviewable_order_items() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_reviewable_order_items() TO authenticated, service_role;
+
 -- Coupon preview: a Variant's price is the line's base price.
 CREATE OR REPLACE FUNCTION public.preview_coupon(p_code text, p_items jsonb)
 RETURNS TABLE(ok boolean, reason text, code text, name text, reduction numeric, base_subtotal numeric, line_reductions numeric)
@@ -145,7 +173,6 @@ DECLARE
   v_qty integer;
   v_p record;
   v_ep record;
-  v_variant jsonb;
   v_price numeric;
 BEGIN
   IF v_user_id IS NULL THEN RAISE EXCEPTION 'Authentication required'; END IF;
@@ -156,12 +183,7 @@ BEGIN
     FROM public.products p WHERE p.id = (v_item->>'id')::uuid;
     IF NOT FOUND THEN RAISE EXCEPTION 'Product not found'; END IF;
     IF NOT v_p.is_active THEN RAISE EXCEPTION 'Product % is no longer available', (v_item->>'id'); END IF;
-    v_price := v_p.price;
-    IF NULLIF(trim(coalesce(v_item->>'variant_id', '')), '') IS NOT NULL THEN
-      v_variant := public.product_variant(v_p.variants, v_item->>'variant_id');
-      IF v_variant IS NULL THEN RAISE EXCEPTION 'Variant not found for product %', (v_item->>'id'); END IF;
-      v_price := COALESCE((v_variant->>'price')::numeric, v_p.price);
-    END IF;
+    SELECT vl.unit_price INTO v_price FROM public.variant_line((v_item->>'id')::uuid, v_p.variants, v_item->>'variant_id', v_p.price) vl;
     SELECT * INTO v_ep FROM public.effective_price((v_item->>'id')::uuid, v_price, v_p.discount_percentage, v_p.category, v_p.brand);
     v_base := v_base + v_price * v_qty;
     v_lines := v_lines + v_ep.reduction * v_qty;
@@ -171,6 +193,9 @@ BEGIN
     FROM public.evaluate_coupon(p_code, v_user_id, round(v_base, 2), round(v_lines, 2), false) e;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.preview_coupon(text, jsonb) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.preview_coupon(text, jsonb) TO authenticated, service_role;
 
 -- Checkout -------------------------------------------------------------------------------------
 
@@ -244,15 +269,19 @@ BEGIN
 END;
 $$;
 
--- checkout_order: identical to 0016 except (1) the warehouse must cover each Product's summed
--- quantity across its lines, (2) a line may name a Variant: it must belong to the Product, its
--- price (when set) replaces the Product's before the Pricing Rule, and its id and name are
--- snapshotted; later edits to the Variant never touch the Order.
+REVOKE ALL ON FUNCTION public.checkout_order_safe(text, text, text, text, text, text, jsonb, text, integer, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.checkout_order_safe(text, text, text, text, text, text, jsonb, text, integer, text) TO authenticated, service_role;
+
+-- checkout_order: identical to 0016 except (1) the warehouse (or, without warehouse rows, the
+-- Product's own stock) must cover each Product's summed quantity across its lines, (2) a line may
+-- name a Variant (variant_line): it must belong to the Product, its price (when set) replaces the
+-- Product's before the Pricing Rule, and its id, name and price are snapshotted; later edits to
+-- the Variant never touch the Order.
 CREATE OR REPLACE FUNCTION public.checkout_order(p_customer_name text, p_phone text, p_shipping_address text, p_city text, p_state text, p_payment_method text, p_items jsonb, p_coupon_code text DEFAULT NULL::text, p_points_to_redeem integer DEFAULT 0) RETURNS TABLE(order_id uuid, order_number text, total numeric, shipping_fee numeric, discount_amount numeric, points_discount numeric)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions'
     AS $$
-DECLARE v_user_id uuid := (SELECT auth.uid()); v_item jsonb; v_product_id uuid; v_quantity integer; v_unit_price numeric; v_discount numeric; v_stock integer; v_name text; v_active boolean; v_subtotal numeric := 0; v_base_subtotal numeric := 0; v_line_reductions numeric := 0; v_shipping numeric := 1500; v_order_id uuid; v_order_number text; v_warehouse_id uuid; v_has_warehouse_inventory boolean; v_coupon record; v_coupon_id uuid; v_coupon_code text; v_coupon_discount numeric := 0; v_points integer := 0; v_points_discount numeric := 0; v_point_value numeric; v_minimum_points integer; v_items_snapshot jsonb := '[]'::jsonb; v_line_price numeric; v_category text; v_brand text; v_rule_kind text; v_rule_label text; v_promotion_id uuid; v_line_reduction numeric; v_variants jsonb; v_variant jsonb; v_variant_id text; v_variant_name text;
+DECLARE v_user_id uuid := (SELECT auth.uid()); v_item jsonb; v_product_id uuid; v_quantity integer; v_unit_price numeric; v_discount numeric; v_stock integer; v_name text; v_active boolean; v_subtotal numeric := 0; v_base_subtotal numeric := 0; v_line_reductions numeric := 0; v_shipping numeric := 1500; v_order_id uuid; v_order_number text; v_warehouse_id uuid; v_has_warehouse_inventory boolean; v_coupon record; v_coupon_id uuid; v_coupon_code text; v_coupon_discount numeric := 0; v_points integer := 0; v_points_discount numeric := 0; v_point_value numeric; v_minimum_points integer; v_items_snapshot jsonb := '[]'::jsonb; v_line_price numeric; v_category text; v_brand text; v_rule_kind text; v_rule_label text; v_promotion_id uuid; v_line_reduction numeric; v_variants jsonb; v_variant_id text; v_variant_name text; v_variant_price numeric; v_needed integer;
 BEGIN
   IF v_user_id IS NULL THEN RAISE EXCEPTION 'Authentication required'; END IF;
   IF p_customer_name IS NULL OR length(trim(p_customer_name)) < 2 THEN RAISE EXCEPTION 'Customer name is required'; END IF;
@@ -270,19 +299,17 @@ BEGIN
     IF NOT FOUND THEN RAISE EXCEPTION 'Product not found'; END IF;
     IF NOT v_active THEN RAISE EXCEPTION 'Product % is no longer available', v_product_id; END IF;
     -- Variant (T2-09): must belong to this Product; its price wins over the Product's.
-    v_variant_id := NULLIF(trim(coalesce(v_item->>'variant_id', '')), ''); v_variant_name := NULL;
-    IF v_variant_id IS NOT NULL THEN
-      v_variant := public.product_variant(v_variants, v_variant_id);
-      IF v_variant IS NULL THEN RAISE EXCEPTION 'Variant not found for product %', v_product_id; END IF;
-      v_variant_name := v_variant->>'name_ar'; v_unit_price := COALESCE((v_variant->>'price')::numeric, v_unit_price);
-    END IF;
-    IF NOT v_has_warehouse_inventory AND v_stock < v_quantity THEN RAISE EXCEPTION 'Insufficient stock for product %', v_product_id; END IF;
+    SELECT vl.variant_id, vl.variant_name, vl.variant_price, vl.unit_price INTO v_variant_id, v_variant_name, v_variant_price, v_unit_price
+    FROM public.variant_line(v_product_id, v_variants, v_item->>'variant_id', v_unit_price) vl;
+    -- Stock is per Product: every line of this Product counts against the same number.
+    SELECT SUM((ci->>'quantity')::integer) INTO v_needed FROM jsonb_array_elements(p_items) ci WHERE (ci->>'id')::uuid = v_product_id;
+    IF NOT v_has_warehouse_inventory AND COALESCE(v_stock, 0) < v_needed THEN RAISE EXCEPTION 'Insufficient stock for product %', v_product_id; END IF;
     -- The same Pricing Rule resolution the catalogue showed (T2-07).
     SELECT ep.effective_price, ep.reduction, ep.rule_kind, ep.rule_label, ep.promotion_id INTO v_line_price, v_line_reduction, v_rule_kind, v_rule_label, v_promotion_id
     FROM public.effective_price(v_product_id, v_unit_price, v_discount, v_category, v_brand) ep;
     v_base_subtotal := v_base_subtotal + v_unit_price * v_quantity;
     v_line_reductions := v_line_reductions + v_line_reduction * v_quantity;
-    v_items_snapshot := v_items_snapshot || jsonb_build_object('id', v_product_id, 'variant_id', v_variant_id, 'variant_name', v_variant_name, 'quantity', v_quantity, 'name_ar', v_name, 'unit_price', round(v_unit_price, 2), 'discount_percentage', v_discount, 'effective_unit_price', v_line_price, 'pricing_rule_kind', v_rule_kind, 'pricing_rule_label', v_rule_label, 'promotion_id', v_promotion_id, 'line_total', round(v_line_price * v_quantity, 2));
+    v_items_snapshot := v_items_snapshot || jsonb_build_object('id', v_product_id, 'variant_id', v_variant_id, 'variant_name', v_variant_name, 'variant_price', v_variant_price, 'quantity', v_quantity, 'name_ar', v_name, 'unit_price', round(v_unit_price, 2), 'discount_percentage', v_discount, 'effective_unit_price', v_line_price, 'pricing_rule_kind', v_rule_kind, 'pricing_rule_label', v_rule_label, 'promotion_id', v_promotion_id, 'line_total', round(v_line_price * v_quantity, 2));
   END LOOP;
   v_base_subtotal := round(v_base_subtotal, 2); v_line_reductions := round(v_line_reductions, 2);
   v_subtotal := v_base_subtotal - v_line_reductions;
@@ -311,11 +338,15 @@ BEGIN
   RETURN QUERY SELECT v_order_id, v_order_number, round(GREATEST(v_subtotal + v_shipping - v_coupon_discount - v_points_discount, 0), 2), v_shipping, round(v_coupon_discount, 2), round(v_points_discount, 2);
 END; $$;
 
+REVOKE ALL ON FUNCTION public.checkout_order(text, text, text, text, text, text, jsonb, text, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.checkout_order(text, text, text, text, text, text, jsonb, text, integer) TO service_role;
+
 -- DOWN:
 --   recreate checkout_order and preview_coupon from 20260920001600, checkout_order_safe and
 --   get_reviewable_order_items from the baseline, get_public_products/get_public_product from 20260920001500;
 --   ALTER TABLE public.products DROP CONSTRAINT products_variants_shape;
 --   ALTER TABLE public.products ALTER COLUMN variants DROP NOT NULL;
 --   DROP FUNCTION public.public_variants(uuid, jsonb, numeric, numeric, text, text);
+--   DROP FUNCTION public.variant_line(uuid, jsonb, text, numeric);
 --   DROP FUNCTION public.product_variant(jsonb, text);
 --   DROP FUNCTION public.variants_are_valid(jsonb);

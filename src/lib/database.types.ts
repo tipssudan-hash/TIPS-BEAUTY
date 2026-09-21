@@ -1676,6 +1676,7 @@ export type Database = {
       }
       admin_delete_collection: { Args: { p_id: string }; Returns: undefined }
       admin_delete_coupon: { Args: { p_id: string }; Returns: undefined }
+      admin_delete_test_orders: { Args: never; Returns: number }
       admin_get_collections: {
         Args: never
         Returns: {
@@ -2297,6 +2298,20 @@ export type Database = {
           p_status: string
         }
         Returns: string
+      }
+      variant_line: {
+        Args: {
+          p_product_id: string
+          p_product_price: number
+          p_variant_id: string
+          p_variants: Json
+        }
+        Returns: {
+          unit_price: number
+          variant_id: string
+          variant_name: string
+          variant_price: number
+        }[]
       }
       variants_are_valid: { Args: { p_variants: Json }; Returns: boolean }
     }

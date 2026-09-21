@@ -7,6 +7,12 @@ export function cartLineKey(item: Pick<CartItem, 'productId' | 'variantId'>): st
     return `${item.productId}:${item.variantId ?? ''}`;
 }
 
+// A Variant line whose Variant the live catalogue no longer has: checkout would refuse it, so the
+// pages flag it and block the Order instead of pricing it from the stale snapshot.
+export function cartLineUnavailable(item: Pick<CartItem, 'variantId'>, live?: Pick<Product, 'variants'>): boolean {
+    return Boolean(live && item.variantId && !live.variants.some((v) => v.id === item.variantId));
+}
+
 // A Cart line's unit price. The live catalogue wins (a Promotion may have started or ended since
 // the line was added) — for a Variant line, the live Variant's price; otherwise the price
 // snapshotted when it was added; carts persisted before effective prices existed fall back to the
@@ -16,7 +22,7 @@ export function cartUnitPrice(item: Pick<CartItem, 'price' | 'discountPercentage
         const variant = item.variantId ? live.variants.find((v) => v.id === item.variantId) : undefined;
         if (variant) return variant.effectivePrice;
         if (!item.variantId) return live.effectivePrice;
-        // The Variant was removed from the Product since: keep what the line was added at.
+        // The Variant was removed from the Product since (see cartLineUnavailable): keep the snapshot.
     }
     if (typeof item.effectivePrice === 'number' && Number.isFinite(item.effectivePrice)) return item.effectivePrice;
     return discountedPrice(item.price, item.discountPercentage);
