@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search, ShoppingBag, Loader2 } from 'lucide-react';
-import { fetchOrders, subscribeToOrders, type OrderListRow } from '../../lib/adminApi';
-import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, formatDateTime, formatSDG, orderStatusLabel, orderStatusStyle, paymentMethodLabel, paymentStatusLabel, paymentStatusStyle } from '../../lib/format';
+import { Search, ShoppingBag, Loader2, ArrowLeft } from 'lucide-react';
+import { fetchOrders, subscribeToOrders, updateOrderOperation, type OrderListRow } from '../../lib/adminApi';
+import {
+    ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, formatDateTime, formatSDG, orderStatusLabel, orderStatusStyle,
+    paymentMethodLabel, paymentStatusLabel, paymentStatusStyle, primaryForwardTransition, type OrderStatus,
+} from '../../lib/format';
 import { errorMessage } from '../../lib/errors';
 
 const PAGE_SIZE = 20;
@@ -19,6 +22,7 @@ export const OrderListPage: React.FC = () => {
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [advancingId, setAdvancingId] = useState<string | null>(null);
 
     useEffect(() => {
         const timer = setTimeout(() => setSearch(searchInput.trim()), 350);
@@ -52,6 +56,21 @@ export const OrderListPage: React.FC = () => {
 
     useEffect(() => { void load(); }, [load]);
     useEffect(() => subscribeToOrders(() => { void load(true); }), [load]);
+
+    const advance = async (order: OrderListRow) => {
+        const next = primaryForwardTransition(order.status as OrderStatus);
+        if (!next) return;
+        setAdvancingId(order.id);
+        setError(null);
+        try {
+            await updateOrderOperation({ orderId: order.id, expectedStatus: order.status, status: next });
+            await load(true);
+        } catch (err) {
+            setError(errorMessage(err));
+        } finally {
+            setAdvancingId(null);
+        }
+    };
 
     const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
     const firstIndex = total === 0 ? 0 : page * PAGE_SIZE + 1;
@@ -123,6 +142,8 @@ export const OrderListPage: React.FC = () => {
                                 </tr>
                             ) : orders.length > 0 ? orders.map((order) => {
                                 const unseen = order.status === 'new' && !order.viewed_at;
+                                const nextStatus = primaryForwardTransition(order.status as OrderStatus);
+                                const busy = advancingId === order.id;
                                 return (
                                     <tr key={order.id} className={`hover:bg-slate-50/50 transition-colors ${unseen ? 'bg-blue-50/40' : ''}`}>
                                         <td className="px-6 py-5">
@@ -142,9 +163,23 @@ export const OrderListPage: React.FC = () => {
                                             <p className="text-xs text-slate-500 font-medium" dir="ltr">{order.phone}</p>
                                         </td>
                                         <td className="px-6 py-5 text-center">
-                                            <span className={`px-3 py-1.5 rounded-lg text-[10px] font-black border ${orderStatusStyle(order.status)}`}>
-                                                {orderStatusLabel(order.status)}
-                                            </span>
+                                            <div className="flex flex-col items-center gap-1.5">
+                                                <span className={`px-3 py-1.5 rounded-lg text-[10px] font-black border ${orderStatusStyle(order.status)}`}>
+                                                    {orderStatusLabel(order.status)}
+                                                </span>
+                                                {nextStatus && (
+                                                    <button
+                                                        type="button"
+                                                        disabled={busy}
+                                                        onClick={() => void advance(order)}
+                                                        aria-label={`نقل الطلب ${order.order_number ?? ''} إلى ${orderStatusLabel(nextStatus)}`}
+                                                        className="inline-flex items-center gap-1 text-[10px] font-black text-brand-blue hover:underline disabled:opacity-50"
+                                                    >
+                                                        {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowLeft className="w-3 h-3" />}
+                                                        {orderStatusLabel(nextStatus)}
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="px-6 py-5 text-center">
                                             <div className="flex flex-col items-center">

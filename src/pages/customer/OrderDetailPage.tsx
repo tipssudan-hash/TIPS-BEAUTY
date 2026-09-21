@@ -8,6 +8,7 @@ import { orderUnitPrice } from '../../lib/pricing';
 import { formatSDG, formatDateTime } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_METHOD_LABELS, StatusBadge } from './MyOrdersPage';
+import { Notice, inputClass } from '../../components/ui';
 
 const MAX_PROOF_BYTES = 5 * 1024 * 1024;
 
@@ -116,7 +117,6 @@ export const OrderDetailPage: React.FC = () => {
     const hasSnapshot = order.items.some(i => i.line_total != null);
     const subtotal = hasSnapshot ? order.items.reduce((s, i) => s + Number(i.line_total ?? 0), 0) : null;
     const address = [order.shippingAddress, order.city, order.state].filter(Boolean).join('، ');
-    const inputClass = 'w-full bg-gray-50 border border-gray-200 rounded-lg p-3 outline-none focus:ring-2 focus:ring-brand-blue';
 
     return (
         <div className="max-w-4xl mx-auto p-4 space-y-6">
@@ -132,8 +132,8 @@ export const OrderDetailPage: React.FC = () => {
                 </div>
             )}
 
-            {notice && <div className="bg-amber-50 border border-amber-100 text-amber-800 rounded-xl p-4 text-sm">{notice}</div>}
-            {error && <div className="bg-red-50 border border-red-100 text-red-700 rounded-xl p-4 text-sm">{error}</div>}
+            {notice && <div className="bg-amber-50 border border-amber-100 text-amber-800 rounded-control p-4 text-sm">{notice}</div>}
+            {error && <Notice kind="error">{error}</Notice>}
 
             <div className="bg-white rounded-2xl shadow-sm border border-brand-blue-soft p-6">
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">

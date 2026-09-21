@@ -2,11 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  direction: rtl;
-}
+/* RTL is set once, via dir="rtl" on AdminLayout's root element (not duplicated here in CSS). */
 
 body {
   font-family: 'Inter', system-ui, sans-serif;
   @apply bg-gray-50 text-gray-900;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto !important;
+  }
+
+  /* Interaction-triggered scale/transform feedback: keep the state change, drop the motion. */
+  [class*="hover:scale"]:hover,
+  [class*="active:scale"]:active,
+  [class*="group-hover:scale"] {
+    transform: none !important;
+  }
+
+  /* animate-spin is intentionally left untouched: it's the only loading indicator on several
+     buttons in this app once the label swaps out — removing it would leave no feedback. */
 }
