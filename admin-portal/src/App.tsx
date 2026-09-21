@@ -11,6 +11,8 @@ import { WarehousesPage } from './pages/WarehousesPage';
 import { DeliveryZonesPage } from './pages/DeliveryZonesPage';
 import { DriversPage } from './pages/DriversPage';
 import { BannersPage } from './pages/BannersPage';
+import { CollectionsPage } from './pages/collections/CollectionsPage';
+import { CollectionFormPage } from './pages/collections/CollectionFormPage';
 import { ReviewsPage } from './pages/ReviewsPage';
 import { SettingsPage } from './pages/SettingsPage';
 
@@ -31,6 +33,9 @@ function App() {
         <Route path="delivery-zones" element={<DeliveryZonesPage />} />
         <Route path="drivers" element={<DriversPage />} />
         <Route path="banners" element={<BannersPage />} />
+        <Route path="collections" element={<CollectionsPage />} />
+        <Route path="collections/new" element={<CollectionFormPage />} />
+        <Route path="collections/edit/:id" element={<CollectionFormPage />} />
         <Route path="reviews" element={<ReviewsPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>

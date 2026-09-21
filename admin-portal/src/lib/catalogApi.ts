@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
-import type { AdminReview, Banner, DeliveryZone, Driver, InventoryRow, Product, ProductInput, Warehouse } from '../types';
+import type { AdminReview, Banner, Collection, CollectionInput, CollectionRuleConfig, CollectionRuleType, DeliveryZone, Driver, InventoryRow, Product, ProductInput, Warehouse } from '../types';
+import type { Json } from './database.types';
 
 // Admin data access for catalogue, logistics and settings over the generated database types.
 
@@ -219,6 +220,75 @@ export async function saveBanner(id: string | null, input: BannerInput): Promise
 
 export async function deleteBanner(id: string): Promise<void> {
     const { error } = await supabase.from('storefront_banners').delete().eq('id', id);
+    if (error) throw error;
+}
+
+// Collections --------------------------------------------------------------------------
+// Every read and write goes through the admin RPCs (the tables carry no write grant).
+
+const SLUG_PATTERN = /^[a-z0-9-]+$/;
+
+export function validateCollectionSlug(slug: string): string | null {
+    if (!slug.trim()) return 'المعرّف (slug) مطلوب.';
+    if (!SLUG_PATTERN.test(slug)) return 'المعرّف يجب أن يحتوي على حروف إنجليزية صغيرة وأرقام وشرطات فقط، مثل: eid-essentials.';
+    return null;
+}
+
+export const COLLECTION_RULE_LABELS: Record<CollectionRuleType, string> = {
+    manual: 'اختيار يدوي',
+    newest: 'الأحدث',
+    best_sellers: 'الأكثر مبيعاً',
+    discount: 'عليها خصم',
+    price_under: 'أقل من سعر',
+    category: 'من تصنيف',
+};
+
+// Names the Storefront knows how to draw (src/lib/collectionIcons.tsx).
+export const COLLECTION_ICONS: Record<string, string> = {
+    'auto-awesome': 'لمعة',
+    star: 'نجمة',
+    tag: 'وسم',
+    gift: 'هدية',
+    flame: 'الأكثر رواجاً',
+    heart: 'قلب',
+    leaf: 'طبيعي',
+};
+
+export async function fetchCollections(): Promise<Collection[]> {
+    const { data, error } = await supabase.rpc('admin_get_collections');
+    if (error) throw error;
+    return (data ?? []).map((row) => ({
+        ...row,
+        rule_type: row.rule_type as CollectionRuleType,
+        rule_config: (row.rule_config ?? {}) as CollectionRuleConfig,
+        product_ids: row.product_ids ?? [],
+    }));
+}
+
+export async function fetchCollection(id: string): Promise<Collection | null> {
+    return (await fetchCollections()).find((c) => c.id === id) ?? null;
+}
+
+// For a hand-picked Collection pass its members: the backend writes row and members in one transaction.
+export async function saveCollection(id: string | null, input: CollectionInput, productIds?: string[]): Promise<string> {
+    const { data, error } = await supabase.rpc('admin_save_collection', {
+        p_id: id ?? undefined,
+        p_slug: input.slug.trim(),
+        p_name_ar: input.name_ar.trim(),
+        p_description_ar: input.description_ar?.trim() || undefined,
+        p_icon: input.icon,
+        p_rule_type: input.rule_type,
+        p_rule_config: input.rule_type === 'manual' ? {} : (input.rule_config as Json),
+        p_display_order: input.display_order,
+        p_is_active: input.is_active,
+        p_product_ids: input.rule_type === 'manual' ? productIds : undefined,
+    });
+    if (error) throw error;
+    return data;
+}
+
+export async function deleteCollection(id: string): Promise<void> {
+    const { error } = await supabase.rpc('admin_delete_collection', { p_id: id });
     if (error) throw error;
 }
 
