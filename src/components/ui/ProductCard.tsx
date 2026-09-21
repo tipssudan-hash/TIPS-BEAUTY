@@ -2,7 +2,7 @@ import React from 'react';
 import { Heart, Share2, ShoppingCart } from 'lucide-react';
 import { Product } from '../../types';
 import clsx from 'clsx';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { formatSDG } from '../../lib/format';
 
 interface ProductCardProps {
@@ -13,9 +13,12 @@ interface ProductCardProps {
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, isInWishlist, onToggleWishlist, onAddToCart }) => {
+    const navigate = useNavigate();
     const finalPrice = product.effectivePrice;
     const hasDiscount = finalPrice < product.price;
     const outOfStock = product.stock <= 0;
+    // A Product with Variants is chosen on its page (shade/size), not from the card.
+    const hasVariants = product.variants.length > 0;
     const productUrl = `${window.location.origin}/product/${product.id}`;
 
     const share = async (e: React.MouseEvent) => {
@@ -74,10 +77,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, isInWishlist,
                 <button
                     type="button"
                     disabled={outOfStock}
-                    onClick={(e) => { e.preventDefault(); onAddToCart(product); }}
+                    onClick={(e) => { e.preventDefault(); if (hasVariants) navigate(`/product/${product.id}`); else onAddToCart(product); }}
                     className="mt-auto w-full py-2 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 shadow-md transition-all active:scale-95 bg-brand-blue hover:bg-blue-700 shadow-blue-100 text-white disabled:bg-gray-300 disabled:shadow-none disabled:cursor-not-allowed"
                 >
-                    أضيفي للسلة <ShoppingCart className="w-3 h-3" />
+                    {hasVariants ? 'اختاري الخيار' : 'أضيفي للسلة'} <ShoppingCart className="w-3 h-3" />
                 </button>
             </div>
         </Link>

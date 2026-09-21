@@ -1,9 +1,12 @@
+// A purchasable option of a Product (shade, size). Stock is per Product (ADR 0001); the price
+// and Pricing Rule come from the backend for this Variant (its own price, or the Product's).
 export interface ProductVariant {
   id: string;
   name_ar: string;
-  name_en?: string;
-  priceOverride?: number;
-  stock?: number;
+  name_en: string;
+  price: number | null;
+  effectivePrice: number;
+  pricingRule: PricingRule | null;
 }
 
 export type PricingRuleKind = 'discount' | 'promotion';
@@ -43,6 +46,9 @@ export interface Product {
 
 export interface CartItem {
   productId: string;
+  // One Cart line per (Product, Variant); see cartLineKey.
+  variantId: string | null;
+  variantName: string | null;
   name_ar: string;
   image: string;
   price: number;
@@ -59,6 +65,8 @@ export interface OrderItem {
   id: string;
   quantity: number;
   name_ar?: string;
+  variant_id?: string | null;
+  variant_name?: string | null;
   unit_price?: number;
   discount_percentage?: number;
   effective_unit_price?: number;

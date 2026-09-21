@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { CouponPreview, DeliveryZone, PaymentMethod } from '../../types';
 import { checkout, previewCoupon, uploadPaymentProof, submitPaymentProof, fetchPaymentMethods, fetchDeliveryZones } from '../../lib/api';
 import { couponRefusalMessage, errorMessage } from '../../lib/errors';
-import { cartUnitPrice } from '../../lib/pricing';
+import { cartLineKey, cartUnitPrice } from '../../lib/pricing';
 import { formatSDG } from '../../lib/format';
 import { Banknote, Wallet, Loader2, Ticket, X } from 'lucide-react';
 
@@ -106,7 +106,7 @@ export const CheckoutPage: React.FC = () => {
     const subtotal = couponApplied ? couponApplied.baseSubtotal : lineSubtotal;
     const shipping = selectedZone?.fee ?? 0;
     const total = Math.max(subtotal - (couponApplied?.reduction ?? 0), 0) + shipping;
-    const cartItems = cart.map(i => ({ id: i.productId, quantity: i.quantity }));
+    const cartItems = cart.map(i => ({ id: i.productId, variant_id: i.variantId, quantity: i.quantity }));
 
     const applyCoupon = async () => {
         const code = couponInput.trim();
@@ -130,7 +130,7 @@ export const CheckoutPage: React.FC = () => {
     };
     const removeCoupon = () => { setCoupon(null); setCouponError(null); setCouponInput(''); };
     // A preview is only good for the Cart it was computed on: drop it when the lines change.
-    const cartSignature = cart.map(i => `${i.productId}:${i.quantity}`).join(',');
+    const cartSignature = cart.map(i => `${cartLineKey(i)}:${i.quantity}`).join(',');
     useEffect(() => { setCoupon(null); }, [cartSignature]);
 
     if (cartCount === 0 && !submitting) return <Navigate to="/cart" replace />;
@@ -303,10 +303,11 @@ export const CheckoutPage: React.FC = () => {
                     <h3 className="font-bold text-gray-800 mb-4">ملخص الطلب ({cartCount} منتجات)</h3>
                     <div className="space-y-3 mb-6 max-h-60 overflow-y-auto pr-2">
                         {cart.map((item) => (
-                            <div key={item.productId} className="flex gap-3 text-sm">
+                            <div key={cartLineKey(item)} className="flex gap-3 text-sm">
                                 <img src={item.image} className="w-12 h-12 rounded-lg object-cover" alt="" />
                                 <div className="flex-1">
                                     <p className="font-bold text-gray-800">{item.name_ar}</p>
+                                    {item.variantName && <p className="text-xs text-gray-500">الخيار: {item.variantName}</p>}
                                     <div className="flex justify-between mt-1">
                                         <span className="text-gray-500">x{item.quantity}</span>
                                         <span className="font-medium">{formatSDG(cartUnitPrice(item, live.get(item.productId)))}</span>

@@ -13,7 +13,7 @@ type QueueRow = {
   attempts: number;
 };
 
-type OrderItem = { id: string; quantity: number; name_ar?: string; unit_price?: number; discount_percentage?: number; effective_unit_price?: number; pricing_rule_label?: string | null; line_total?: number };
+type OrderItem = { id: string; quantity: number; name_ar?: string; variant_name?: string | null; unit_price?: number; discount_percentage?: number; effective_unit_price?: number; pricing_rule_label?: string | null; line_total?: number };
 
 type OrderRow = {
   id: string;
@@ -53,7 +53,8 @@ const formatDate = (iso: string) => new Intl.DateTimeFormat("ar-EG", { dateStyle
 
 function orderTable(order: OrderRow, names: Map<string, string>): string {
   const rows = order.items.map((item) => {
-    const name = item.name_ar ?? names.get(item.id) ?? "منتج";
+    // The chosen Variant (shade/size) is part of the line as the customer ordered it.
+    const name = (item.name_ar ?? names.get(item.id) ?? "منتج") + (item.variant_name ? ` — ${item.variant_name}` : "");
     // Lines snapshot the effective unit price (T2-07); older orders carry only the Discount.
     const unit = item.effective_unit_price != null ? Number(item.effective_unit_price) : item.unit_price != null ? item.unit_price * (1 - (item.discount_percentage ?? 0) / 100) : null;
     const line = item.line_total ?? (unit != null ? unit * item.quantity : null);

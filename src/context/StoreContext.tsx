@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Product, CartItem } from '../types';
+import { Product, ProductVariant, CartItem } from '../types';
 import { fetchProducts } from '../lib/api';
+import { cartLineKey } from '../lib/pricing';
 
 interface StoreContextType {
     products: Product[];
@@ -9,9 +10,10 @@ interface StoreContextType {
     reloadProducts: () => Promise<void>;
     cart: CartItem[];
     wishlist: string[];
-    addToCart: (product: Product, quantity?: number) => void;
-    removeFromCart: (productId: string) => void;
-    updateQuantity: (productId: string, quantity: number) => void;
+    // A Product with Variants is added with one of them; lines are addressed by cartLineKey.
+    addToCart: (product: Product, variant?: ProductVariant | null, quantity?: number) => void;
+    removeFromCart: (lineKey: string) => void;
+    updateQuantity: (lineKey: string, quantity: number) => void;
     clearCart: () => void;
     toggleWishlist: (productId: string) => void;
     addToRecentlyViewed: (product: Product) => void;
@@ -34,6 +36,8 @@ function readJson<T>(key: string, validate: (value: unknown) => value is T, fall
 
 const isCart = (value: unknown): value is CartItem[] =>
     Array.isArray(value) && value.every((i) => i && typeof i.productId === 'string' && typeof i.quantity === 'number');
+// Carts persisted before Variants have no variantId; treat them as plain Product lines.
+const withVariantFields = (items: CartItem[]): CartItem[] => items.map((i) => ({ ...i, variantId: i.variantId ?? null, variantName: i.variantName ?? null }));
 const isStringArray = (value: unknown): value is string[] => Array.isArray(value) && value.every((v) => typeof v === 'string');
 const isProductArray = (value: unknown): value is Product[] => Array.isArray(value) && value.every((p) => p && typeof p.id === 'string' && typeof p.name_ar === 'string');
 
@@ -57,7 +61,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     useEffect(() => { void reloadProducts(); }, [reloadProducts]);
 
-    const [cart, setCart] = useState<CartItem[]>(() => readJson('sb_cart', isCart, []));
+    const [cart, setCart] = useState<CartItem[]>(() => withVariantFields(readJson('sb_cart', isCart, [])));
     const [wishlist, setWishlist] = useState<string[]>(() => readJson('sb_wishlist', isStringArray, []));
     const [recentlyViewed, setRecentlyViewed] = useState<Product[]>(() => readJson('sb_recently_viewed', isProductArray, []));
 
@@ -69,35 +73,39 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setRecentlyViewed(prev => [product, ...prev.filter(p => p.id !== product.id)].slice(0, 10));
     }, []);
 
-    const addToCart = React.useCallback((product: Product, quantity = 1) => {
+    const addToCart = React.useCallback((product: Product, variant: ProductVariant | null = null, quantity = 1) => {
         setCart(prev => {
-            const existing = prev.find(item => item.productId === product.id);
-            if (existing) {
-                return prev.map(item => item.productId === product.id ? { ...item, quantity: item.quantity + quantity } : item);
-            }
-            return [...prev, {
+            const line: CartItem = {
                 productId: product.id,
+                variantId: variant?.id ?? null,
+                variantName: variant?.name_ar ?? null,
                 name_ar: product.name_ar,
                 image: product.image,
-                price: product.price,
+                price: variant?.price ?? product.price,
                 discountPercentage: product.discountPercentage,
-                effectivePrice: product.effectivePrice,
-                pricingRule: product.pricingRule,
+                effectivePrice: variant ? variant.effectivePrice : product.effectivePrice,
+                pricingRule: variant ? variant.pricingRule : product.pricingRule,
                 quantity,
-            }];
+            };
+            const key = cartLineKey(line);
+            const existing = prev.find(item => cartLineKey(item) === key);
+            if (existing) {
+                return prev.map(item => cartLineKey(item) === key ? { ...item, quantity: item.quantity + quantity } : item);
+            }
+            return [...prev, line];
         });
     }, []);
 
-    const removeFromCart = React.useCallback((productId: string) => {
-        setCart(prev => prev.filter(item => item.productId !== productId));
+    const removeFromCart = React.useCallback((lineKey: string) => {
+        setCart(prev => prev.filter(item => cartLineKey(item) !== lineKey));
     }, []);
 
-    const updateQuantity = React.useCallback((productId: string, quantity: number) => {
+    const updateQuantity = React.useCallback((lineKey: string, quantity: number) => {
         if (quantity <= 0) {
-            removeFromCart(productId);
+            removeFromCart(lineKey);
             return;
         }
-        setCart(prev => prev.map(item => item.productId === productId ? { ...item, quantity } : item));
+        setCart(prev => prev.map(item => cartLineKey(item) === lineKey ? { ...item, quantity } : item));
     }, [removeFromCart]);
 
     const clearCart = React.useCallback(() => setCart([]), []);

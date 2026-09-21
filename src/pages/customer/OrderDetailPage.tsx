@@ -161,6 +161,7 @@ export const OrderDetailPage: React.FC = () => {
                                     <tr key={`${item.id}-${idx}`} className="border-b border-gray-50">
                                         <td className="py-3">
                                             <p className="font-bold text-gray-800">{item.name_ar ?? 'منتج'}</p>
+                                            {item.variant_name && <p className="text-xs text-gray-500">الخيار: {item.variant_name}</p>}
                                             {unit != null && <p className="text-xs text-gray-500">{formatSDG(unit)} للقطعة{item.pricing_rule_label ? ` · ${item.pricing_rule_label}` : ''}</p>}
                                         </td>
                                         <td className="py-3 text-center">{item.quantity}</td>

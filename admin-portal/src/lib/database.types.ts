@@ -1068,7 +1068,7 @@ export type Database = {
           skin_type: string[] | null
           stock: number | null
           usage: string | null
-          variants: Json | null
+          variants: Json
         }
         Insert: {
           average_rating?: number | null
@@ -1094,7 +1094,7 @@ export type Database = {
           skin_type?: string[] | null
           stock?: number | null
           usage?: string | null
-          variants?: Json | null
+          variants?: Json
         }
         Update: {
           average_rating?: number | null
@@ -1120,7 +1120,7 @@ export type Database = {
           skin_type?: string[] | null
           stock?: number | null
           usage?: string | null
-          variants?: Json | null
+          variants?: Json
         }
         Relationships: []
       }
@@ -1961,7 +1961,7 @@ export type Database = {
           skin_type: string[] | null
           stock: number | null
           usage: string | null
-          variants: Json | null
+          variants: Json
         }[]
         SetofOptions: {
           from: "*"
@@ -2011,7 +2011,7 @@ export type Database = {
           skin_type: string[] | null
           stock: number | null
           usage: string | null
-          variants: Json | null
+          variants: Json
         }[]
         SetofOptions: {
           from: "*"
@@ -2153,6 +2153,21 @@ export type Database = {
           reduction: number
         }[]
       }
+      product_variant: {
+        Args: { p_variant_id: string; p_variants: Json }
+        Returns: Json
+      }
+      public_variants: {
+        Args: {
+          p_brand: string
+          p_category: string
+          p_discount_percentage: number
+          p_price: number
+          p_product_id: string
+          p_variants: Json
+        }
+        Returns: Json
+      }
       refresh_product_review_summary: {
         Args: { p_product_id: string }
         Returns: undefined
@@ -2283,6 +2298,7 @@ export type Database = {
         }
         Returns: string
       }
+      variants_are_valid: { Args: { p_variants: Json }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

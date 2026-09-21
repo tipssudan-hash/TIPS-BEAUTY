@@ -134,8 +134,9 @@ suite('coupons over the backend RPCs', () => {
     it('the per-customer limit holds across two orders placed at the same time', async () => {
         await saveCoupon({ p_code: code('ONCE'), p_per_user_limit: 1, p_discount_value: 10 });
         // Two different Products, so the two checkouts meet on the Coupon row lock, not the product lock.
+        // The other Product must carry no line rule, or the small Coupon would lose to it (not_best).
         const { data: catalogue } = await customer.rpc('get_public_products');
-        const other = (catalogue as { id: string; stock: number }[]).find((p) => p.id !== product.id && p.stock > 0) ?? { id: product.id };
+        const other = (catalogue as { id: string; stock: number; pricing_rule_kind: string | null }[]).find((p) => p.id !== product.id && p.stock > 0 && !p.pricing_rule_kind) ?? { id: product.id };
         const second = rpc(customer, 'checkout_order_safe', { ...checkoutArgs(zone, [{ id: other.id, quantity: 1 }], randomUUID()), p_coupon_code: code('ONCE') });
         const [a, b] = await Promise.all([checkoutWith(code('ONCE')), second]);
         const errors = [a, b].filter((r) => r.error);

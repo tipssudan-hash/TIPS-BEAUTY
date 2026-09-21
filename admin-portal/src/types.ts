@@ -1,9 +1,10 @@
+// Stored on products.variants (shape enforced by the products_variants_shape CHECK): the id is
+// what an Order line references; price null means "the Product's price". Stock is per Product.
 export type ProductVariant = {
-    id?: string;
+    id: string;
     name_ar: string;
     name_en?: string;
-    sku?: string;
-    priceOverride?: number;
+    price: number | null;
 };
 
 export interface Product {

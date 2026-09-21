@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Collection, CouponPreview, DeliveryZone, Order, OrderItem, OrderStatusEntry, PaymentMethod, Product, Review, ReviewableItem } from '../types';
+import type { Collection, CouponPreview, DeliveryZone, Order, OrderItem, OrderStatusEntry, PaymentMethod, PricingRule, Product, ProductVariant, Review, ReviewableItem } from '../types';
 
 // Thin typed wrappers over the backend RPCs. All pricing, stock and permission rules live in
 // the database; this file only maps rows to app types.
@@ -13,6 +13,27 @@ type ProductRow = {
     average_rating: number | null; created_at: string; variants: unknown;
 };
 
+function mapPricingRule(kind: string | null | undefined, label: string | null | undefined): PricingRule | null {
+    return (kind === 'discount' || kind === 'promotion') && label ? { kind, label } : null;
+}
+
+type VariantRow = { id: string; name_ar: string; name_en: string | null; price: number | null; effective_price: number | null; pricing_rule_kind: string | null; pricing_rule_label: string | null };
+
+// Variants arrive enriched by the catalogue RPCs (public_variants) with the price each one is charged at.
+function mapVariants(raw: unknown, fallbackPrice: number): ProductVariant[] {
+    if (!Array.isArray(raw)) return [];
+    return (raw as VariantRow[])
+        .filter((v) => v && typeof v.id === 'string' && typeof v.name_ar === 'string')
+        .map((v) => ({
+            id: v.id,
+            name_ar: v.name_ar,
+            name_en: v.name_en ?? '',
+            price: v.price == null ? null : Number(v.price),
+            effectivePrice: Number(v.effective_price ?? v.price ?? fallbackPrice),
+            pricingRule: mapPricingRule(v.pricing_rule_kind, v.pricing_rule_label),
+        }));
+}
+
 export function mapProduct(row: ProductRow): Product {
     return {
         id: row.id,
@@ -21,9 +42,7 @@ export function mapProduct(row: ProductRow): Product {
         price: Number(row.price),
         discountPercentage: Number(row.discount_percentage ?? 0),
         effectivePrice: Number(row.effective_price ?? row.price),
-        pricingRule: (row.pricing_rule_kind === 'discount' || row.pricing_rule_kind === 'promotion') && row.pricing_rule_label
-            ? { kind: row.pricing_rule_kind, label: row.pricing_rule_label }
-            : null,
+        pricingRule: mapPricingRule(row.pricing_rule_kind, row.pricing_rule_label),
         category: row.category ?? '',
         brand: row.brand ?? '',
         image: row.image ?? (row.images?.[0] ?? ''),
@@ -39,7 +58,7 @@ export function mapProduct(row: ProductRow): Product {
         skinType: row.skin_type ?? [],
         rating: Number(row.average_rating ?? 0),
         reviewCount: Number(row.reviews_count ?? 0),
-        variants: Array.isArray(row.variants) ? (row.variants as Product['variants']) : [],
+        variants: mapVariants(row.variants, Number(row.effective_price ?? row.price)),
         createdAt: row.created_at,
     };
 }
@@ -96,10 +115,13 @@ export interface CheckoutInput {
     zoneName: string;
     state: string;
     paymentMethod: string;
-    items: { id: string; quantity: number }[];
+    items: CheckoutItem[];
     couponCode?: string | null;
     idempotencyKey: string;
 }
+
+// A checkout line as the backend takes it: the Variant is optional and must belong to the Product.
+export type CheckoutItem = { id: string; quantity: number; variant_id?: string | null };
 
 export interface CheckoutResult {
     orderId: string;
@@ -127,7 +149,7 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
 }
 
 // Asks the backend what a Coupon would do to this Cart; a refusal comes back as a typed reason.
-export async function previewCoupon(code: string, items: { id: string; quantity: number }[]): Promise<CouponPreview> {
+export async function previewCoupon(code: string, items: CheckoutItem[]): Promise<CouponPreview> {
     const { data, error } = await supabase.rpc('preview_coupon', { p_code: code.trim(), p_items: items });
     if (error) throw error;
     const row = (data as { ok: boolean; reason: string | null; code: string | null; name: string | null; reduction: number; base_subtotal: number; line_reductions: number }[] | null)?.[0];
