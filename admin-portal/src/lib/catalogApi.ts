@@ -272,6 +272,17 @@ export const COLLECTION_RULE_LABELS: Record<CollectionRuleType, string> = {
     category: 'من تصنيف',
 };
 
+// Names the Storefront knows how to draw (src/lib/collectionIcons.tsx).
+export const COLLECTION_ICONS: Record<string, string> = {
+    'auto-awesome': 'لمعة',
+    star: 'نجمة',
+    tag: 'وسم',
+    gift: 'هدية',
+    flame: 'الأكثر رواجاً',
+    heart: 'قلب',
+    leaf: 'طبيعي',
+};
+
 export async function fetchCollections(): Promise<Collection[]> {
     const { data, error } = await supabase.rpc('admin_get_collections');
     if (error) throw error;

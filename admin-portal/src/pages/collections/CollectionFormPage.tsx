@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Save, ArrowRight, Loader2, Search, X, ChevronUp, ChevronDown, Plus } from 'lucide-react';
 import type { CollectionInput, CollectionRuleType, Product } from '../../types';
 import {
-    COLLECTION_RULE_LABELS, fetchAdminProducts, fetchCollection,
+    COLLECTION_ICONS, COLLECTION_RULE_LABELS, fetchAdminProducts, fetchCollection,
     saveCollection, setCollectionProducts, validateCollectionSlug, errorMessage,
 } from '../../lib/catalogApi';
 import { Card, Field, Notice, Spinner, inputClass, primaryButtonClass } from '../../components/ui';
@@ -131,7 +131,12 @@ export const CollectionFormPage: React.FC = () => {
                     <Field label="الوصف" hint="اختياري">
                         <textarea value={form.description_ar ?? ''} onChange={(e) => set('description_ar', e.target.value || null)} rows={2} className={inputClass} />
                     </Field>
-                    <div className="grid md:grid-cols-2 gap-6 items-end">
+                    <div className="grid md:grid-cols-3 gap-6 items-end">
+                        <Field label="الأيقونة">
+                            <select value={form.icon} onChange={(e) => set('icon', e.target.value)} className={inputClass}>
+                                {Object.entries(COLLECTION_ICONS).map(([name, label]) => <option key={name} value={name}>{label}</option>)}
+                            </select>
+                        </Field>
                         <Field label="ترتيب العرض" hint="الأصغر يظهر أولاً بين التشكيلات">
                             <input type="number" step="1" value={form.display_order} onChange={(e) => set('display_order', parseInt(e.target.value, 10) || 0)} className={inputClass} dir="ltr" />
                         </Field>

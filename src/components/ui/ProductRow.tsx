@@ -7,6 +7,7 @@ interface ProductRowProps {
     id?: string;
     title: string;
     icon?: React.ReactNode;
+    subtitle?: string | null;
     products: Product[];
     wishlist: string[];
     onToggleWishlist: (id: string) => void;
@@ -16,7 +17,7 @@ interface ProductRowProps {
 
 const SCROLL_AMOUNT = 420;
 
-export const ProductRow: React.FC<ProductRowProps> = ({ id, title, icon, products, wishlist, onToggleWishlist, onAddToCart, className = '' }) => {
+export const ProductRow: React.FC<ProductRowProps> = ({ id, title, icon, subtitle, products, wishlist, onToggleWishlist, onAddToCart, className = '' }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
 
     if (products.length === 0) return null;
@@ -25,10 +26,11 @@ export const ProductRow: React.FC<ProductRowProps> = ({ id, title, icon, product
 
     return (
         <div id={id} className={className}>
-            <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+            <h2 className={`text-xl font-bold text-gray-800 flex items-center gap-2 ${subtitle ? 'mb-1' : 'mb-6'}`}>
                 {icon}
                 {title}
             </h2>
+            {subtitle && <p className="text-sm text-gray-500 mb-6">{subtitle}</p>}
             <div className="relative">
                 <div
                     ref={scrollRef}

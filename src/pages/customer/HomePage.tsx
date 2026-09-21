@@ -5,6 +5,7 @@ import { ProductRow } from '../../components/ui/ProductRow';
 import { RecentlyViewed } from '../../components/ui/RecentlyViewed';
 import { fetchCollections } from '../../lib/api';
 import { Collection } from '../../types';
+import { collectionIcon } from '../../lib/collectionIcons';
 
 export const HomePage: React.FC = () => {
     const { products, productsLoading, productsError, reloadProducts, wishlist, addToCart, toggleWishlist } = useStore();
@@ -136,6 +137,8 @@ export const HomePage: React.FC = () => {
                         key={collection.id}
                         id={`collection-${collection.slug}`}
                         title={collection.name_ar}
+                        icon={collectionIcon(collection.icon)}
+                        subtitle={collection.description_ar}
                         products={collectionItems}
                         wishlist={wishlist}
                         onToggleWishlist={toggleWishlist}
