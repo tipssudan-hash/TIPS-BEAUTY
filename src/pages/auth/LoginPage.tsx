@@ -1,13 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { loginErrorMessage } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
 import { Mail, Lock, Loader2 } from 'lucide-react';
-
-function loginErrorMessage(message: string): string {
-    if (/email not confirmed/i.test(message)) return 'يرجى تأكيد البريد الإلكتروني أولاً';
-    if (/invalid login credentials/i.test(message)) return 'البريد الإلكتروني أو كلمة المرور غير صحيحة';
-    return 'فشل تسجيل الدخول. يرجى التحقق من البيانات.';
-}
 
 export const LoginPage: React.FC = () => {
     const navigate = useNavigate();

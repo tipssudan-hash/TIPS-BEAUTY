@@ -2,10 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Search, ShoppingBag, Loader2 } from 'lucide-react';
 import { fetchOrders, subscribeToOrders, type OrderListRow } from '../../lib/adminApi';
-import {
-    ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, errorMessage, formatDateTime, formatSDG,
-    orderStatusLabel, orderStatusStyle, paymentMethodLabel, paymentStatusLabel, paymentStatusStyle,
-} from '../../lib/format';
+import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, formatDateTime, formatSDG, orderStatusLabel, orderStatusStyle, paymentMethodLabel, paymentStatusLabel, paymentStatusStyle } from '../../lib/format';
+import { errorMessage } from '../../lib/errors';
 
 const PAGE_SIZE = 20;
 

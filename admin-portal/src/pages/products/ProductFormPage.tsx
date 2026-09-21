@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Save, ArrowRight, Loader2, Image as ImageIcon, Plus, Trash2, Info, Upload, Link as LinkIcon, Star } from 'lucide-react';
 import type { ProductInput, ProductVariant } from '../../types';
-import { createProduct, fetchAdminProduct, fetchAdminProducts, updateProduct, uploadPublicImage, validateImage, errorMessage } from '../../lib/catalogApi';
+import { createProduct, fetchAdminProduct, fetchAdminProducts, updateProduct, uploadPublicImage, validateImage } from '../../lib/catalogApi';
+import { errorMessage } from '../../lib/errors';
+import { formatSDG } from '../../lib/format';
 import { Card, Field, Notice, Spinner, inputClass, primaryButtonClass, secondaryButtonClass } from '../../components/ui';
 
 const SKIN_TYPES = ['جميع الأنواع', 'دهنية', 'جافة', 'مختلطة', 'حساسة', 'عادية'];
@@ -199,7 +201,7 @@ export const ProductFormPage: React.FC = () => {
                         </Field>
                     </div>
                     {form.discount_percentage > 0 && form.price > 0 && (
-                        <p className="text-sm font-bold text-slate-600">السعر بعد الخصم: <span className="text-brand-blue">{Math.round(form.price * (1 - form.discount_percentage / 100)).toLocaleString('ar-EG')} ج.س</span></p>
+                        <p className="text-sm font-bold text-slate-600">السعر بعد الخصم: <span className="text-brand-blue">{formatSDG(form.price * (1 - form.discount_percentage / 100))}</span></p>
                     )}
                 </Card>
 

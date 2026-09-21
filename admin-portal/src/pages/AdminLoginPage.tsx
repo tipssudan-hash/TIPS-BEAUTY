@@ -1,15 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { loginErrorMessage } from '../lib/errors';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { Lock, Mail, AlertCircle } from 'lucide-react';
-
-const loginErrorMessage = (message: string) => {
-    if (/invalid login credentials/i.test(message)) return 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
-    if (/email not confirmed/i.test(message)) return 'يرجى تأكيد البريد الإلكتروني أولاً.';
-    if (/rate limit|too many/i.test(message)) return 'محاولات كثيرة، حاولي بعد قليل.';
-    return 'فشل تسجيل الدخول، حاولي مرة أخرى.';
-};
 
 export const AdminLoginPage: React.FC = () => {
     const navigate = useNavigate();

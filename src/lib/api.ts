@@ -219,29 +219,3 @@ export async function askBeautyAdvice(query: string, skinType?: string): Promise
     if (data?.error) throw new Error(data.error);
     return data?.answer ?? '';
 }
-
-export function errorMessage(error: unknown, fallback = 'حدث خطأ غير متوقع، حاولي مرة أخرى.'): string {
-    if (error && typeof error === 'object' && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
-        return translateBackendError((error as { message: string }).message) ?? fallback;
-    }
-    return fallback;
-}
-
-const backendMessages: [RegExp, string][] = [
-    [/Insufficient stock/i, 'الكمية المطلوبة غير متوفرة حالياً لأحد المنتجات.'],
-    [/No active warehouse/i, 'عذراً، لا يمكن توصيل هذا الطلب كاملاً إلى منطقتك حالياً.'],
-    [/Inventory changed/i, 'تغيّر المخزون أثناء إتمام الطلب، يرجى المحاولة مرة أخرى.'],
-    [/no longer available/i, 'أحد المنتجات لم يعد متاحاً.'],
-    [/Unsupported payment method/i, 'طريقة الدفع غير مدعومة.'],
-    [/Only new orders can be cancelled/i, 'لا يمكن إلغاء الطلب بعد تأكيده، تواصلي مع خدمة العملاء.'],
-    [/Authentication required/i, 'يجب تسجيل الدخول أولاً.'],
-    [/delivered order/i, 'يمكن تقييم المنتجات المستلمة فقط.'],
-    [/already/i, 'تم تنفيذ هذا الإجراء مسبقاً.'],
-];
-
-function translateBackendError(message: string): string | null {
-    for (const [pattern, text] of backendMessages) {
-        if (pattern.test(message)) return text;
-    }
-    return /[؀-ۿ]/.test(message) ? message : null;
-}

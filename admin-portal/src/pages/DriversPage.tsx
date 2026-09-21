@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Truck, Plus, Edit, X } from 'lucide-react';
 import type { Driver, DriverStatus, Warehouse } from '../types';
-import { fetchDrivers, fetchWarehouses, saveDriver, errorMessage, type DriverInput } from '../lib/catalogApi';
+import { fetchDrivers, fetchWarehouses, saveDriver, type DriverInput } from '../lib/catalogApi';
+import { errorMessage } from '../lib/errors';
 import { Card, Field, Notice, PageHeader, Spinner, Table, inputClass, primaryButtonClass, secondaryButtonClass, smallButtonClass } from '../components/ui';
 
 const STATUS_LABELS: Record<DriverStatus, string> = { active: 'متاح', busy: 'مشغول', offline: 'غير متاح' };

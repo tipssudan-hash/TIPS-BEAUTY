@@ -84,30 +84,22 @@ export function paymentMethodLabel(code: string): string {
     return PAYMENT_METHOD_LABELS[code] ?? code;
 }
 
+const TIMEZONE = 'Africa/Khartoum';
+
 export function formatSDG(amount: number | null | undefined): string {
     return `${Math.round(Number(amount ?? 0)).toLocaleString('ar-EG')} ج.س`;
 }
 
+export function formatNumber(value: number | null | undefined): string {
+    return Number(value ?? 0).toLocaleString('ar-EG');
+}
+
 export function formatDateTime(iso: string | null | undefined): string {
     if (!iso) return '—';
-    return new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Africa/Khartoum' }).format(new Date(iso));
+    return new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium', timeStyle: 'short', timeZone: TIMEZONE }).format(new Date(iso));
 }
 
 export function formatDate(iso: string | null | undefined): string {
     if (!iso) return '—';
-    return new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium', timeZone: 'Africa/Khartoum' }).format(new Date(iso));
-}
-
-export function errorMessage(error: unknown, fallback = 'حدث خطأ غير متوقع، حاول مرة أخرى.'): string {
-    const message = error && typeof error === 'object' && 'message' in error ? String((error as { message: unknown }).message) : '';
-    if (/updated by another user/i.test(message)) return 'تم تحديث هذا الطلب من مستخدم آخر، أعد التحميل وحاول مجدداً.';
-    if (/transition is not allowed/i.test(message)) return 'هذا الانتقال في حالة الطلب غير مسموح.';
-    if (/Assign a driver/i.test(message)) return 'يجب تعيين مندوب قبل بدء التوصيل.';
-    if (/driver is not available/i.test(message)) return 'المندوب المختار غير متاح.';
-    if (/assigned to another warehouse/i.test(message)) return 'المندوب المختار تابع لمخزن آخر.';
-    if (/warehouse is not active/i.test(message)) return 'المخزن المختار غير نشط.';
-    if (/Assignments cannot change/i.test(message)) return 'لا يمكن تغيير التعيينات بعد بدء التوصيل.';
-    if (/Administrator access required/i.test(message)) return 'هذا الإجراء يتطلب صلاحيات مدير.';
-    if (/[؀-ۿ]/.test(message)) return message;
-    return fallback;
+    return new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium', timeZone: TIMEZONE }).format(new Date(iso));
 }
