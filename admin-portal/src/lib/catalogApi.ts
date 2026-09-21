@@ -117,6 +117,28 @@ export function validateImage(file: File): string | null {
     return null;
 }
 
+// Banners are the page's largest paint on a phone: shrink them in the browser before upload so a
+// 4 MB camera JPEG becomes a ~150 KB 1600px-wide JPEG. Falls back to the original when decoding fails.
+export const BANNER_MAX_WIDTH = 1600;
+
+export async function downscaleImage(file: File, maxWidth = BANNER_MAX_WIDTH, quality = 0.82): Promise<File> {
+    if (!file.type.startsWith('image/') || file.type === 'image/gif' || file.type === 'image/svg+xml') return file;
+    const bitmap = await createImageBitmap(file).catch(() => null);
+    if (!bitmap) return file;
+    const scale = Math.min(1, maxWidth / bitmap.width);
+    if (scale === 1 && file.size < 400 * 1024) { bitmap.close(); return file; }
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { bitmap.close(); return file; }
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+}
+
 export async function uploadPublicImage(folder: string, file: File): Promise<string> {
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
     const path = `${folder}/${Date.now()}.${ext}`;

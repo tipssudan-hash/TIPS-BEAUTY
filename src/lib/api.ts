@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Collection, CouponPreview, DeliveryZone, Order, OrderItem, OrderStatusEntry, PaymentMethod, PricingRule, Product, ProductVariant, Review, ReviewableItem } from '../types';
+import type { Banner, Collection, CouponPreview, DeliveryZone, Order, OrderItem, OrderStatusEntry, PaymentMethod, PricingRule, Product, ProductVariant, Review, ReviewableItem } from '../types';
 
 // Thin typed wrappers over the backend RPCs. All pricing, stock and permission rules live in
 // the database; this file only maps rows to app types.
@@ -74,6 +74,24 @@ export async function fetchProduct(id: string): Promise<Product | null> {
     if (error) throw error;
     const row = (data as ProductRow[] | null)?.[0];
     return row ? mapProduct(row) : null;
+}
+
+// Home-page banners. Content, not eligibility data: the public SELECT policy already limits rows to
+// active ones inside their schedule, so a direct read is the whole contract.
+export async function fetchBanners(): Promise<Banner[]> {
+    const { data, error } = await supabase.from('storefront_banners')
+        .select('id,title_ar,subtitle_ar,image_url,action_type,action_value,display_order')
+        .order('display_order').order('created_at');
+    if (error) throw error;
+    const kinds: Banner['actionType'][] = ['none', 'category', 'product', 'collection', 'url'];
+    return (data ?? []).filter((b) => b.image_url).map((b) => ({
+        id: b.id,
+        title_ar: b.title_ar,
+        subtitle_ar: b.subtitle_ar,
+        imageUrl: b.image_url as string,
+        actionType: kinds.includes(b.action_type as Banner['actionType']) ? (b.action_type as Banner['actionType']) : 'none',
+        actionValue: b.action_value,
+    }));
 }
 
 export async function fetchCollections(): Promise<Collection[]> {

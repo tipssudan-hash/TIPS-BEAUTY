@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { ProductCard } from '../../components/ui/ProductCard';
 import { ProductRow } from '../../components/ui/ProductRow';
 import { RecentlyViewed } from '../../components/ui/RecentlyViewed';
-import { fetchCollections } from '../../lib/api';
-import { Collection } from '../../types';
+import { BannerCarousel } from '../../components/ui/BannerCarousel';
+import { fetchBanners, fetchCollections } from '../../lib/api';
+import { Banner, Collection } from '../../types';
 import { collectionIcon } from '../../lib/collectionIcons';
 import { ALL_BRANDS, ALL_CATEGORIES, ProductSortBy, availableBrands, availableCategories, filterAndSortProducts } from '../../lib/productSearch';
 
@@ -17,14 +18,47 @@ export const HomePage: React.FC = () => {
     const [activeBrand, setActiveBrand] = useState(ALL_BRANDS);
     const [sortBy, setSortBy] = useState<ProductSortBy>('newest');
     const [collections, setCollections] = useState<Collection[]>([]);
+    const [banners, setBanners] = useState<Banner[]>([]);
+    const navigate = useNavigate();
 
     useEffect(() => {
         let cancelled = false;
         fetchCollections()
             .then((data) => { if (!cancelled) setCollections(data); })
             .catch((err) => console.error('Failed to load collections', err));
+        // Banners are decoration: a failure leaves the static hero in place.
+        fetchBanners()
+            .then((data) => { if (!cancelled) setBanners(data); })
+            .catch((err) => console.error('Failed to load banners', err));
         return () => { cancelled = true; };
     }, []);
+
+    const clearFilters = () => { setSearchQuery(''); setActiveCategory(ALL_CATEGORIES); setActiveBrand(ALL_BRANDS); };
+    const scrollToId = (id: string) => window.requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+
+    // Where a banner takes the customer; the admin stores the kind and the value it points at.
+    const onBanner = (banner: Banner) => {
+        const value = banner.actionValue?.trim() ?? '';
+        switch (banner.actionType) {
+            case 'product':
+                navigate(`/product/${value}`);
+                break;
+            case 'category':
+                setSearchQuery(''); setActiveBrand(ALL_BRANDS); setActiveCategory(value);
+                scrollToId('products');
+                break;
+            case 'collection':
+                clearFilters();
+                scrollToId(`collection-${value}`);
+                break;
+            case 'url':
+                if (/^https?:\/\//i.test(value)) window.open(value, '_blank', 'noopener');
+                else if (value.startsWith('/')) navigate(value);
+                break;
+            default:
+                break;
+        }
+    };
 
     const isFiltered = searchQuery.trim() !== '' || activeCategory !== ALL_CATEGORIES || activeBrand !== ALL_BRANDS;
 
@@ -44,7 +78,12 @@ export const HomePage: React.FC = () => {
 
     return (
         <div className="animate-fadeIn pb-20">
-            {/* Hero Section */}
+            {/* Banners replace the static hero whenever staff have any live; the hero stays as the empty state. */}
+            {banners.length > 0 ? (
+                <div className="pt-4">
+                    <BannerCarousel banners={banners} onSelect={onBanner} />
+                </div>
+            ) : (
             <div className="relative h-64 md:h-80 bg-gradient-to-r from-brand-blue to-teal-500 mb-8 overflow-hidden">
                 <div className="absolute inset-0 bg-black/20"></div>
                 <div className="absolute inset-0 flex flex-col justify-center px-8 md:px-16 text-white max-w-4xl mx-auto">
@@ -59,6 +98,7 @@ export const HomePage: React.FC = () => {
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
                 <div className="absolute bottom-0 left-0 w-48 h-48 bg-brand-cyan/20 rounded-full blur-2xl translate-y-1/2 -translate-x-1/2"></div>
             </div>
+            )}
 
             <div id="products" className="max-w-4xl mx-auto px-4">
                 {/* Search */}
