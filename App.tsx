@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Header } from './src/components/layout/Header';
 import { BottomNav } from './src/components/layout/BottomNav';
 import { ErrorBoundary } from './src/components/layout/ErrorBoundary';
+import { VerifiedRoute } from './src/components/layout/VerifiedRoute';
 import { Spinner } from './src/components/ui';
 import { HomePage } from './src/pages/customer/HomePage';
 import { useStore } from './src/context/StoreContext';
@@ -17,6 +18,7 @@ const CheckoutPage = lazy(() => import('./src/pages/customer/CheckoutPage').then
 const MyOrdersPage = lazy(() => import('./src/pages/customer/MyOrdersPage').then((m) => ({ default: m.MyOrdersPage })));
 const OrderDetailPage = lazy(() => import('./src/pages/customer/OrderDetailPage').then((m) => ({ default: m.OrderDetailPage })));
 const SettingsPage = lazy(() => import('./src/pages/customer/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const NotificationsPage = lazy(() => import('./src/pages/customer/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
 const AIChatPage = lazy(() => import('./src/pages/customer/AIChatPage').then((m) => ({ default: m.AIChatPage })));
 const LoginPage = lazy(() => import('./src/pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
 const SignupPage = lazy(() => import('./src/pages/auth/SignupPage').then((m) => ({ default: m.SignupPage })));
@@ -50,7 +52,8 @@ function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
 
-              <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
+              <Route path="/checkout" element={<ProtectedRoute><VerifiedRoute><CheckoutPage /></VerifiedRoute></ProtectedRoute>} />
+              <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
               <Route path="/orders" element={<ProtectedRoute><MyOrdersPage /></ProtectedRoute>} />
               <Route path="/orders/:id" element={<ProtectedRoute><OrderDetailPage /></ProtectedRoute>} />
               <Route path="/ai-chat" element={<ProtectedRoute><AIChatPage /></ProtectedRoute>} />

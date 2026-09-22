@@ -4,6 +4,7 @@ import App from './App';
 import './index.css';
 import { AuthProvider } from './src/context/AuthContext';
 import { StoreProvider } from './src/context/StoreContext';
+import { NotificationsProvider } from './src/context/NotificationsContext';
 import { BrowserRouter } from 'react-router-dom';
 
 createRoot(document.getElementById('root')!).render(
@@ -11,7 +12,9 @@ createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <AuthProvider>
         <StoreProvider>
-          <App />
+          <NotificationsProvider>
+            <App />
+          </NotificationsProvider>
         </StoreProvider>
       </AuthProvider>
     </BrowserRouter>
