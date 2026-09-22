@@ -223,12 +223,23 @@ export async function deleteDeliveryZone(id: string): Promise<void> {
 // Drivers ----------------------------------------------------------------------------
 
 export async function fetchDrivers(): Promise<Driver[]> {
-    const { data, error } = await supabase.from('drivers').select('id,name,phone,company,status,warehouse_id,vehicle').order('name');
+    const { data, error } = await supabase.rpc('admin_get_drivers');
     if (error) throw error;
-    return (data ?? []).map((d) => ({ ...d, status: d.status as Driver['status'] }));
+    return (data ?? []).map((d) => ({ ...d, status: d.status as Driver['status'] })).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
 }
 
-export type DriverInput = Omit<Driver, 'id'>;
+export type DriverInput = Omit<Driver, 'id' | 'user_id' | 'user_email' | 'location_updated_at'>;
+
+// Linking a login makes the account a Driver (profiles.role) and the row theirs (drivers.user_id).
+export async function linkDriverUser(driverId: string, email: string): Promise<void> {
+    const { error } = await supabase.rpc('admin_link_driver_user', { p_driver_id: driverId, p_email: email.trim() });
+    if (error) throw error;
+}
+
+export async function unlinkDriverUser(driverId: string): Promise<void> {
+    const { error } = await supabase.rpc('admin_unlink_driver_user', { p_driver_id: driverId });
+    if (error) throw error;
+}
 
 export async function saveDriver(id: string | null, input: DriverInput): Promise<void> {
     const query = id ? supabase.from('drivers').update(input).eq('id', id) : supabase.from('drivers').insert(input);

@@ -1721,6 +1721,22 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      admin_get_drivers: {
+        Args: never
+        Returns: {
+          company: string
+          created_at: string
+          id: string
+          location_updated_at: string
+          name: string
+          phone: string
+          status: string
+          user_email: string
+          user_id: string
+          vehicle: string
+          warehouse_id: string
+        }[]
+      }
       admin_get_promotions: {
         Args: never
         Returns: {
@@ -1737,6 +1753,10 @@ export type Database = {
           target_value: string
           title: string
         }[]
+      }
+      admin_link_driver_user: {
+        Args: { p_driver_id: string; p_email: string }
+        Returns: string
       }
       admin_run_stale_order_sweep: { Args: never; Returns: number }
       admin_save_collection: {
@@ -1789,6 +1809,10 @@ export type Database = {
       }
       admin_set_collection_products: {
         Args: { p_collection_id: string; p_product_ids: string[] }
+        Returns: undefined
+      }
+      admin_unlink_driver_user: {
+        Args: { p_driver_id: string }
         Returns: undefined
       }
       admin_update_order_operation: {

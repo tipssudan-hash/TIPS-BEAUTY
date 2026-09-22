@@ -58,7 +58,12 @@ export interface DeliveryZone {
 
 export type DriverStatus = 'active' | 'busy' | 'offline';
 
+// Login linkage lives on the row too: user_email is the linked account (null = not yet linked),
+// location_updated_at the last time the driver shared a position (only while delivering).
 export interface Driver {
+    user_id?: string | null;
+    user_email?: string | null;
+    location_updated_at?: string | null;
     id: string;
     name: string;
     phone: string;
