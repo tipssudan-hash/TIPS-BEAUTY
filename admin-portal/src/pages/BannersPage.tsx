@@ -1,8 +1,8 @@
 import { formatDate, fromLocalInput, toLocalInput } from '../lib/format';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image as ImageIcon, Plus, Edit, Trash2, X, Upload, Loader2 } from 'lucide-react';
-import type { Banner, BannerActionType } from '../types';
-import { deleteBanner, fetchBanners, saveBanner, uploadPublicImage, validateImage, type BannerInput } from '../lib/catalogApi';
+import type { Banner, BannerActionType, Collection, Product } from '../types';
+import { BANNER_MAX_WIDTH, deleteBanner, downscaleImage, fetchAdminProducts, fetchBanners, fetchCollections, saveBanner, uploadPublicImage, validateImage, type BannerInput } from '../lib/catalogApi';
 import { errorMessage } from '../lib/errors';
 import { Card, Field, Notice, PageHeader, Spinner, StatusPill, Table, inputClass, primaryButtonClass, secondaryButtonClass, smallButtonClass } from '../components/ui';
 
@@ -12,6 +12,8 @@ const emptyBanner = (): BannerInput => ({ title_ar: '', subtitle_ar: null, image
 
 export const BannersPage: React.FC = () => {
     const [banners, setBanners] = useState<Banner[]>([]);
+    const [collections, setCollections] = useState<Collection[]>([]);
+    const [catalogue, setCatalogue] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [editing, setEditing] = useState<{ id: string | null; data: BannerInput } | null>(null);
@@ -23,7 +25,10 @@ export const BannersPage: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            setBanners(await fetchBanners());
+            const [rows, cols, products] = await Promise.all([fetchBanners(), fetchCollections(), fetchAdminProducts()]);
+            setBanners(rows);
+            setCollections(cols);
+            setCatalogue(products);
         } catch (err) {
             setError(errorMessage(err, 'تعذر تحميل البانرات.'));
         } finally {
@@ -34,6 +39,20 @@ export const BannersPage: React.FC = () => {
     useEffect(() => { void load(); }, []);
 
     const update = (patch: Partial<BannerInput>) => editing && setEditing({ ...editing, data: { ...editing.data, ...patch } });
+    const categories = useMemo(() => Array.from(new Set(catalogue.map((p) => p.category).filter(Boolean))).sort(), [catalogue]);
+    const collectionName = (slug: string) => collections.find((c) => c.slug === slug)?.name_ar ?? slug;
+    const productName = (id: string) => catalogue.find((p) => p.id === id)?.name_ar ?? id;
+    // What the customer app does with each action, in the admin's words.
+    const actionSummary = (b: Pick<Banner, 'action_type' | 'action_value'>) => {
+        if (!b.action_value) return ACTION_LABELS[b.action_type];
+        switch (b.action_type) {
+            case 'collection': return `مجموعة: ${collectionName(b.action_value)}`;
+            case 'product': return `منتج: ${productName(b.action_value)}`;
+            case 'category': return `تصنيف: ${b.action_value}`;
+            case 'url': return `رابط: ${b.action_value}`;
+            default: return ACTION_LABELS[b.action_type];
+        }
+    };
 
     const onFile = async (files: FileList | null) => {
         const file = files?.[0];
@@ -43,7 +62,7 @@ export const BannersPage: React.FC = () => {
         setUploading(true);
         setError(null);
         try {
-            update({ image_url: await uploadPublicImage('banners', file) });
+            update({ image_url: await uploadPublicImage('banners', await downscaleImage(file)) });
         } catch (err) {
             setError(errorMessage(err, 'تعذر رفع الصورة.'));
         } finally {
@@ -58,7 +77,8 @@ export const BannersPage: React.FC = () => {
         const data = editing.data;
         if (!data.title_ar.trim()) { setError('عنوان البانر مطلوب.'); return; }
         if (!data.image_url) { setError('صورة البانر مطلوبة.'); return; }
-        if (data.action_type !== 'none' && !data.action_value?.trim()) { setError('حددي قيمة الإجراء (اسم التصنيف أو معرّف المنتج أو الرابط).'); return; }
+        if (data.action_type !== 'none' && !data.action_value?.trim()) { setError('حددي وجهة البانر (المجموعة أو المنتج أو التصنيف أو الرابط).'); return; }
+        if (data.action_type === 'url' && !/^(https?:\/\/|\/)/.test(data.action_value?.trim() ?? '')) { setError('الرابط يجب أن يبدأ بـ / لصفحة داخل المتجر أو https:// لموقع خارجي.'); return; }
         if (data.ends_at && data.ends_at < data.starts_at) { setError('تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية.'); return; }
         setSaving(true);
         setError(null);
@@ -109,17 +129,44 @@ export const BannersPage: React.FC = () => {
                             <Field label="العنوان" required><input value={editing.data.title_ar} onChange={(e) => update({ title_ar: e.target.value })} className={inputClass} required /></Field>
                             <Field label="العنوان الفرعي"><input value={editing.data.subtitle_ar ?? ''} onChange={(e) => update({ subtitle_ar: e.target.value })} className={inputClass} /></Field>
                             <Field label="الإجراء عند الضغط">
-                                <select value={editing.data.action_type} onChange={(e) => update({ action_type: e.target.value as BannerActionType })} className={inputClass}>
+                                <select value={editing.data.action_type} onChange={(e) => update({ action_type: e.target.value as BannerActionType, action_value: null })} className={inputClass}>
                                     {(Object.keys(ACTION_LABELS) as BannerActionType[]).map((a) => <option key={a} value={a}>{ACTION_LABELS[a]}</option>)}
                                 </select>
                             </Field>
-                            <Field label="قيمة الإجراء" hint="اسم التصنيف، أو معرّف المنتج، أو الرابط الكامل">
-                                <input value={editing.data.action_value ?? ''} onChange={(e) => update({ action_value: e.target.value })} className={inputClass} disabled={editing.data.action_type === 'none'} dir={editing.data.action_type === 'url' ? 'ltr' : undefined} />
-                            </Field>
+                            {editing.data.action_type === 'collection' && (
+                                <Field label="المجموعة" required>
+                                    <select value={editing.data.action_value ?? ''} onChange={(e) => update({ action_value: e.target.value || null })} className={inputClass} required>
+                                        <option value="">اختاري…</option>
+                                        {collections.map((c) => <option key={c.id} value={c.slug}>{c.name_ar}{c.is_active ? '' : ' (غير ظاهرة)'}</option>)}
+                                    </select>
+                                </Field>
+                            )}
+                            {editing.data.action_type === 'category' && (
+                                <Field label="التصنيف" required>
+                                    <select value={editing.data.action_value ?? ''} onChange={(e) => update({ action_value: e.target.value || null })} className={inputClass} required>
+                                        <option value="">اختاري…</option>
+                                        {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                </Field>
+                            )}
+                            {editing.data.action_type === 'product' && (
+                                <Field label="المنتج" required>
+                                    <select value={editing.data.action_value ?? ''} onChange={(e) => update({ action_value: e.target.value || null })} className={inputClass} required>
+                                        <option value="">اختاري…</option>
+                                        {catalogue.filter((p) => p.is_active).map((p) => <option key={p.id} value={p.id}>{p.name_ar}</option>)}
+                                    </select>
+                                </Field>
+                            )}
+                            {editing.data.action_type === 'url' && (
+                                <Field label="الرابط" required hint="صفحة داخل المتجر تبدأ بـ / مثل /offers، أو رابط خارجي يبدأ بـ https://">
+                                    <input value={editing.data.action_value ?? ''} onChange={(e) => update({ action_value: e.target.value })} className={inputClass} dir="ltr" required />
+                                </Field>
+                            )}
+                            {editing.data.action_type === 'none' && <div className="hidden md:block" />}
                             <Field label="تاريخ البداية" required><input type="datetime-local" value={toLocalInput(editing.data.starts_at)} onChange={(e) => update({ starts_at: fromLocalInput(e.target.value) ?? new Date().toISOString() })} className={inputClass} dir="ltr" required /></Field>
                             <Field label="تاريخ الانتهاء" hint="اتركيه فارغاً للعرض الدائم"><input type="datetime-local" value={toLocalInput(editing.data.ends_at)} onChange={(e) => update({ ends_at: fromLocalInput(e.target.value) })} className={inputClass} dir="ltr" /></Field>
                             <Field label="ترتيب العرض" hint="الأصغر يظهر أولاً"><input type="number" step="1" value={editing.data.display_order} onChange={(e) => update({ display_order: parseInt(e.target.value, 10) || 0 })} className={inputClass} dir="ltr" /></Field>
-                            <Field label="الصورة" required>
+                            <Field label="الصورة" required hint={`عرضية بنسبة 16:7 تقريباً (مثل 1600×700). تُصغَّر تلقائياً إلى ${BANNER_MAX_WIDTH} بكسل عرضاً قبل الرفع.`}>
                                 <div className="flex items-center gap-3">
                                     {editing.data.image_url && <img src={editing.data.image_url} alt={editing.data.title_ar ? `معاينة: ${editing.data.title_ar}` : 'معاينة صورة البانر'} className="w-20 h-12 rounded-xl object-cover border border-slate-100" />}
                                     <input ref={fileInput} type="file" accept="image/*" className="hidden" onChange={(e) => void onFile(e.target.files)} />
@@ -155,7 +202,7 @@ export const BannersPage: React.FC = () => {
                                     </div>
                                 </div>
                             </td>
-                            <td className="px-6 py-4 text-sm font-bold text-slate-600">{ACTION_LABELS[b.action_type]}{b.action_value ? `: ${b.action_value}` : ''}</td>
+                            <td className="px-6 py-4 text-sm font-bold text-slate-600">{actionSummary(b)}</td>
                             <td className="px-6 py-4 text-xs font-bold text-slate-600" dir="ltr">{formatDate(b.starts_at)} → {b.ends_at ? formatDate(b.ends_at) : '∞'}</td>
                             <td className="px-6 py-4 text-sm font-bold text-slate-600">{b.display_order}</td>
                             <td className="px-6 py-4"><StatusPill active={isLive(b)} activeText="معروض" inactiveText={b.is_active ? 'خارج الفترة' : 'متوقف'} /></td>
