@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { AdminReview, Banner, Collection, Coupon, CouponInput, CollectionInput, CollectionRuleConfig, CollectionRuleType, DeliveryZone, Driver, InventoryRow, Product, ProductInput, ProductVariant, Warehouse } from '../types';
+import type { AdminReview, Banner, Collection, Coupon, CouponInput, CollectionInput, CollectionRuleConfig, CollectionRuleType, DeliveryZone, Driver, InventoryRow, Product, ProductInput, ProductVariant, Promotion, PromotionInput, Warehouse } from '../types';
 import type { Json } from './database.types';
 
 // Admin data access for catalogue, logistics and settings over the generated database types.
@@ -341,6 +341,54 @@ export async function saveCoupon(id: string | null, input: CouponInput): Promise
 
 export async function deleteCoupon(id: string): Promise<void> {
     const { error } = await supabase.rpc('admin_delete_coupon', { p_id: id });
+    if (error) throw error;
+}
+
+// Promotions ---------------------------------------------------------------------------
+// Pricing data: the backend derives the status and matches targets; every write is an admin RPC.
+
+export const PROMOTION_TARGET_LABELS: Record<Promotion['target_kind'], string> = {
+    all: 'كل المنتجات', category: 'تصنيف', brand: 'علامة تجارية', products: 'منتجات محددة',
+};
+export const PROMOTION_STATUS_LABELS: Record<Promotion['status'], string> = { scheduled: 'مجدول', active: 'ساري', expired: 'منتهٍ' };
+
+export async function fetchPromotions(): Promise<Promotion[]> {
+    const { data, error } = await supabase.rpc('admin_get_promotions');
+    if (error) throw error;
+    return (data ?? []).map((row) => ({
+        ...row,
+        discount_type: row.discount_type as Promotion['discount_type'],
+        discount_value: Number(row.discount_value),
+        target_kind: row.target_kind as Promotion['target_kind'],
+        target_product_ids: row.target_product_ids ?? [],
+        status: row.status as Promotion['status'],
+    }));
+}
+
+export async function savePromotion(id: string | null, input: PromotionInput): Promise<string> {
+    const { data, error } = await supabase.rpc('admin_save_promotion', {
+        p_id: id ?? undefined,
+        p_title: input.title.trim(),
+        p_description: input.description?.trim() || undefined,
+        p_discount_type: input.discount_type,
+        p_discount_value: input.discount_value,
+        p_target_kind: input.target_kind,
+        p_target_value: input.target_value?.trim() || undefined,
+        p_target_product_ids: input.target_kind === 'products' ? input.target_product_ids : [],
+        p_start_date: input.start_date,
+        p_end_date: input.end_date ?? undefined,
+    });
+    if (error) throw error;
+    return data;
+}
+
+export async function endPromotion(id: string): Promise<void> {
+    const { error } = await supabase.rpc('admin_end_promotion', { p_id: id });
+    if (error) throw error;
+}
+
+export async function deletePromotion(id: string): Promise<void> {
+    const { error } = await supabase.rpc('admin_delete_promotion', { p_id: id });
     if (error) throw error;
 }
 

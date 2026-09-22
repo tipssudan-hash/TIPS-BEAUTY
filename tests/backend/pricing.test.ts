@@ -28,16 +28,20 @@ suite('effective price over the backend', () => {
         const { error } = await admin.from('products').update({ discount_percentage: pct }).eq('id', product.id);
         if (error) throw error;
     };
-    const clearPromotions = async () => {
-        for (const id of promotionIds.splice(0)) await admin.from('promotions').delete().eq('id', id);
+    // Promotions are written through the admin RPC (T2-10); a test Promotion that priced an Order
+    // cannot be deleted, so it is ended instead.
+    const removePromotion = async (id: string) => {
+        const { error } = await rpc(admin, 'admin_delete_promotion', { p_id: id });
+        if (error) await rpc(admin, 'admin_end_promotion', { p_id: id });
     };
-    const addPromotion = async (row: Record<string, unknown>) => {
-        const { data, error } = await admin.from('promotions')
-            .insert({ title: `${TEST_TAG} promotion`, discount_type: 'percentage', discount_value: 20, status: 'active', target_group: 'all', ...row })
-            .select('id').single();
+    const clearPromotions = async () => {
+        for (const id of promotionIds.splice(0)) await removePromotion(id);
+    };
+    const addPromotion = async (args: Record<string, unknown>) => {
+        const { data, error } = await rpc(admin, 'admin_save_promotion', { p_title: `${TEST_TAG} promotion`, p_discount_type: 'percentage', p_discount_value: 20, p_target_kind: 'all', ...args });
         if (error) throw error;
-        promotionIds.push(data.id);
-        return data.id;
+        promotionIds.push(data as unknown as string);
+        return data as unknown as string;
     };
 
     beforeAll(async () => {
@@ -80,7 +84,7 @@ suite('effective price over the backend', () => {
     it('a tie between Discount and Promotion goes to the Discount', async () => {
         await setDiscount(10);
         await clearPromotions();
-        await addPromotion({ discount_value: 10, title: `${TEST_TAG} tie` });
+        await addPromotion({ p_discount_value: 10, p_title: `${TEST_TAG} tie` });
         const p = await publicProduct();
         expect(p.pricing_rule_kind).toBe('discount');
         expect(Number(p.effective_price)).toBe(Number((basePrice * 0.9).toFixed(2)));
@@ -88,15 +92,15 @@ suite('effective price over the backend', () => {
 
     it('the larger of Discount and Promotion wins; they never stack', async () => {
         await setDiscount(10);
-        const bigger = await addPromotion({ discount_value: 20, title: `${TEST_TAG} big` });
+        const bigger = await addPromotion({ p_discount_value: 20, p_title: `${TEST_TAG} big` });
         let p = await publicProduct();
         expect(Number(p.effective_price)).toBe(Number((basePrice * 0.8).toFixed(2)));
         expect(p.pricing_rule_kind).toBe('promotion');
         expect(p.pricing_rule_label).toBe(`${TEST_TAG} big`);
 
-        await admin.from('promotions').delete().eq('id', bigger);
+        await removePromotion(bigger);
         promotionIds.splice(promotionIds.indexOf(bigger), 1);
-        await addPromotion({ discount_type: 'fixed', discount_value: 1, title: `${TEST_TAG} tiny` });
+        await addPromotion({ p_discount_type: 'fixed', p_discount_value: 1, p_title: `${TEST_TAG} tiny` });
         p = await publicProduct();
         expect(p.pricing_rule_kind).toBe('discount');
         expect(Number(p.effective_price)).toBe(Number((basePrice * 0.9).toFixed(2)));
@@ -107,9 +111,10 @@ suite('effective price over the backend', () => {
         await clearPromotions();
         const future = new Date(Date.now() + 86_400_000).toISOString();
         const past = new Date(Date.now() - 86_400_000).toISOString();
-        await addPromotion({ discount_value: 50, start_date: future });
-        await addPromotion({ discount_value: 50, start_date: past, end_date: past, status: 'active' });
-        await addPromotion({ discount_value: 50, status: 'expired' });
+        await addPromotion({ p_discount_value: 50, p_start_date: future });
+        const ended = await addPromotion({ p_discount_value: 50, p_start_date: past });
+        const { error } = await rpc(admin, 'admin_end_promotion', { p_id: ended });
+        if (error) throw error;
         const p = await publicProduct();
         expect(Number(p.effective_price)).toBe(basePrice);
         expect(p.pricing_rule_kind).toBeNull();
@@ -118,7 +123,7 @@ suite('effective price over the backend', () => {
     it('checkout charges the effective price the catalogue showed and records the rule on the line', async () => {
         await setDiscount(null);
         await clearPromotions();
-        await addPromotion({ discount_value: 25, title: `${TEST_TAG} quarter` });
+        await addPromotion({ p_discount_value: 25, p_title: `${TEST_TAG} quarter` });
         const shown = await publicProduct();
         const { data: list } = await customer.rpc('get_public_products');
         expect(Number((list as unknown as PublicProduct[]).find((x) => x.id === product.id)?.effective_price)).toBe(Number(shown.effective_price));

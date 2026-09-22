@@ -1172,41 +1172,41 @@ export type Database = {
         Row: {
           created_at: string | null
           description: string | null
-          discount_type: string | null
+          discount_type: string
           discount_value: number
           end_date: string | null
           id: string
-          start_date: string | null
-          status: string | null
-          target_group: string | null
+          start_date: string
+          target_kind: string
+          target_product_ids: string[]
+          target_value: string | null
           title: string
-          usage_count: number | null
         }
         Insert: {
           created_at?: string | null
           description?: string | null
-          discount_type?: string | null
+          discount_type: string
           discount_value: number
           end_date?: string | null
           id?: string
-          start_date?: string | null
-          status?: string | null
-          target_group?: string | null
+          start_date?: string
+          target_kind?: string
+          target_product_ids?: string[]
+          target_value?: string | null
           title: string
-          usage_count?: number | null
         }
         Update: {
           created_at?: string | null
           description?: string | null
-          discount_type?: string | null
+          discount_type?: string
           discount_value?: number
           end_date?: string | null
           id?: string
-          start_date?: string | null
-          status?: string | null
-          target_group?: string | null
+          start_date?: string
+          target_kind?: string
+          target_product_ids?: string[]
+          target_value?: string | null
           title?: string
-          usage_count?: number | null
         }
         Relationships: []
       }
@@ -1676,7 +1676,9 @@ export type Database = {
       }
       admin_delete_collection: { Args: { p_id: string }; Returns: undefined }
       admin_delete_coupon: { Args: { p_id: string }; Returns: undefined }
+      admin_delete_promotion: { Args: { p_id: string }; Returns: undefined }
       admin_delete_test_orders: { Args: never; Returns: number }
+      admin_end_promotion: { Args: { p_id: string }; Returns: undefined }
       admin_get_collections: {
         Args: never
         Returns: {
@@ -1719,6 +1721,23 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      admin_get_promotions: {
+        Args: never
+        Returns: {
+          created_at: string
+          description: string
+          discount_type: string
+          discount_value: number
+          end_date: string
+          id: string
+          start_date: string
+          status: string
+          target_kind: string
+          target_product_ids: string[]
+          target_value: string
+          title: string
+        }[]
+      }
       admin_run_stale_order_sweep: { Args: never; Returns: number }
       admin_save_collection: {
         Args: {
@@ -1750,6 +1769,21 @@ export type Database = {
           p_per_user_limit?: number
           p_starts_at?: string
           p_usage_limit?: number
+        }
+        Returns: string
+      }
+      admin_save_promotion: {
+        Args: {
+          p_description?: string
+          p_discount_type: string
+          p_discount_value: number
+          p_end_date?: string
+          p_id?: string
+          p_start_date?: string
+          p_target_kind: string
+          p_target_product_ids?: string[]
+          p_target_value?: string
+          p_title: string
         }
         Returns: string
       }
@@ -2157,6 +2191,10 @@ export type Database = {
       product_variant: {
         Args: { p_variant_id: string; p_variants: Json }
         Returns: Json
+      }
+      promotion_status: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: string
       }
       public_variants: {
         Args: {

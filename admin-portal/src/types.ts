@@ -136,6 +136,27 @@ export interface Coupon {
 
 export type CouponInput = Omit<Coupon, 'id' | 'usage_count'>;
 
+// A scheduled reduction on all Products, a Category, a Brand or chosen Products. The status is
+// derived by the backend from the schedule; "end now" closes the schedule.
+export type PromotionTargetKind = 'all' | 'category' | 'brand' | 'products';
+export type PromotionStatus = 'scheduled' | 'active' | 'expired';
+
+export interface Promotion {
+    id: string;
+    title: string;
+    description: string | null;
+    discount_type: 'percentage' | 'fixed';
+    discount_value: number;
+    target_kind: PromotionTargetKind;
+    target_value: string | null;
+    target_product_ids: string[];
+    start_date: string;
+    end_date: string | null;
+    status: PromotionStatus;
+}
+
+export type PromotionInput = Omit<Promotion, 'id' | 'status'>;
+
 export interface AdminReview {
     id: string;
     product_id: string;
