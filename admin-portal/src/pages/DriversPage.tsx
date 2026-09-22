@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Truck, Plus, Edit, X } from 'lucide-react';
+import { Truck, Plus, Edit, X, Link2, Unlink } from 'lucide-react';
 import type { Driver, DriverStatus, Warehouse } from '../types';
-import { fetchDrivers, fetchWarehouses, saveDriver, type DriverInput } from '../lib/catalogApi';
+import { fetchDrivers, fetchWarehouses, linkDriverUser, saveDriver, unlinkDriverUser, type DriverInput } from '../lib/catalogApi';
 import { errorMessage } from '../lib/errors';
+import { formatDateTime } from '../lib/format';
 import { Card, Field, Notice, PageHeader, Spinner, Table, inputClass, primaryButtonClass, secondaryButtonClass, smallButtonClass } from '../components/ui';
 
 const STATUS_LABELS: Record<DriverStatus, string> = { active: 'متاح', busy: 'مشغول', offline: 'غير متاح' };
@@ -17,6 +18,7 @@ export const DriversPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [editing, setEditing] = useState<{ id: string | null; data: DriverInput } | null>(null);
     const [saving, setSaving] = useState(false);
+    const [linking, setLinking] = useState<{ id: string; email: string } | null>(null);
 
     const load = async () => {
         setLoading(true);
@@ -35,6 +37,34 @@ export const DriversPage: React.FC = () => {
     useEffect(() => { void load(); }, []);
 
     const update = (patch: Partial<DriverInput>) => editing && setEditing({ ...editing, data: { ...editing.data, ...patch } });
+
+    const link = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!linking) return;
+        if (!/\S+@\S+\.\S+/.test(linking.email.trim())) { setError('أدخلي بريد حساب المندوب كما سجّل به في المتجر.'); return; }
+        setSaving(true);
+        setError(null);
+        try {
+            await linkDriverUser(linking.id, linking.email);
+            setLinking(null);
+            await load();
+        } catch (err) {
+            setError(errorMessage(err));
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const unlink = async (driver: Driver) => {
+        if (!window.confirm(`فك ربط حساب ${driver.user_email ?? ''} عن المندوب "${driver.name}"؟ سيعود الحساب حساب عميل عادي.`)) return;
+        setError(null);
+        try {
+            await unlinkDriverUser(driver.id);
+            await load();
+        } catch (err) {
+            setError(errorMessage(err));
+        }
+    };
 
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -117,7 +147,7 @@ export const DriversPage: React.FC = () => {
             )}
 
             <Card className="overflow-hidden">
-                <Table headers={['المندوب', 'الهاتف', 'المخزن', 'المركبة', 'الحالة', 'الإجراءات']} empty={drivers.length === 0} emptyText="لا يوجد مندوبون بعد — أضيفي مندوباً واحداً على الأقل قبل شحن الطلبات.">
+                <Table headers={['المندوب', 'الهاتف', 'المخزن', 'حساب الدخول', 'الحالة', 'الإجراءات']} empty={drivers.length === 0} emptyText="لا يوجد مندوبون بعد — أضيفي مندوباً واحداً على الأقل قبل شحن الطلبات.">
                     {drivers.map((driver) => (
                         <tr key={driver.id} className="hover:bg-slate-50/50">
                             <td className="px-6 py-4">
@@ -126,14 +156,34 @@ export const DriversPage: React.FC = () => {
                             </td>
                             <td className="px-6 py-4 text-sm font-bold text-slate-600" dir="ltr">{driver.phone}</td>
                             <td className="px-6 py-4 text-sm font-bold text-slate-600">{warehouseName(driver.warehouse_id)}</td>
-                            <td className="px-6 py-4 text-sm font-bold text-slate-600">{driver.vehicle ?? '—'}</td>
+                            <td className="px-6 py-4 text-sm">
+                                {driver.user_email ? (
+                                    <>
+                                        <p className="font-bold text-slate-700" dir="ltr">{driver.user_email}</p>
+                                        <p className="text-[10px] text-slate-400 font-bold">{driver.location_updated_at ? `آخر موقع ${formatDateTime(driver.location_updated_at)}` : 'لا يشارك موقعه الآن'}</p>
+                                    </>
+                                ) : linking?.id === driver.id ? (
+                                    <form onSubmit={link} className="flex items-center gap-2">
+                                        <input type="email" value={linking.email} onChange={(e) => setLinking({ id: driver.id, email: e.target.value })} placeholder="بريد حساب المندوب" className={`${inputClass} py-2 text-sm`} dir="ltr" autoFocus required aria-label="بريد حساب المندوب" />
+                                        <button type="submit" disabled={saving} className={`${smallButtonClass} bg-slate-900 text-white`}>ربط</button>
+                                        <button type="button" onClick={() => setLinking(null)} className={`${smallButtonClass} bg-slate-100 text-slate-600`}>إلغاء</button>
+                                    </form>
+                                ) : (
+                                    <span className="text-xs font-bold text-slate-400">غير مرتبط — لا يمكنه استخدام بوابة المندوب</span>
+                                )}
+                            </td>
                             <td className="px-6 py-4">
                                 <select value={driver.status} onChange={(e) => void setStatus(driver, e.target.value as DriverStatus)} className={`rounded-full px-3 py-1 text-[11px] font-black border-0 ${STATUS_STYLES[driver.status]}`} aria-label="حالة المندوب">
                                     {(Object.keys(STATUS_LABELS) as DriverStatus[]).map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
                                 </select>
                             </td>
                             <td className="px-6 py-4">
-                                <button type="button" onClick={() => setEditing({ id: driver.id, data: { name: driver.name, phone: driver.phone, company: driver.company, status: driver.status, warehouse_id: driver.warehouse_id, vehicle: driver.vehicle } })} className={`${smallButtonClass} bg-blue-50 text-brand-blue flex items-center gap-1`}><Edit className="w-3.5 h-3.5" /> تعديل</button>
+                                <div className="flex gap-2">
+                                    <button type="button" onClick={() => setEditing({ id: driver.id, data: { name: driver.name, phone: driver.phone, company: driver.company, status: driver.status, warehouse_id: driver.warehouse_id, vehicle: driver.vehicle } })} className={`${smallButtonClass} bg-blue-50 text-brand-blue flex items-center gap-1`}><Edit className="w-3.5 h-3.5" /> تعديل</button>
+                                    {driver.user_email
+                                        ? <button type="button" onClick={() => void unlink(driver)} className={`${smallButtonClass} bg-amber-50 text-amber-700 flex items-center gap-1`}><Unlink className="w-3.5 h-3.5" /> فك الربط</button>
+                                        : <button type="button" onClick={() => { setError(null); setLinking({ id: driver.id, email: '' }); }} className={`${smallButtonClass} bg-emerald-50 text-emerald-700 flex items-center gap-1`}><Link2 className="w-3.5 h-3.5" /> ربط حساب</button>}
+                                </div>
                             </td>
                         </tr>
                     ))}
