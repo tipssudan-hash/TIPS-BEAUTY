@@ -22,6 +22,9 @@ const NotificationsPage = lazy(() => import('./src/pages/customer/NotificationsP
 const AIChatPage = lazy(() => import('./src/pages/customer/AIChatPage').then((m) => ({ default: m.AIChatPage })));
 const LoginPage = lazy(() => import('./src/pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
 const SignupPage = lazy(() => import('./src/pages/auth/SignupPage').then((m) => ({ default: m.SignupPage })));
+const DriverLayout = lazy(() => import('./src/pages/driver/DriverLayout').then((m) => ({ default: m.DriverLayout })));
+const DriverHomePage = lazy(() => import('./src/pages/driver/DriverHomePage').then((m) => ({ default: m.DriverHomePage })));
+const DriverOrderPage = lazy(() => import('./src/pages/driver/DriverOrderPage').then((m) => ({ default: m.DriverOrderPage })));
 const NotFoundPage = lazy(() => import('./src/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -36,6 +39,24 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 function App() {
   const { cartCount } = useStore();
+  const isDriverSurface = useLocation().pathname.startsWith('/driver');
+
+  // The driver surface is its own shell (no shop header or tab bar); see DriverLayout.
+  if (isDriverSurface) {
+    return (
+      <ErrorBoundary>
+        <Suspense fallback={<Spinner />}>
+          <Routes>
+            <Route path="/driver" element={<DriverLayout />}>
+              <Route index element={<DriverHomePage />} />
+              <Route path="orders/:id" element={<DriverOrderPage />} />
+            </Route>
+            <Route path="*" element={<Navigate to="/driver" replace />} />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50/50 pb-20 font-sans text-gray-900" dir="rtl">

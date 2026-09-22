@@ -1994,6 +1994,21 @@ export type Database = {
           reduction: number
         }[]
       }
+      get_active_promotions: {
+        Args: never
+        Returns: {
+          description: string
+          discount_type: string
+          discount_value: number
+          end_date: string
+          id: string
+          product_ids: string[]
+          start_date: string
+          target_kind: string
+          target_value: string
+          title: string
+        }[]
+      }
       get_admin_product: {
         Args: { p_product_id: string }
         Returns: {
@@ -2078,6 +2093,38 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      get_my_deliveries: {
+        Args: { p_order_id?: string }
+        Returns: {
+          city: string
+          cod_amount: number
+          created_at: string
+          customer_name: string
+          id: string
+          item_count: number
+          items: Json
+          notes: string
+          order_number: string
+          payment_method: string
+          phone: string
+          shipping_address: string
+          state: string
+          status: string
+          status_changed_at: string
+          warehouse_name: string
+        }[]
+      }
+      get_my_delivery: {
+        Args: { p_order_id: string }
+        Returns: {
+          accuracy_meters: number
+          driver_name: string
+          driver_phone: string
+          latitude: number
+          location_updated_at: string
+          longitude: number
+        }[]
       }
       get_public_product: {
         Args: { p_product_id: string }
