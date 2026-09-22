@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Banner, Collection, CouponPreview, CustomerNotification, DeliveryZone, Order, OrderItem, OrderStatusEntry, PaymentMethod, PricingRule, Product, ProductVariant, Review, ReviewableItem } from '../types';
+import type { Banner, Collection, CouponPreview, CustomerNotification, Offer, DeliveryZone, Order, OrderItem, OrderStatusEntry, PaymentMethod, PricingRule, Product, ProductVariant, Review, ReviewableItem } from '../types';
 
 // Thin typed wrappers over the backend RPCs. All pricing, stock and permission rules live in
 // the database; this file only maps rows to app types.
@@ -130,6 +130,23 @@ export function subscribeToNotifications(customerId: string, onChange: () => voi
         if (timer) clearTimeout(timer);
         void supabase.removeChannel(channel);
     };
+}
+
+// Offers: the Promotions running now, resolved by the backend (0019 keeps the table itself private).
+export async function fetchOffers(): Promise<Offer[]> {
+    const { data, error } = await supabase.rpc('get_active_promotions');
+    if (error) throw error;
+    return (data ?? []).map((o) => ({
+        id: o.id,
+        title: o.title,
+        description: o.description,
+        discountType: o.discount_type === 'fixed' ? 'fixed' : 'percentage',
+        discountValue: Number(o.discount_value),
+        targetKind: (['all', 'category', 'brand', 'products'].includes(o.target_kind) ? o.target_kind : 'all') as Offer['targetKind'],
+        targetValue: o.target_value,
+        endsAt: o.end_date,
+        productIds: o.product_ids ?? [],
+    }));
 }
 
 // Home-page banners. Content, not eligibility data: the public SELECT policy already limits rows to

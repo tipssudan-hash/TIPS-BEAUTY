@@ -18,6 +18,7 @@ const CheckoutPage = lazy(() => import('./src/pages/customer/CheckoutPage').then
 const MyOrdersPage = lazy(() => import('./src/pages/customer/MyOrdersPage').then((m) => ({ default: m.MyOrdersPage })));
 const OrderDetailPage = lazy(() => import('./src/pages/customer/OrderDetailPage').then((m) => ({ default: m.OrderDetailPage })));
 const SettingsPage = lazy(() => import('./src/pages/customer/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const OffersPage = lazy(() => import('./src/pages/customer/OffersPage').then((m) => ({ default: m.OffersPage })));
 const NotificationsPage = lazy(() => import('./src/pages/customer/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
 const AIChatPage = lazy(() => import('./src/pages/customer/AIChatPage').then((m) => ({ default: m.AIChatPage })));
 const LoginPage = lazy(() => import('./src/pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
@@ -69,6 +70,7 @@ function App() {
               <Route path="/search" element={<SearchPage />} />
               <Route path="/product/:id" element={<ProductDetailsPage />} />
               <Route path="/cart" element={<CartPage />} />
+              <Route path="/offers" element={<OffersPage />} />
 
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
