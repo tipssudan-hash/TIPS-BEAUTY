@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Header } from './src/components/layout/Header';
 import { HomePage } from './src/pages/customer/HomePage';
+import { SearchPage } from './src/pages/customer/SearchPage';
 import { ProductDetailsPage } from './src/pages/customer/ProductDetailsPage';
 import { CartPage } from './src/pages/customer/CartPage';
 import { CheckoutPage } from './src/pages/customer/CheckoutPage';
@@ -41,6 +42,7 @@ function App() {
       <main>
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/search" element={<SearchPage />} />
           <Route path="/product/:id" element={<ProductDetailsPage />} />
           <Route path="/cart" element={<CartPage />} />
 

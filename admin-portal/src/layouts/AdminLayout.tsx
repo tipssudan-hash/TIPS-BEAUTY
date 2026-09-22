@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, Navigate } from 'react-router-dom';
 import {
     LayoutDashboard, Package, LogOut, Menu, X, Loader2,
@@ -6,9 +6,27 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useUnseenOrders } from '../hooks/useUnseenOrders';
+import { useFocusTrap } from '../hooks/useFocusTrap';
+
+// Below `lg:` (1024px) the sidebar renders as a modal drawer over the page and should trap
+// focus; at `lg:` and above it's permanently docked in normal flow, and trapping focus there
+// would break keyboard navigation into the rest of the app.
+function useIsBelowLg() {
+    const [isBelowLg, setIsBelowLg] = useState(() => window.matchMedia('(max-width: 1023px)').matches);
+    useEffect(() => {
+        const mq = window.matchMedia('(max-width: 1023px)');
+        const handler = () => setIsBelowLg(mq.matches);
+        mq.addEventListener('change', handler);
+        return () => mq.removeEventListener('change', handler);
+    }, []);
+    return isBelowLg;
+}
 
 export const AdminLayout: React.FC = () => {
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const isBelowLg = useIsBelowLg();
+    const closeSidebar = React.useCallback(() => setSidebarOpen(false), []);
+    const sidebarRef = useFocusTrap<HTMLElement>(sidebarOpen && isBelowLg, closeSidebar);
     const location = useLocation();
     const { user, isAdmin, loading, signOut } = useAuth();
     const { count: unseenOrders } = useUnseenOrders();
@@ -16,7 +34,7 @@ export const AdminLayout: React.FC = () => {
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50">
-                <Loader2 className="w-10 h-10 animate-spin text-rose-500" />
+                <Loader2 className="w-10 h-10 animate-spin text-red-500" />
             </div>
         );
     }
@@ -46,15 +64,20 @@ export const AdminLayout: React.FC = () => {
     return (
         <div className="min-h-screen bg-slate-50 flex font-sans text-slate-900" dir="rtl">
             {/* Sidebar Overlay */}
-            {!sidebarOpen && (
+            {sidebarOpen && (
                 <div
                     className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-40 lg:hidden"
-                    onClick={() => setSidebarOpen(true)}
+                    onClick={closeSidebar}
+                    aria-hidden="true"
                 />
             )}
 
             {/* Sidebar */}
             <aside
+                ref={sidebarRef}
+                role="dialog"
+                aria-modal={sidebarOpen && isBelowLg ? true : undefined}
+                aria-label="القائمة الرئيسية"
                 className={`fixed inset-y-0 right-0 z-50 w-72 bg-slate-900 text-white shadow-2xl transform transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'
                     } lg:relative lg:translate-x-0 lg:flex-shrink-0 border-l border-slate-800`}
             >
@@ -70,7 +93,7 @@ export const AdminLayout: React.FC = () => {
                                 <p className="text-[10px] tracking-widest text-slate-400 font-bold">لوحة الإدارة</p>
                             </div>
                         </div>
-                        <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 text-slate-400 hover:text-white transition-colors">
+                        <button onClick={closeSidebar} aria-label="إغلاق القائمة" className="lg:hidden p-2 text-slate-400 hover:text-white transition-colors">
                             <X className="w-6 h-6" />
                         </button>
                     </div>
@@ -94,7 +117,7 @@ export const AdminLayout: React.FC = () => {
                                         <span className="font-semibold text-sm tracking-wide">{item.label}</span>
                                     </div>
                                     {item.badge && (
-                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${active ? 'bg-white text-brand-blue' : 'bg-rose-500 text-white'
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${active ? 'bg-white text-brand-blue' : 'bg-amber-500 text-white'
                                             }`}>
                                             {item.badge}
                                         </span>

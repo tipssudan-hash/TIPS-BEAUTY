@@ -11,6 +11,15 @@
         ],
         "createdAt": "2026-09-20T11:04:43.978Z",
         "reason": "false positive: this selector disables animate-bounce under prefers-reduced-motion, it does not use bounce easing"
+      },
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "admin-portal/src/pages/PromotionsPage.tsx"
+        ],
+        "createdAt": "2026-09-21T18:43:07.840Z",
+        "reason": "model: the expired pill reuses the admin portal's existing StatusPill inactive palette (components/ui.tsx: bg-slate-100 text-slate-500); muted inactive pills are the portal's convention"
       }
     ]
   }

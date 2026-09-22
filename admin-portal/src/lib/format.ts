@@ -68,6 +68,15 @@ export function orderStatusLabel(status: string): string {
     return ORDER_STATUS_LABELS[status as OrderStatus] ?? status;
 }
 
+// The single "keep this order moving" action for a status, when there is one — the first
+// non-cancel entry in ALLOWED_TRANSITIONS. `confirmed` has no unambiguous single next step
+// (preparing or shipped are both valid), so callers should treat a null return as "open the
+// order to decide," not as "nothing to do."
+export function primaryForwardTransition(status: OrderStatus): OrderStatus | null {
+    if (status === 'confirmed') return null;
+    return ALLOWED_TRANSITIONS[status]?.find((s) => s !== 'cancelled') ?? null;
+}
+
 export function orderStatusStyle(status: string): string {
     return ORDER_STATUS_STYLES[status as OrderStatus] ?? 'bg-gray-50 text-gray-600 border-gray-100';
 }

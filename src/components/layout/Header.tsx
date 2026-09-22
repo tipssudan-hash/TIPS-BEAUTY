@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ShoppingCart, User, LogOut, Menu, X } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ShoppingCart, Search, User, LogOut, Menu, X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
@@ -7,11 +7,28 @@ interface HeaderProps {
     cartCount: number;
 }
 
+const MOBILE_NAV_ID = 'mobile-nav-panel';
+
 export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
     const location = useLocation();
     const currentPath = location.pathname;
     const { user, signOut } = useAuth();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const menuToggleRef = useRef<HTMLButtonElement>(null);
+
+    // A disclosure panel (page content stays reachable behind it), not a modal — so it gets
+    // Escape-to-close and focus return, not a full Tab-trap. See useFocusTrap's doc comment.
+    useEffect(() => {
+        if (!isMenuOpen) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setIsMenuOpen(false);
+                menuToggleRef.current?.focus();
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [isMenuOpen]);
 
     return (
         <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md shadow-sm border-b border-brand-blue-soft">
@@ -23,9 +40,11 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
 
                     {/* Mobile Menu Button */}
                     <button
+                        ref={menuToggleRef}
                         onClick={() => setIsMenuOpen(!isMenuOpen)}
                         aria-label={isMenuOpen ? 'إغلاق القائمة' : 'فتح القائمة'}
                         aria-expanded={isMenuOpen}
+                        aria-controls={MOBILE_NAV_ID}
                         className="md:hidden p-2.5 text-gray-600 hover:text-brand-blue transition-colors"
                     >
                         {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -34,6 +53,9 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
                     {/* Desktop Navigation */}
                     <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
                         <Link to="/" className={`hover:text-brand-blue transition-colors ${currentPath === '/' ? 'text-brand-blue font-bold' : 'text-gray-600'}`}>الرئيسية</Link>
+                        <Link to="/search" aria-label="بحث وتصفح المنتجات" className={`hover:text-brand-blue transition-colors ${currentPath === '/search' ? 'text-brand-blue' : 'text-gray-600'}`}>
+                            <Search className="w-4 h-4" />
+                        </Link>
                         <Link to="/ai-chat" className={`flex items-center gap-1 hover:text-brand-blue transition-colors ${currentPath === '/ai-chat' ? 'text-brand-blue font-bold' : 'text-gray-600'}`}>
                             <span className="bg-brand-blue-soft text-brand-blue px-1.5 py-0.5 rounded text-[10px] font-bold animate-pulse">AI</span> مساعدي
                         </Link>
@@ -75,8 +97,11 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
 
                 {/* Mobile Navigation */}
                 {isMenuOpen && (
-                    <nav className="md:hidden pt-4 pb-2 flex flex-col gap-3 text-sm border-t border-gray-100 mt-3 animate-in fade-in slide-in-from-top-2">
+                    <nav id={MOBILE_NAV_ID} className="md:hidden pt-4 pb-2 flex flex-col gap-3 text-sm border-t border-gray-100 mt-3 animate-in fade-in slide-in-from-top-2">
                         <Link to="/" className={`p-2 rounded-lg ${currentPath === '/' ? 'bg-brand-blue-soft text-brand-blue font-bold' : 'text-gray-600'}`} onClick={() => setIsMenuOpen(false)}>الرئيسية</Link>
+                        <Link to="/search" className={`p-2 rounded-lg flex items-center gap-2 ${currentPath === '/search' ? 'bg-brand-blue-soft text-brand-blue font-bold' : 'text-gray-600'}`} onClick={() => setIsMenuOpen(false)}>
+                            <Search className="w-4 h-4" /> تصفح المنتجات
+                        </Link>
                         <Link to="/ai-chat" className={`p-2 rounded-lg flex items-center gap-2 ${currentPath === '/ai-chat' ? 'bg-brand-blue-soft text-brand-blue font-bold' : 'text-gray-600'}`} onClick={() => setIsMenuOpen(false)}>
                             <span className="bg-brand-blue-soft text-brand-blue px-1.5 py-0.5 rounded text-[10px] font-bold">AI</span> مساعدي
                         </Link>
