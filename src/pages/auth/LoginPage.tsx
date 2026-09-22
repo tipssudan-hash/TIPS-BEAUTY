@@ -20,13 +20,15 @@ export const LoginPage: React.FC = () => {
         setError(null);
 
         try {
-            const { error } = await supabase.auth.signInWithPassword({
+            const { data, error } = await supabase.auth.signInWithPassword({
                 email,
                 password,
             });
 
             if (error) throw error;
-            navigate(from, { replace: true });
+            // Drivers land on their own surface; everyone else goes back where they came from.
+            const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle();
+            navigate(profile?.role === 'driver' && from === '/' ? '/driver' : from, { replace: true });
         } catch (err) {
             setError(loginErrorMessage(err instanceof Error ? err.message : ''));
         } finally {
