@@ -307,6 +307,22 @@ export async function fetchOrderHistory(orderId: string): Promise<OrderStatusEnt
     return (data ?? []).map((h) => ({ id: h.id, status: h.status as OrderStatusEntry['status'], note: h.note, createdAt: h.created_at }));
 }
 
+// Realtime on one order (own row) and its history; both tables are in the publication and RLS
+// scopes the stream to the customer. Debounced so a status change plus its history row reload once.
+export function subscribeToOrder(orderId: string, onChange: () => void): () => void {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const bump = () => { if (timer) clearTimeout(timer); timer = setTimeout(onChange, 400); };
+    const channel = supabase
+        .channel(`order-${orderId}`)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` }, bump)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'order_status_history', filter: `order_id=eq.${orderId}` }, bump)
+        .subscribe();
+    return () => {
+        if (timer) clearTimeout(timer);
+        void supabase.removeChannel(channel);
+    };
+}
+
 export async function cancelMyOrder(orderId: string): Promise<void> {
     const { error } = await supabase.rpc('customer_cancel_order', { p_order_id: orderId });
     if (error) throw error;

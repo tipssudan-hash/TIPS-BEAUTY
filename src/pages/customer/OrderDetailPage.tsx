@@ -2,13 +2,14 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { Order, OrderStatusEntry, PaymentMethod } from '../../types';
-import { fetchMyOrder, fetchOrderHistory, fetchPaymentMethods, cancelMyOrder, uploadPaymentProof, submitPaymentProof } from '../../lib/api';
+import { fetchMyOrder, fetchOrderHistory, fetchPaymentMethods, cancelMyOrder, uploadPaymentProof, submitPaymentProof, subscribeToOrder } from '../../lib/api';
 import { errorMessage } from '../../lib/errors';
 import { orderUnitPrice } from '../../lib/pricing';
 import { formatSDG, formatDateTime } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_METHOD_LABELS, StatusBadge } from './MyOrdersPage';
-import { Notice, inputClass } from '../../components/ui';
+import { Notice, StatusPill, inputClass } from '../../components/ui';
+import { OrderStepper } from '../../components/orders/OrderStepper';
 
 const MAX_PROOF_BYTES = 5 * 1024 * 1024;
 
@@ -50,6 +51,14 @@ export const OrderDetailPage: React.FC = () => {
     }, [id]);
 
     useEffect(() => { void load(); }, [load]);
+
+    // Staff and driver updates arrive without a refresh (polling fallback every 30 s if the channel drops).
+    useEffect(() => {
+        if (!id) return;
+        const unsubscribe = subscribeToOrder(id, () => { void load(); });
+        const poll = setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 30_000);
+        return () => { unsubscribe(); clearInterval(poll); };
+    }, [id, load]);
     useEffect(() => {
         fetchPaymentMethods().then(setMethods).catch(err => console.error('payment methods', err));
     }, []);
@@ -144,6 +153,10 @@ export const OrderDetailPage: React.FC = () => {
                     <StatusBadge status={order.status} />
                 </div>
 
+                <div className="mb-6 rounded-card border border-gray-100 bg-gray-50/60 p-4">
+                    <OrderStepper status={order.status} history={history} />
+                </div>
+
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead>
@@ -193,7 +206,8 @@ export const OrderDetailPage: React.FC = () => {
                     <h2 className="font-bold text-gray-800 mb-3">التوصيل والدفع</h2>
                     <p><span className="text-gray-500">العنوان:</span> <span className="text-gray-800">{address}</span></p>
                     <p><span className="text-gray-500">طريقة الدفع:</span> <span className="text-gray-800">{method?.nameAr ?? PAYMENT_METHOD_LABELS[order.paymentMethod] ?? order.paymentMethod}</span></p>
-                    <p><span className="text-gray-500">حالة الدفع:</span> <span className="text-gray-800">{PAYMENT_STATUS_LABELS[order.paymentStatus] ?? order.paymentStatus}</span></p>
+                    <p className="flex items-center gap-2"><span className="text-gray-500">حالة الدفع:</span> <StatusPill tone={order.paymentStatus === 'paid' ? 'success' : order.paymentStatus === 'refunded' ? 'neutral' : 'attention'}>{PAYMENT_STATUS_LABELS[order.paymentStatus] ?? order.paymentStatus}</StatusPill></p>
+                    {order.paymentStatus === 'proof_submitted' && <p className="text-xs text-gray-500">استلمنا إثبات الدفع وسنراجعه قريباً؛ سيصلك إشعار عند التأكيد.</p>}
                     {order.paymentReference && <p><span className="text-gray-500">الرقم المرجعي:</span> <span className="text-gray-800">{order.paymentReference}</span></p>}
 
                     {order.status === 'new' && (
@@ -209,7 +223,7 @@ export const OrderDetailPage: React.FC = () => {
                 </div>
 
                 <div className="bg-white rounded-2xl shadow-sm border border-brand-blue-soft p-6">
-                    <h2 className="font-bold text-gray-800 mb-3">مسار الطلب</h2>
+                    <h2 className="font-bold text-gray-800 mb-3">سجل الطلب</h2>
                     {history.length === 0 ? (
                         <p className="text-sm text-gray-500">{ORDER_STATUS_LABELS[order.status]}</p>
                     ) : (
