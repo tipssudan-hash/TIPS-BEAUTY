@@ -1,13 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { Search, Percent, ChevronLeft } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { ProductCard } from '../../components/ui/ProductCard';
 import { ProductRow } from '../../components/ui/ProductRow';
 import { RecentlyViewed } from '../../components/ui/RecentlyViewed';
 import { BannerCarousel } from '../../components/ui/BannerCarousel';
-import { fetchBanners, fetchCollections } from '../../lib/api';
-import { Banner, Collection } from '../../types';
+import { fetchBanners, fetchCollections, fetchOffers } from '../../lib/api';
+import { offerEndsLabel, offerValueLabel } from '../../lib/offers';
+import { Banner, Collection, Offer } from '../../types';
 import { collectionIcon } from '../../lib/collectionIcons';
 import { ALL_BRANDS, ALL_CATEGORIES, ProductSortBy, availableBrands, availableCategories, filterAndSortProducts } from '../../lib/productSearch';
 
@@ -19,6 +20,7 @@ export const HomePage: React.FC = () => {
     const [sortBy, setSortBy] = useState<ProductSortBy>('newest');
     const [collections, setCollections] = useState<Collection[]>([]);
     const [banners, setBanners] = useState<Banner[]>([]);
+    const [offers, setOffers] = useState<Offer[]>([]);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -30,6 +32,9 @@ export const HomePage: React.FC = () => {
         fetchBanners()
             .then((data) => { if (!cancelled) setBanners(data); })
             .catch((err) => console.error('Failed to load banners', err));
+        fetchOffers()
+            .then((data) => { if (!cancelled) setOffers(data); })
+            .catch((err) => console.error('Failed to load offers', err));
         return () => { cancelled = true; };
     }, []);
 
@@ -154,6 +159,18 @@ export const HomePage: React.FC = () => {
                         </select>
                     </div>
                 </div>
+
+                {/* Offers strip: only when something is running (no empty section), only in the default state */}
+                {!isFiltered && offers.length > 0 && (
+                    <Link to="/offers" className="mb-8 flex items-center gap-3 rounded-card border border-red-100 bg-red-50/60 p-4 hover:border-red-200 transition-colors">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600"><Percent className="w-5 h-5" /></span>
+                        <span className="min-w-0 flex-1">
+                            <span className="block font-bold text-gray-800">{offers.length === 1 ? offers[0].title : `${offers.length} عروض جارية الآن`}</span>
+                            <span className="block text-xs text-gray-600">{offers.length === 1 ? `${offerValueLabel(offers[0])} · ${offerEndsLabel(offers[0])}` : offers.map((o) => offerValueLabel(o)).join(' · ')}</span>
+                        </span>
+                        <ChevronLeft className="w-5 h-5 shrink-0 text-red-400" />
+                    </Link>
+                )}
 
                 {/* Collections: only in the unfiltered default state, so they never contradict an active search/filter */}
                 {!isFiltered && collectionProducts.map(({ collection, products: collectionItems }) => (
