@@ -1,3 +1,5 @@
+import { brand, ringFocus, status } from '../design/tokens.js';
+
 /** @type {import('tailwindcss').Config} */
 export default {
     content: [
@@ -7,14 +9,9 @@ export default {
     theme: {
         extend: {
             colors: {
-                brand: {
-                    green: '#22AD52',
-                    blue: '#005696',
-                    cyan: '#00AEEF',
-                    'green-soft': '#f0fdf4',
-                    'blue-soft': '#f0f9ff',
-                },
-                'ring-focus': '#005696',
+                brand,
+                'ring-focus': ringFocus,
+                status: Object.fromEntries(Object.entries(status).flatMap(([k, v]) => [[`${k}-ground`, v.ground], [`${k}-ink`, v.ink]])),
             },
             // Semantic radius/shadow names shared in shape with the storefront's tailwind.config.js
             // (DESIGN.md "Shapes"/"Elevation & Depth"): same vocabulary, values tuned per surface.

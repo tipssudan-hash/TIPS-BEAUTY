@@ -51,3 +51,52 @@ export const inputClass = 'w-full bg-gray-50 border border-gray-200 rounded-cont
 export const primaryButtonClass = 'bg-brand-blue hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold px-6 py-3.5 rounded-control flex items-center justify-center gap-2 transition-all shadow-card-glow active:scale-95';
 export const secondaryButtonClass = 'bg-white border border-gray-200 text-gray-600 px-5 py-3 rounded-control font-bold hover:bg-gray-50 transition-all disabled:opacity-50';
 export const smallButtonClass = 'px-3 py-2.5 rounded-control text-xs font-bold transition-all disabled:opacity-50';
+
+// --- States -------------------------------------------------------------------------------------
+// Every page shows one of four states with the same furniture: loading (Skeleton/Spinner), empty
+// (EmptyState with one action), error (Notice + retry), or content. PageState picks for you.
+
+export const Skeleton: React.FC<{ className?: string }> = ({ className = '' }) => (
+    <div aria-hidden="true" className={cn('animate-pulse rounded-control bg-gray-100', className)} />
+);
+
+export const EmptyState: React.FC<{ icon?: React.ReactNode; title: string; body?: string; action?: React.ReactNode }> = ({ icon, title, body, action }) => (
+    <div className="bg-white rounded-card border border-gray-100 p-10 text-center">
+        {icon && <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-blue-soft text-brand-blue">{icon}</div>}
+        <h2 className="text-lg font-bold text-gray-800">{title}</h2>
+        {body && <p className="mt-1 text-sm text-gray-500">{body}</p>}
+        {action && <div className="mt-5 flex justify-center">{action}</div>}
+    </div>
+);
+
+export const PageState: React.FC<{ loading?: boolean; error?: string | null; onRetry?: () => void; empty?: boolean; emptyState?: React.ReactNode; children: React.ReactNode }> = ({ loading, error, onRetry, empty, emptyState, children }) => {
+    if (loading) return <Spinner />;
+    if (error) {
+        return (
+            <div className="space-y-3">
+                <Notice kind="error">{error}</Notice>
+                {onRetry && <button type="button" onClick={onRetry} className={secondaryButtonClass}>إعادة المحاولة</button>}
+            </div>
+        );
+    }
+    if (empty && emptyState) return <>{emptyState}</>;
+    return <>{children}</>;
+};
+
+// --- Status ---------------------------------------------------------------------------------------
+// One pill for every "state" the customer reads (order, payment, delivery); colour = role, from the
+// shared status tokens, never chosen per screen.
+
+export type StatusTone = 'success' | 'attention' | 'danger' | 'info' | 'neutral';
+
+const STATUS_TONE_CLASS: Record<StatusTone, string> = {
+    success: 'bg-status-success-ground text-status-success-ink',
+    attention: 'bg-status-attention-ground text-status-attention-ink',
+    danger: 'bg-status-danger-ground text-status-danger-ink',
+    info: 'bg-status-info-ground text-status-info-ink',
+    neutral: 'bg-status-neutral-ground text-status-neutral-ink',
+};
+
+export const StatusPill: React.FC<{ tone: StatusTone; children: React.ReactNode; className?: string }> = ({ tone, children, className = '' }) => (
+    <span className={cn('inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold', STATUS_TONE_CLASS[tone], className)}>{children}</span>
+);
