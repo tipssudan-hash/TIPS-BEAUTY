@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { cn } from '../lib/cn';
 
 export const PageHeader: React.FC<{ title: string; subtitle?: string; icon?: React.ReactNode; actions?: React.ReactNode }> = ({ title, subtitle, icon, actions }) => (
     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -70,6 +71,54 @@ export const Table: React.FC<{ headers: string[]; children: React.ReactNode; emp
     </div>
 );
 
-export const StatusPill: React.FC<{ active: boolean; activeText?: string; inactiveText?: string }> = ({ active, activeText = 'نشط', inactiveText = 'متوقف' }) => (
-    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black ${active ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>{active ? activeText : inactiveText}</span>
+// --- States -------------------------------------------------------------------------------------
+// Every page shows one of four states with the same furniture: loading (Skeleton/Spinner), empty
+// (EmptyState with one action), error (Notice + retry), or content. PageState picks for you.
+// Mirrors src/components/ui.tsx (storefront) — see launch step 3's commit message.
+
+export const Skeleton: React.FC<{ className?: string }> = ({ className = '' }) => (
+    <div aria-hidden="true" className={cn('animate-pulse rounded-control bg-slate-100', className)} />
+);
+
+export const EmptyState: React.FC<{ icon?: React.ReactNode; title: string; body?: string; action?: React.ReactNode }> = ({ icon, title, body, action }) => (
+    <div className="bg-white rounded-card border border-slate-100 p-10 text-center">
+        {icon && <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-brand-blue">{icon}</div>}
+        <h2 className="text-lg font-black text-slate-900">{title}</h2>
+        {body && <p className="mt-1 text-sm text-slate-500 font-medium">{body}</p>}
+        {action && <div className="mt-5 flex justify-center">{action}</div>}
+    </div>
+);
+
+export const PageState: React.FC<{ loading?: boolean; error?: string | null; onRetry?: () => void; empty?: boolean; emptyState?: React.ReactNode; children: React.ReactNode }> = ({ loading, error, onRetry, empty, emptyState, children }) => {
+    if (loading) return <Spinner />;
+    if (error) {
+        return (
+            <div className="space-y-3">
+                <Notice kind="error">{error}</Notice>
+                {onRetry && <button type="button" onClick={onRetry} className={secondaryButtonClass}>إعادة المحاولة</button>}
+            </div>
+        );
+    }
+    if (empty && emptyState) return <>{emptyState}</>;
+    return <>{children}</>;
+};
+
+// --- Status ---------------------------------------------------------------------------------------
+// One pill for every "state" staff read (product, driver, banner, coupon...); colour = role, from
+// the shared status tokens, never chosen per screen. Same tone vocabulary as the storefront's
+// StatusPill — kept identical on purpose so "success/attention/danger/info/neutral" means the same
+// thing everywhere, not just within one portal.
+
+export type StatusTone = 'success' | 'attention' | 'danger' | 'info' | 'neutral';
+
+const STATUS_TONE_CLASS: Record<StatusTone, string> = {
+    success: 'bg-status-success-ground text-status-success-ink',
+    attention: 'bg-status-attention-ground text-status-attention-ink',
+    danger: 'bg-status-danger-ground text-status-danger-ink',
+    info: 'bg-status-info-ground text-status-info-ink',
+    neutral: 'bg-status-neutral-ground text-status-neutral-ink',
+};
+
+export const StatusPill: React.FC<{ tone: StatusTone; children: React.ReactNode; className?: string }> = ({ tone, children, className = '' }) => (
+    <span className={cn('inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black', STATUS_TONE_CLASS[tone], className)}>{children}</span>
 );

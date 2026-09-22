@@ -129,7 +129,7 @@ export const DeliveryZonesPage: React.FC = () => {
                             <td className="px-6 py-4 text-sm font-black text-slate-900">{zone.name}</td>
                             <td className="px-6 py-4 text-sm font-black text-slate-900">{formatSDG(zone.fee)}</td>
                             <td className="px-6 py-4 text-sm font-bold text-slate-600">{warehouseName(zone.warehouse_id)}</td>
-                            <td className="px-6 py-4"><StatusPill active={zone.is_active} /></td>
+                            <td className="px-6 py-4"><StatusPill tone={zone.is_active ? 'success' : 'neutral'}>{zone.is_active ? 'نشط' : 'متوقف'}</StatusPill></td>
                             <td className="px-6 py-4">
                                 <div className="flex gap-2">
                                     <button type="button" onClick={() => setEditing({ id: zone.id, data: { name: zone.name, fee: zone.fee, is_active: zone.is_active, state: zone.state, warehouse_id: zone.warehouse_id } })} className={`${smallButtonClass} bg-blue-50 text-brand-blue flex items-center gap-1`}><Edit className="w-3.5 h-3.5" /> تعديل</button>

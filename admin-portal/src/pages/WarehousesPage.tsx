@@ -109,7 +109,7 @@ export const WarehousesPage: React.FC = () => {
                             <td className="px-6 py-4 text-sm font-bold text-slate-600" dir="ltr">{w.code}</td>
                             <td className="px-6 py-4 text-sm font-bold text-slate-600">{w.state} · {w.city}{w.address ? ` · ${w.address}` : ''}</td>
                             <td className="px-6 py-4 text-sm font-bold text-slate-600" dir="ltr">{w.phone ?? '—'}</td>
-                            <td className="px-6 py-4"><StatusPill active={w.is_active} /></td>
+                            <td className="px-6 py-4"><StatusPill tone={w.is_active ? 'success' : 'neutral'}>{w.is_active ? 'نشط' : 'متوقف'}</StatusPill></td>
                             <td className="px-6 py-4">
                                 <button type="button" onClick={() => setEditing({ id: w.id, data: { name: w.name, code: w.code, state: w.state, city: w.city, address: w.address, phone: w.phone, is_active: w.is_active } })} className={`${smallButtonClass} bg-blue-50 text-brand-blue flex items-center gap-1`}><Edit className="w-3.5 h-3.5" /> تعديل</button>
                             </td>

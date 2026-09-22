@@ -59,7 +59,7 @@ export const CollectionsPage: React.FC = () => {
                             <td className="px-6 py-4 text-xs font-bold text-slate-500" dir="ltr">{c.slug}</td>
                             <td className="px-6 py-4 text-xs font-bold text-slate-600">{COLLECTION_RULE_LABELS[c.rule_type]}{c.rule_type === 'manual' ? ` (${c.product_ids.length})` : ''}</td>
                             <td className="px-6 py-4 text-sm font-bold text-slate-600">{c.display_order}</td>
-                            <td className="px-6 py-4"><StatusPill active={c.is_active} activeText="ظاهرة" inactiveText="متوقفة" /></td>
+                            <td className="px-6 py-4"><StatusPill tone={c.is_active ? 'success' : 'neutral'}>{c.is_active ? 'ظاهرة' : 'متوقفة'}</StatusPill></td>
                             <td className="px-6 py-4">
                                 <div className="flex gap-2">
                                     <Link to={`/collections/edit/${c.id}`} className={`${smallButtonClass} bg-blue-50 text-brand-blue inline-flex items-center gap-1`}><Edit className="w-3.5 h-3.5" /> تعديل</Link>

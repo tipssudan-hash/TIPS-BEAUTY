@@ -165,7 +165,7 @@ export const CouponsPage: React.FC = () => {
                                 <span className="block">{c.ends_at ? `حتى ${formatDateTime(c.ends_at)}` : 'بلا انتهاء'}</span>
                             </td>
                             <td className="px-6 py-4 text-sm font-bold text-slate-700">{formatNumber(c.usage_count)}{c.usage_limit ? ` / ${formatNumber(c.usage_limit)}` : ''}</td>
-                            <td className="px-6 py-4"><StatusPill active={isLive(c)} activeText="ساري" inactiveText={c.is_active ? 'خارج الفترة' : 'متوقف'} /></td>
+                            <td className="px-6 py-4"><StatusPill tone={isLive(c) ? 'success' : c.is_active ? 'attention' : 'neutral'}>{isLive(c) ? 'ساري' : c.is_active ? 'خارج الفترة' : 'متوقف'}</StatusPill></td>
                             <td className="px-6 py-4">
                                 <div className="flex gap-2">
                                     <button type="button" onClick={() => edit(c)} className={`${smallButtonClass} bg-blue-50 text-brand-blue flex items-center gap-1`}><Edit className="w-3.5 h-3.5" /> تعديل</button>

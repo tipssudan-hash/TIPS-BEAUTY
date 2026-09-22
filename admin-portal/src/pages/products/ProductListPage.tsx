@@ -125,10 +125,10 @@ export const ProductListPage: React.FC = () => {
                                         <span className={`text-sm font-black ${product.stock === 0 ? 'text-red-500' : 'text-slate-700'}`}>{product.stock > 0 ? `${product.stock} قطعة` : 'نفدت الكمية'}</span>
                                     </div>
                                 </td>
-                                <td className="px-6 py-4"><StatusPill active={product.is_active} /></td>
+                                <td className="px-6 py-4"><StatusPill tone={product.is_active ? 'success' : 'neutral'}>{product.is_active ? 'نشط' : 'متوقف'}</StatusPill></td>
                                 <td className="px-6 py-4">
                                     <div className="flex items-center gap-2">
-                                        <Link to={`/products/edit/${product.id}`} className="min-w-11 min-h-11 flex items-center justify-center text-slate-400 hover:text-brand-blue hover:bg-blue-50 rounded-xl transition-all" aria-label="تعديل"><Edit className="w-5 h-5" /></Link>
+                                        <Link to={`/products/edit/${product.id}`} className="min-w-11 min-h-11 flex items-center justify-center text-slate-500 hover:text-brand-blue hover:bg-blue-50 rounded-xl transition-all" aria-label="تعديل"><Edit className="w-5 h-5" /></Link>
                                         <button
                                             type="button"
                                             disabled={busyId === product.id}

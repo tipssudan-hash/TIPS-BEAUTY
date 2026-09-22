@@ -205,7 +205,7 @@ export const BannersPage: React.FC = () => {
                             <td className="px-6 py-4 text-sm font-bold text-slate-600">{actionSummary(b)}</td>
                             <td className="px-6 py-4 text-xs font-bold text-slate-600" dir="ltr">{formatDate(b.starts_at)} → {b.ends_at ? formatDate(b.ends_at) : '∞'}</td>
                             <td className="px-6 py-4 text-sm font-bold text-slate-600">{b.display_order}</td>
-                            <td className="px-6 py-4"><StatusPill active={isLive(b)} activeText="معروض" inactiveText={b.is_active ? 'خارج الفترة' : 'متوقف'} /></td>
+                            <td className="px-6 py-4"><StatusPill tone={isLive(b) ? 'success' : b.is_active ? 'attention' : 'neutral'}>{isLive(b) ? 'معروض' : b.is_active ? 'خارج الفترة' : 'متوقف'}</StatusPill></td>
                             <td className="px-6 py-4">
                                 <div className="flex gap-2">
                                     <button type="button" onClick={() => { const { id: _id, ...data } = b; void _id; setEditing({ id: b.id, data }); }} className={`${smallButtonClass} bg-blue-50 text-brand-blue flex items-center gap-1`}><Edit className="w-3.5 h-3.5" /> تعديل</button>
