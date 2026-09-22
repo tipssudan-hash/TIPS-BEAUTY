@@ -10,6 +10,7 @@ import { useAuth } from '../../context/AuthContext';
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_METHOD_LABELS, StatusBadge } from './MyOrdersPage';
 import { Notice, StatusPill, inputClass } from '../../components/ui';
 import { OrderStepper } from '../../components/orders/OrderStepper';
+import { DeliveryCard } from '../../components/orders/DeliveryCard';
 
 const MAX_PROOF_BYTES = 5 * 1024 * 1024;
 
@@ -143,6 +144,8 @@ export const OrderDetailPage: React.FC = () => {
 
             {notice && <div className="bg-amber-50 border border-amber-100 text-amber-800 rounded-control p-4 text-sm">{notice}</div>}
             {error && <Notice kind="error">{error}</Notice>}
+
+            {order.status === 'shipped' && <DeliveryCard orderId={order.id} />}
 
             <div className="bg-white rounded-2xl shadow-sm border border-brand-blue-soft p-6">
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
