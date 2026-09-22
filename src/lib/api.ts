@@ -307,6 +307,32 @@ export async function fetchOrderHistory(orderId: string): Promise<OrderStatusEnt
     return (data ?? []).map((h) => ({ id: h.id, status: h.status as OrderStatusEntry['status'], note: h.note, createdAt: h.created_at }));
 }
 
+// The driver bringing an order, only while it is on the road (backend-scoped to the customer's
+// own shipped order). Null once delivered, failed, or before pickup.
+export interface DeliveryView {
+    driverName: string;
+    driverPhone: string;
+    latitude: number | null;
+    longitude: number | null;
+    accuracyMeters: number | null;
+    locationUpdatedAt: string | null;
+}
+
+export async function fetchMyDelivery(orderId: string): Promise<DeliveryView | null> {
+    const { data, error } = await supabase.rpc('get_my_delivery', { p_order_id: orderId });
+    if (error) throw error;
+    const row = (data as { driver_name: string; driver_phone: string; latitude: number | null; longitude: number | null; accuracy_meters: number | null; location_updated_at: string | null }[] | null)?.[0];
+    if (!row) return null;
+    return {
+        driverName: row.driver_name,
+        driverPhone: row.driver_phone,
+        latitude: row.latitude == null ? null : Number(row.latitude),
+        longitude: row.longitude == null ? null : Number(row.longitude),
+        accuracyMeters: row.accuracy_meters == null ? null : Number(row.accuracy_meters),
+        locationUpdatedAt: row.location_updated_at,
+    };
+}
+
 // Realtime on one order (own row) and its history; both tables are in the publication and RLS
 // scopes the stream to the customer. Debounced so a status change plus its history row reload once.
 export function subscribeToOrder(orderId: string, onChange: () => void): () => void {
