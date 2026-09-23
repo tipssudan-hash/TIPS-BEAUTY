@@ -4,10 +4,14 @@ import { loginErrorMessage } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
 import { Mail, Lock, Loader2 } from 'lucide-react';
 import { Notice } from '../../components/ui';
+import { SocialAuthButtons } from '../../components/auth/SocialAuthButtons';
+import { resolvePostLoginPath } from '../../lib/auth/postLogin';
+import { useAuth } from '../../context/AuthContext';
 
 export const LoginPage: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const { authFlags } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
@@ -27,9 +31,7 @@ export const LoginPage: React.FC = () => {
             });
 
             if (error) throw error;
-            // Drivers land on their own surface; everyone else goes back where they came from.
-            const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle();
-            navigate(profile?.role === 'driver' && from === '/' ? '/driver' : from, { replace: true });
+            navigate(await resolvePostLoginPath(data.user.id, from), { replace: true });
         } catch (err) {
             setError(loginErrorMessage(err instanceof Error ? err.message : ''));
         } finally {
@@ -45,6 +47,16 @@ export const LoginPage: React.FC = () => {
                         <h1 className="text-2xl font-bold text-gray-800">تواصل مع جمالك</h1>
                         <p className="text-gray-500 mt-2">سجلي الدخول لمتابعة طلباتك ومنتجاتك المفضلة</p>
                     </div>
+
+                    <SocialAuthButtons redirectAfter={from} />
+
+                    {(authFlags.google || authFlags.apple) && (
+                        <div className="flex items-center gap-3 my-6" aria-hidden="true">
+                            <span className="h-px bg-gray-200 flex-1" />
+                            <span className="text-xs text-gray-400">أو</span>
+                            <span className="h-px bg-gray-200 flex-1" />
+                        </div>
+                    )}
 
                     <form onSubmit={handleLogin} className="space-y-6">
                         {error && <Notice kind="error">{error}</Notice>}

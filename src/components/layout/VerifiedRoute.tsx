@@ -4,14 +4,16 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { EmptyState, Notice, primaryButtonClass } from '../ui';
 
-// Ordering needs a verified email (PRODUCT.md). Supabase enforces it at sign-in when "Confirm email"
-// is on; this guard keeps the rule visible in the app itself and offers the resend.
+// Ordering needs one verified contact channel — email OR phone (grilled 2026-09-23). A customer who
+// signed up with phone OTP has no email to confirm, and blocking her here would make phone sign-up
+// pointless. Supabase enforces email confirmation at sign-in when "Confirm email" is on; this guard
+// keeps the rule visible in the app itself and offers the resend.
 export const VerifiedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { user } = useAuth();
+    const { user, hasVerifiedContact } = useAuth();
     const [sent, setSent] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    if (!user || user.email_confirmed_at) return <>{children}</>;
+    if (!user || hasVerifiedContact) return <>{children}</>;
 
     const resend = async () => {
         setError(null);

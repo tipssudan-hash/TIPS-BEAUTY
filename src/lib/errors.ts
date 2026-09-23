@@ -55,3 +55,14 @@ const couponRefusals: Record<string, string> = {
 export function couponRefusalMessage(reason: string | null | undefined): string {
     return (reason && couponRefusals[reason]) || 'تعذر تطبيق كود الخصم.';
 }
+
+export function socialAuthErrorMessage(message: string): string {
+    // Raised by the DB trigger that keeps staff and driver accounts on email+password.
+    if (/staff_social_login_not_allowed/i.test(message)) return 'حسابات الموظفين والسائقين تسجّل الدخول بالبريد الإلكتروني وكلمة المرور.';
+    // Native build is running before the Capacitor sign-in plugins are wired up.
+    if (/native_social_sign_in_unavailable/i.test(message)) return 'تسجيل الدخول عبر Google وApple غير متاح في هذا الإصدار، استخدمي البريد الإلكتروني.';
+    // Google blocks OAuth inside embedded WebViews.
+    if (/disallowed_useragent/i.test(message)) return 'تعذر فتح صفحة Google داخل التطبيق، جربي من المتصفح.';
+    if (/rate limit/i.test(message)) return 'تم تجاوز عدد المحاولات، حاولي لاحقاً';
+    return 'تعذر تسجيل الدخول عبر مزود الخدمة، حاولي مرة أخرى.';
+}

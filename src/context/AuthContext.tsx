@@ -1,11 +1,16 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { DEFAULT_AUTH_FLAGS, fetchAuthFlags, type AuthMethodFlags } from '../lib/auth/settings';
 import type { Session, User } from '@supabase/supabase-js';
 
 interface AuthContextType {
     session: Session | null;
     user: User | null;
     loading: boolean;
+    /** Which sign-in methods are switched on server-side (app_settings). */
+    authFlags: AuthMethodFlags;
+    /** A customer may order once either contact channel is verified — email or phone. */
+    hasVerifiedContact: boolean;
     signOut: () => Promise<void>;
 }
 
@@ -15,6 +20,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [session, setSession] = useState<Session | null>(null);
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
+    const [authFlags, setAuthFlags] = useState<AuthMethodFlags>(DEFAULT_AUTH_FLAGS);
 
     useEffect(() => {
         // Get initial session
@@ -34,12 +40,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return () => subscription.unsubscribe();
     }, []);
 
+    useEffect(() => {
+        // Read once at startup: the login screen needs these while signed out, and a flag flipped in
+        // the Admin Portal reaches customers on their next app open without a new release.
+        let cancelled = false;
+        void fetchAuthFlags().then((flags) => { if (!cancelled) setAuthFlags(flags); });
+        return () => { cancelled = true; };
+    }, []);
+
     const signOut = async () => {
         await supabase.auth.signOut();
     };
 
+    const hasVerifiedContact = Boolean(user && (user.email_confirmed_at || user.phone_confirmed_at));
+
     return (
-        <AuthContext.Provider value={{ session, user, loading, signOut }}>
+        <AuthContext.Provider value={{ session, user, loading, authFlags, hasVerifiedContact, signOut }}>
             {children}
         </AuthContext.Provider>
     );

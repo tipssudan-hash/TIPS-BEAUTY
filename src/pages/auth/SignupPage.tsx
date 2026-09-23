@@ -4,9 +4,12 @@ import { signupErrorMessage } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
 import { Mail, Lock, User, Phone, Loader2, MailCheck } from 'lucide-react';
 import { Notice } from '../../components/ui';
+import { SocialAuthButtons } from '../../components/auth/SocialAuthButtons';
+import { useAuth } from '../../context/AuthContext';
 
 export const SignupPage: React.FC = () => {
     const navigate = useNavigate();
+    const { authFlags } = useAuth();
     const [formData, setFormData] = useState({
         email: '',
         password: '',
@@ -77,6 +80,16 @@ export const SignupPage: React.FC = () => {
                         <h1 className="text-2xl font-bold text-gray-800">انضمي لعائلة تيبس</h1>
                         <p className="text-gray-500 mt-2">أنشئي حسابك واستمتعي بتجربة تسوق مميزة</p>
                     </div>
+
+                    <SocialAuthButtons intent="signup" />
+
+                    {(authFlags.google || authFlags.apple) && (
+                        <div className="flex items-center gap-3 my-6" aria-hidden="true">
+                            <span className="h-px bg-gray-200 flex-1" />
+                            <span className="text-xs text-gray-400">أو</span>
+                            <span className="h-px bg-gray-200 flex-1" />
+                        </div>
+                    )}
 
                     <form onSubmit={handleSignup} className="space-y-4">
                         {error && <Notice kind="error">{error}</Notice>}

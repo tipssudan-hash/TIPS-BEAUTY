@@ -23,6 +23,7 @@ const NotificationsPage = lazy(() => import('./src/pages/customer/NotificationsP
 const AIChatPage = lazy(() => import('./src/pages/customer/AIChatPage').then((m) => ({ default: m.AIChatPage })));
 const LoginPage = lazy(() => import('./src/pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
 const SignupPage = lazy(() => import('./src/pages/auth/SignupPage').then((m) => ({ default: m.SignupPage })));
+const AuthCallbackPage = lazy(() => import('./src/pages/auth/AuthCallbackPage').then((m) => ({ default: m.AuthCallbackPage })));
 const DriverLayout = lazy(() => import('./src/pages/driver/DriverLayout').then((m) => ({ default: m.DriverLayout })));
 const DriverHomePage = lazy(() => import('./src/pages/driver/DriverHomePage').then((m) => ({ default: m.DriverHomePage })));
 const DriverOrderPage = lazy(() => import('./src/pages/driver/DriverOrderPage').then((m) => ({ default: m.DriverOrderPage })));
@@ -74,6 +75,8 @@ function App() {
 
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
+              {/* Google and Apple return web customers here; native builds never use it. */}
+              <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
               <Route path="/checkout" element={<ProtectedRoute><VerifiedRoute><CheckoutPage /></VerifiedRoute></ProtectedRoute>} />
               <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />

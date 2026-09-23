@@ -150,16 +150,31 @@ export type Database = {
       }
       app_settings: {
         Row: {
+          auth_apple_enabled: boolean
+          auth_captcha_enabled: boolean
+          auth_google_enabled: boolean
+          auth_password_enabled: boolean
+          auth_phone_enabled: boolean
           id: boolean
           notification_emails: string[]
           updated_at: string
         }
         Insert: {
+          auth_apple_enabled?: boolean
+          auth_captcha_enabled?: boolean
+          auth_google_enabled?: boolean
+          auth_password_enabled?: boolean
+          auth_phone_enabled?: boolean
           id?: boolean
           notification_emails?: string[]
           updated_at?: string
         }
         Update: {
+          auth_apple_enabled?: boolean
+          auth_captcha_enabled?: boolean
+          auth_google_enabled?: boolean
+          auth_password_enabled?: boolean
+          auth_phone_enabled?: boolean
           id?: boolean
           notification_emails?: string[]
           updated_at?: string
@@ -1132,6 +1147,10 @@ export type Database = {
           id: string
           loyalty_lifetime_points: number
           loyalty_tier: string
+          full_name: string | null
+          phone: string | null
+          phone_confirmed_at: string | null
+          signup_method: string | null
           referral_code: string | null
           referred_by: string | null
           role: string | null
@@ -1143,6 +1162,10 @@ export type Database = {
           id: string
           loyalty_lifetime_points?: number
           loyalty_tier?: string
+          full_name?: string | null
+          phone?: string | null
+          phone_confirmed_at?: string | null
+          signup_method?: string | null
           referral_code?: string | null
           referred_by?: string | null
           role?: string | null
@@ -1154,6 +1177,10 @@ export type Database = {
           id?: string
           loyalty_lifetime_points?: number
           loyalty_tier?: string
+          full_name?: string | null
+          phone?: string | null
+          phone_confirmed_at?: string | null
+          signup_method?: string | null
           referral_code?: string | null
           referred_by?: string | null
           role?: string | null
@@ -2175,6 +2202,7 @@ export type Database = {
           sales_count: number
         }[]
       }
+      get_auth_settings: { Args: never; Returns: Json }
       get_public_products: {
         Args: never
         Returns: {
@@ -2228,6 +2256,8 @@ export type Database = {
           slug: string
         }[]
       }
+      normalize_sd_phone: { Args: { p_phone: string }; Returns: string }
+      has_verified_contact: { Args: { p_user_id?: string }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       is_driver: { Args: never; Returns: boolean }
       mark_all_notifications_read: { Args: never; Returns: number }
