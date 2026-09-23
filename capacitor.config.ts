@@ -23,7 +23,10 @@ const config: CapacitorConfig = {
         // Sudanese customers run older, smaller devices; let the WebView own the safe areas so the
         // RTL layout's viewport-fit=cover handling stays identical to the web.
         contentInset: 'never',
-        limitsNavigationsToAppBoundDomains: true,
+        // Deliberately NOT limitsNavigationsToAppBoundDomains: that requires a matching
+        // WKAppBoundDomains list in Info.plist and, once on, restricts what the WebView may load —
+        // which would break Google Fonts, the hCaptcha challenge and the Google sign-in sheet on iOS
+        // only, in ways that do not reproduce on Android or the web.
     },
 
     android: {

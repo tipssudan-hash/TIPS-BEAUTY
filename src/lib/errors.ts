@@ -66,3 +66,16 @@ export function socialAuthErrorMessage(message: string): string {
     if (/rate limit/i.test(message)) return 'تم تجاوز عدد المحاولات، حاولي لاحقاً';
     return 'تعذر تسجيل الدخول عبر مزود الخدمة، حاولي مرة أخرى.';
 }
+
+export function otpErrorMessage(message: string): string {
+    // Raised by record_otp_attempt via the send-otp hook.
+    if (/cooldown/i.test(message)) return 'انتظري قليلاً قبل طلب رمز جديد.';
+    if (/phone_quota|ip_quota|rate limit|too many/i.test(message)) return 'تم تجاوز عدد المحاولات، حاولي بعد ساعة.';
+    if (/invalid_phone/i.test(message)) return 'رقم الهاتف غير صحيح.';
+    if (/expired/i.test(message)) return 'انتهت صلاحية الرمز، اطلبي رمزاً جديداً.';
+    if (/invalid.*(token|otp|code)/i.test(message)) return 'الرمز غير صحيح، تأكدي من الأرقام.';
+    if (/captcha/i.test(message)) return 'تعذر التحقق، حاولي مرة أخرى.';
+    // Every channel failed, or none is configured — a real outage, not the customer's mistake.
+    if (/no otp channel|delivery failed/i.test(message)) return 'تعذر إرسال الرمز حالياً، جربي تسجيل الدخول بالبريد الإلكتروني.';
+    return 'تعذر إرسال رمز التحقق، حاولي مرة أخرى.';
+}

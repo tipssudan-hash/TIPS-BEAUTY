@@ -155,6 +155,12 @@ export type Database = {
           auth_google_enabled: boolean
           auth_password_enabled: boolean
           auth_phone_enabled: boolean
+          otp_cooldown_seconds: number
+          otp_max_per_ip_hour: number
+          otp_max_per_phone_hour: number
+          otp_primary_channel: string
+          otp_sms_enabled: boolean
+          otp_whatsapp_enabled: boolean
           id: boolean
           notification_emails: string[]
           updated_at: string
@@ -165,6 +171,12 @@ export type Database = {
           auth_google_enabled?: boolean
           auth_password_enabled?: boolean
           auth_phone_enabled?: boolean
+          otp_cooldown_seconds?: number
+          otp_max_per_ip_hour?: number
+          otp_max_per_phone_hour?: number
+          otp_primary_channel?: string
+          otp_sms_enabled?: boolean
+          otp_whatsapp_enabled?: boolean
           id?: boolean
           notification_emails?: string[]
           updated_at?: string
@@ -175,6 +187,12 @@ export type Database = {
           auth_google_enabled?: boolean
           auth_password_enabled?: boolean
           auth_phone_enabled?: boolean
+          otp_cooldown_seconds?: number
+          otp_max_per_ip_hour?: number
+          otp_max_per_phone_hour?: number
+          otp_primary_channel?: string
+          otp_sms_enabled?: boolean
+          otp_whatsapp_enabled?: boolean
           id?: boolean
           notification_emails?: string[]
           updated_at?: string
@@ -853,6 +871,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      otp_delivery_log: {
+        Row: {
+          attempt: number | null
+          channel: string
+          created_at: string
+          error_message: string | null
+          id: string
+          phone: string
+          provider: string | null
+          provider_message_id: string | null
+          status: string
+        }
+        Insert: {
+          attempt?: number | null
+          channel: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          phone: string
+          provider?: string | null
+          provider_message_id?: string | null
+          status: string
+        }
+        Update: {
+          attempt?: number | null
+          channel?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          phone?: string
+          provider?: string | null
+          provider_message_id?: string | null
+          status?: string
+        }
+        Relationships: []
       }
       orders: {
         Row: {
