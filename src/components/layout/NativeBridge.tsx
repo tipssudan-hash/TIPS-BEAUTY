@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { isNative, nativePlatform } from '../../lib/auth/platform';
 import { hideNativeSplash } from '../../lib/native/bootstrap';
 import { pathFromDeepLink } from '../../lib/native/deepLinks';
+import { registerForPush } from '../../lib/native/push';
+import { useAuth } from '../../context/AuthContext';
 
 // Everything that needs both the native shell and the router: incoming Universal Links / App Links,
 // and Android's hardware back button. Renders nothing.
@@ -11,6 +13,7 @@ import { pathFromDeepLink } from '../../lib/native/deepLinks';
 export const NativeBridge: FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const { user } = useAuth();
 
     // Splash stays up until React has painted (launchAutoHide is false in capacitor.config.ts).
     useEffect(() => { void hideNativeSplash(); }, []);
@@ -38,6 +41,13 @@ export const NativeBridge: FC = () => {
 
         return () => cleanup?.();
     }, [navigate]);
+
+    useEffect(() => {
+        // Only ask for notification permission once there is an account to notify about — and after
+        // sign-in, so the token is stored against the right customer. iOS only ever prompts once.
+        if (!user) return;
+        void registerForPush((path) => navigate(path));
+    }, [user, navigate]);
 
     useEffect(() => {
         if (nativePlatform() !== 'android') return;

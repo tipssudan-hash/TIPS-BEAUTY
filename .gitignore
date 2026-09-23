@@ -33,3 +33,10 @@ supabase/.temp/
 
 # design-tool session cache (absolute local paths)
 .impeccable/hook.cache.json
+
+# Native build inputs supplied per-project, never committed (see docs/MOBILE.md)
+android/app/google-services.json
+ios/App/App/GoogleService-Info.plist
+
+# @capacitor/assets writes a stray PWA icon set at the repo root; public/icons is the real one
+/icons/

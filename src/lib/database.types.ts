@@ -401,34 +401,40 @@ export type Database = {
           created_at: string
           customer_id: string
           device_name: string | null
-          expo_push_token: string
+          expo_push_token: string | null
           id: string
           invalidated_at: string | null
           is_active: boolean
           last_registered_at: string
           platform: string
+          provider: string
+          push_token: string
         }
         Insert: {
           created_at?: string
           customer_id: string
           device_name?: string | null
-          expo_push_token: string
+          expo_push_token?: string | null
           id?: string
           invalidated_at?: string | null
           is_active?: boolean
           last_registered_at?: string
           platform: string
+          provider?: string
+          push_token?: string
         }
         Update: {
           created_at?: string
           customer_id?: string
           device_name?: string | null
-          expo_push_token?: string
+          expo_push_token?: string | null
           id?: string
           invalidated_at?: string | null
           is_active?: boolean
           last_registered_at?: string
           platform?: string
+          provider?: string
+          push_token?: string
         }
         Relationships: []
       }
@@ -1244,6 +1250,8 @@ export type Database = {
           error_message: string | null
           event_type: string
           expo_ticket_id: string | null
+          provider: string | null
+          provider_message_id: string | null
           id: string
           order_id: string
           push_token_id: string
@@ -1256,6 +1264,8 @@ export type Database = {
           error_message?: string | null
           event_type: string
           expo_ticket_id?: string | null
+          provider?: string | null
+          provider_message_id?: string | null
           id?: string
           order_id: string
           push_token_id: string
@@ -1268,6 +1278,8 @@ export type Database = {
           error_message?: string | null
           event_type?: string
           expo_ticket_id?: string | null
+          provider?: string | null
+          provider_message_id?: string | null
           id?: string
           order_id?: string
           push_token_id?: string
@@ -2313,6 +2325,11 @@ export type Database = {
       refresh_product_review_summary: {
         Args: { p_product_id: string }
         Returns: undefined
+      }
+      deactivate_push_token: { Args: { p_token: string }; Returns: boolean }
+      register_push_token: {
+        Args: { p_device_name?: string; p_platform: string; p_provider: string; p_token: string }
+        Returns: string
       }
       register_customer_push_token: {
         Args: {

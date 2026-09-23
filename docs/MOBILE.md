@@ -99,6 +99,44 @@ Verify after deploying:
 Add `https://beauty.tips-sd.com/auth/callback` (web OAuth) under Authentication → URL Configuration.
 Native sign-in needs no redirect URL at all.
 
+
+### 6. Firebase, for push notifications
+
+One Firebase project serves both apps: Android natively, iOS through the APNs key you upload to
+Firebase. There is no second APNs integration to run.
+
+1. Create a Firebase project and add **both** apps to it: Android package `com.tipssd.beauty`,
+   iOS bundle `com.tipssd.beauty`.
+2. Download the config files. **Neither is committed** (both are gitignored):
+   - `android/app/google-services.json` — without it the Gradle plugin is skipped and push silently
+     does nothing. The build does not fail; it logs and carries on.
+   - `ios/App/App/GoogleService-Info.plist` — add it to the Xcode project.
+3. iOS only: create an **APNs authentication key** (.p8) in the Apple Developer portal and upload it
+   under Firebase → Project settings → Cloud Messaging. Without this, iOS push fails at delivery with
+   no error visible in the app.
+4. Generate a service account key (Firebase → Project settings → Service accounts → Generate new
+   private key) and store the **entire JSON** as a Supabase secret:
+
+   ```bash
+   npx supabase secrets set FCM_SERVICE_ACCOUNT_JSON="$(cat service-account.json)"
+   ```
+
+   The dispatcher signs a JWT with it and exchanges it for an access token (FCM HTTP v1 no longer
+   accepts the old static server key). If the secret is missing, sends are logged as failed and orders
+   are never blocked — the same posture as the email pipeline.
+5. Enable push capability on the iOS App ID, and add the **Push Notifications** capability in Xcode.
+
+Android 13+ shows a runtime permission prompt. The app asks lazily — after sign-in, not at first
+launch — because iOS only ever prompts once and a customer with no orders has no reason to say yes.
+
+#### Migration posture
+
+Nothing Expo is removed yet. `customer_push_tokens` carries a `provider` column, old rows keep their
+`ExponentPushToken[...]` values and validation, `register_customer_push_token()` still exists with its
+original signature, and `order-status-push` dispatches per row — Expo batched, FCM one request per
+device. Once FCM is verified on real Sudanese handsets, the Expo path and its column can be dropped in
+a follow-up migration.
+
 ## Store submission blockers
 
 Both are separate workstreams, both are hard blockers, neither is optional:
@@ -113,10 +151,10 @@ them in the review notes.
 
 ## Known gaps
 
-- **Push is not wired.** The backend still speaks Expo: `customer_push_tokens.expo_push_token` has a
-  check constraint requiring `ExponentPushToken[...]`, and `order-status-push` posts to `exp.host`.
-  Capacitor produces FCM/APNs tokens, which that RPC rejects. That is the push workstream.
-- **No app icons or splash assets generated yet.** `public/icons/` has the 192/512 PWA icons to
-  derive them from (`@capacitor/assets`).
-- **Not yet run on a real device.** Nothing here is proven until it runs on real Sudanese handsets —
-  one Android, one iPhone, per the test plan.
+- **Push is code-complete but unproven.** It cannot be verified from a desktop: it needs a Firebase
+  project, the config files above, and a real handset on each platform.
+- **Nothing has run on a real device.** Everything here compiles and syncs; none of it is proven until
+  it runs on real Sudanese handsets — one Android, one iPhone, per the test plan.
+- **App icons and splashes are generated from `public/logo.PNG`** via
+  `node scripts/generate-app-assets.mjs`. Re-run it whenever the logo changes. If the brand ever gets a
+  dedicated app mark, replace the files in `assets/` and re-run.

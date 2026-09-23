@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { DEFAULT_AUTH_FLAGS, fetchAuthFlags, type AuthMethodFlags } from '../lib/auth/settings';
+import { unregisterPush } from '../lib/native/push';
 import type { Session, User } from '@supabase/supabase-js';
 
 interface AuthContextType {
@@ -49,6 +50,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, []);
 
     const signOut = async () => {
+        // Order contents are private and phones get shared: release this device's push token first.
+        await unregisterPush();
         await supabase.auth.signOut();
     };
 
