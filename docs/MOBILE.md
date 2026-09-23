@@ -139,11 +139,18 @@ a follow-up migration.
 
 ## Store submission blockers
 
-Both are separate workstreams, both are hard blockers, neither is optional:
+Both are now implemented (migration 20260924000100):
 
-- **In-app account deletion** (Apple Guideline 5.1.1(v)) — soft-delete that anonymises the profile and
-  keeps order records. Does not exist yet.
-- **Privacy policy** at a public URL. Does not exist yet.
+- **In-app account deletion** (Apple Guideline 5.1.1(v)) — حسابي → حذف الحساب. Anonymising soft delete:
+  personal data and payment-proof images go, order records keep their numbers and amounts, sessions are
+  destroyed, social identities unlinked and the auth user banned. Blocked while an order is in flight,
+  because a delivery in progress still needs the name and phone it is going to.
+- **Privacy policy** at `https://beauty.tips-sd.com/privacy` — public, no account needed, linked from
+  the settings screen. Give this URL to both stores. **It has not had legal review**; the owner is
+  arranging that before launch.
+
+The deletion page also answers Play's Data Safety form and Apple's privacy questionnaire: what is
+collected, why, who it is shared with, and how it is deleted.
 
 Apple also rejects apps that are "just a website" (Guideline 4.2). What earns this one its place is
 native sign-in, push notifications, camera capture for payment proof, and offline handling — mention

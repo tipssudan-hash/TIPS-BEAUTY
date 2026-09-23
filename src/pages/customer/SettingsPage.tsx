@@ -1,8 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { User as UserIcon, LogOut, Package, ChevronLeft, Percent, Bell } from 'lucide-react';
+import { User as UserIcon, LogOut, Package, ChevronLeft, Percent, Bell, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Card } from '../../components/ui';
+import { DeleteAccountCard } from '../../components/account/DeleteAccountCard';
 
 export const SettingsPage: React.FC = () => {
     const { user, signOut } = useAuth();
@@ -40,6 +41,7 @@ export const SettingsPage: React.FC = () => {
                     { to: '/orders', label: 'طلباتي', icon: Package },
                     { to: '/notifications', label: 'الإشعارات', icon: Bell },
                     { to: '/offers', label: 'العروض', icon: Percent },
+                    { to: '/privacy', label: 'سياسة الخصوصية', icon: ShieldCheck },
                 ].map(({ to, label, icon: Icon }) => (
                     <Link key={to} to={to} className="flex items-center justify-between bg-white rounded-card p-6 shadow-card border border-brand-blue-soft hover:border-brand-blue transition-colors">
                         <span className="flex items-center gap-3 font-bold text-gray-800">
@@ -49,6 +51,8 @@ export const SettingsPage: React.FC = () => {
                         <ChevronLeft className="w-5 h-5 text-gray-400" />
                     </Link>
                 ))}
+
+                <DeleteAccountCard />
             </div>
         </div>
     );

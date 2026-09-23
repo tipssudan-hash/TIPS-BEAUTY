@@ -1149,6 +1149,7 @@ export type Database = {
         Row: {
           beauty_points: number | null
           created_at: string
+          deleted_at: string | null
           email: string | null
           id: string
           loyalty_lifetime_points: number
@@ -1164,6 +1165,7 @@ export type Database = {
         Insert: {
           beauty_points?: number | null
           created_at?: string
+          deleted_at?: string | null
           email?: string | null
           id: string
           loyalty_lifetime_points?: number
@@ -1179,6 +1181,7 @@ export type Database = {
         Update: {
           beauty_points?: number | null
           created_at?: string
+          deleted_at?: string | null
           email?: string | null
           id?: string
           loyalty_lifetime_points?: number
@@ -2326,6 +2329,8 @@ export type Database = {
         Args: { p_product_id: string }
         Returns: undefined
       }
+      account_deletion_preview: { Args: never; Returns: Json }
+      delete_my_account: { Args: never; Returns: Json }
       deactivate_push_token: { Args: { p_token: string }; Returns: boolean }
       register_push_token: {
         Args: { p_device_name?: string; p_platform: string; p_provider: string; p_token: string }

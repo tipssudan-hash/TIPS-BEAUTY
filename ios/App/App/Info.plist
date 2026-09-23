@@ -42,11 +42,11 @@
 	<!-- Mycashi payment proof: customers photograph or pick the transfer receipt at checkout.
 	     Without these strings iOS kills the app the moment the file picker opens. -->
 	<key>NSCameraUsageDescription</key>
-	<string>لتصوير إيصال التحويل عند الدفع عبر مايكاشي.</string>
+	<string>لتصوير إثبات الدفع عند الدفع عبر مايكاشي.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>لاختيار صورة إيصال التحويل من معرض الصور.</string>
+	<string>لاختيار صورة إثبات الدفع من معرض الصور.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>لحفظ صورة إيصال الطلب في معرض الصور.</string>
+	<string>لحفظ صورة إثبات الدفع في معرض الصور.</string>
 	<!-- Delivery tracking shares the Driver's location while a delivery is in progress. The driver
 	     surface stays on the web for launch, but the code ships in this bundle. -->
 	<key>NSLocationWhenInUseUsageDescription</key>

@@ -26,6 +26,7 @@ const AIChatPage = lazy(() => import('./src/pages/customer/AIChatPage').then((m)
 const LoginPage = lazy(() => import('./src/pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
 const SignupPage = lazy(() => import('./src/pages/auth/SignupPage').then((m) => ({ default: m.SignupPage })));
 const AuthCallbackPage = lazy(() => import('./src/pages/auth/AuthCallbackPage').then((m) => ({ default: m.AuthCallbackPage })));
+const PrivacyPolicyPage = lazy(() => import('./src/pages/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage })));
 const DriverLayout = lazy(() => import('./src/pages/driver/DriverLayout').then((m) => ({ default: m.DriverLayout })));
 const DriverHomePage = lazy(() => import('./src/pages/driver/DriverHomePage').then((m) => ({ default: m.DriverHomePage })));
 const DriverOrderPage = lazy(() => import('./src/pages/driver/DriverOrderPage').then((m) => ({ default: m.DriverOrderPage })));
@@ -78,6 +79,8 @@ function App() {
               <Route path="/product/:id" element={<ProductDetailsPage />} />
               <Route path="/cart" element={<CartPage />} />
               <Route path="/offers" element={<OffersPage />} />
+              {/* Public: both app stores require a reachable privacy policy URL. */}
+              <Route path="/privacy" element={<PrivacyPolicyPage />} />
 
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
