@@ -5,14 +5,29 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "build": "tsc --noEmit -p tsconfig.json && vite build && node scripts/generate-well-known.mjs",
     "preview": "vite preview",
     "lint": "eslint . && node scripts/check-primitives-parity.mjs && node scripts/check-no-local-style-constants.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "test:backend": "vitest run tests/backend"
+    "test:backend": "vitest run tests/backend",
+    "cap:sync": "npm run build && cap sync",
+    "android:open": "cap open android",
+    "android:run": "npm run cap:sync && cap run android",
+    "ios:open": "cap open ios",
+    "ios:run": "npm run cap:sync && cap run ios"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
+    "@capacitor/keyboard": "^8.0.5",
+    "@capacitor/network": "^8.0.1",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3",
+    "@capgo/capacitor-social-login": "^8.5.11",
     "@supabase/supabase-js": "^2.89.0",
     "clsx": "^2.1.1",
     "leaflet": "^1.9.4",
@@ -23,6 +38,7 @@
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
     "@eslint/js": "^9.39.1",
     "@types/leaflet": "^1.9.22",
     "@types/node": "^22.14.0",

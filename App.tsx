@@ -4,6 +4,8 @@ import { Header } from './src/components/layout/Header';
 import { BottomNav } from './src/components/layout/BottomNav';
 import { ErrorBoundary } from './src/components/layout/ErrorBoundary';
 import { VerifiedRoute } from './src/components/layout/VerifiedRoute';
+import { NativeBridge } from './src/components/layout/NativeBridge';
+import { OfflineBanner } from './src/components/layout/OfflineBanner';
 import { Spinner } from './src/components/ui';
 import { HomePage } from './src/pages/customer/HomePage';
 import { useStore } from './src/context/StoreContext';
@@ -47,6 +49,8 @@ function App() {
   if (isDriverSurface) {
     return (
       <ErrorBoundary>
+        <NativeBridge />
+        <OfflineBanner />
         <Suspense fallback={<Spinner />}>
           <Routes>
             <Route path="/driver" element={<DriverLayout />}>
@@ -62,6 +66,8 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50/50 pb-20 font-sans text-gray-900" dir="rtl">
+      <NativeBridge />
+      <OfflineBanner />
       <Header cartCount={cartCount} />
       <main>
         <ErrorBoundary>
