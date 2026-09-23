@@ -7,6 +7,7 @@ import {
     paymentMethodLabel, paymentStatusLabel, paymentStatusStyle, primaryForwardTransition, type OrderStatus,
 } from '../../lib/format';
 import { errorMessage } from '../../lib/errors';
+import { Card, Notice } from '../../components/ui';
 
 const PAGE_SIZE = 20;
 
@@ -115,13 +116,13 @@ export const OrderListPage: React.FC = () => {
             </div>
 
             {error && (
-                <div className="bg-red-50 border border-red-100 text-red-700 rounded-2xl px-6 py-4 text-sm font-bold flex items-center justify-between">
-                    <span>{error}</span>
-                    <button onClick={() => void load()} className="underline">إعادة المحاولة</button>
-                </div>
+                <Notice kind="error">
+                    <span className="flex-1">{error}</span>
+                    <button onClick={() => void load()} className="underline shrink-0">إعادة المحاولة</button>
+                </Notice>
             )}
 
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+            <Card className="overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-right border-collapse">
                         <thead>
@@ -226,7 +227,7 @@ export const OrderListPage: React.FC = () => {
                         </button>
                     </div>
                 </div>
-            </div>
+            </Card>
         </div>
     );
 };

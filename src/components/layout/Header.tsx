@@ -36,7 +36,12 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
             <div className="max-w-4xl mx-auto px-4 py-3">
                 <div className="flex items-center justify-between">
                     <Link to="/" className="flex items-center gap-2 cursor-pointer group">
-                        <img src="/logo.PNG" alt="Tips Beauty" className="h-16 md:h-24 w-auto object-contain hover:scale-105 transition-transform duration-300 mix-blend-multiply" />
+                        {/* logo.PNG has no alpha channel — an explicit white card (not mix-blend-multiply,
+                            which only hides pure white and left a visible tinted box) is what actually
+                            composites cleanly against the translucent header. */}
+                        <div className="bg-white p-2 rounded-card shadow-card group-hover:shadow-card-glow transition-shadow">
+                            <img src="/logo.PNG" alt="Tips Beauty" className="h-12 md:h-16 w-auto object-contain" />
+                        </div>
                     </Link>
 
                     {/* Mobile: bell + menu (cart and the main destinations live in the bottom bar) */}

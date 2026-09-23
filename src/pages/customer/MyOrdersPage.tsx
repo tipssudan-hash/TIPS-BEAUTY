@@ -5,6 +5,7 @@ import { Order, OrderStatus, PaymentStatus } from '../../types';
 import { fetchMyOrders } from '../../lib/api';
 import { errorMessage } from '../../lib/errors';
 import { formatSDG, formatDateTime } from '../../lib/format';
+import { EmptyState, Notice, Skeleton, primaryButtonClass } from '../../components/ui';
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
     new: 'جديد',
@@ -61,24 +62,24 @@ export const MyOrdersPage: React.FC = () => {
     if (loading) {
         return (
             <div className="max-w-4xl mx-auto p-4 space-y-3" aria-busy="true">
-                {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-24 rounded-2xl bg-gray-100 animate-pulse" />)}
+                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-card" />)}
             </div>
         );
     }
 
     if (error) {
-        return <div className="max-w-4xl mx-auto p-4"><div className="bg-red-50 border border-red-100 text-red-700 rounded-xl p-4 text-sm">{error}</div></div>;
+        return <div className="max-w-4xl mx-auto p-4"><Notice kind="error">{error}</Notice></div>;
     }
 
     if (orders.length === 0) {
         return (
-            <div className="max-w-4xl mx-auto p-8 text-center">
-                <div className="bg-white rounded-2xl shadow-sm border border-brand-blue-soft p-12">
-                    <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <h2 className="text-2xl font-bold text-gray-800 mb-2">لا توجد طلبات بعد</h2>
-                    <p className="text-gray-600 mb-6">ابدئي التسوق وسيظهر طلبك هنا</p>
-                    <Link to="/" className="inline-block bg-brand-blue hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl transition-all">تسوقي الآن</Link>
-                </div>
+            <div className="max-w-4xl mx-auto p-8">
+                <EmptyState
+                    icon={<Package className="w-7 h-7" />}
+                    title="لا توجد طلبات بعد"
+                    body="ابدئي التسوق وسيظهر طلبك هنا"
+                    action={<Link to="/" className={primaryButtonClass}>تسوقي الآن</Link>}
+                />
             </div>
         );
     }
@@ -88,7 +89,7 @@ export const MyOrdersPage: React.FC = () => {
             <h1 className="text-2xl font-bold text-gray-800 mb-6">طلباتي</h1>
             <div className="space-y-3">
                 {orders.map(order => (
-                    <Link key={order.id} to={`/orders/${order.id}`} className="block bg-white rounded-2xl shadow-sm border border-brand-blue-soft p-4 hover:border-brand-blue transition-colors">
+                    <Link key={order.id} to={`/orders/${order.id}`} className="block bg-white rounded-card shadow-card border border-brand-blue-soft p-4 hover:border-brand-blue transition-colors">
                         <div className="flex items-center justify-between gap-3">
                             <div className="min-w-0">
                                 <p className="font-bold text-gray-800 truncate">طلب {order.orderNumber}</p>

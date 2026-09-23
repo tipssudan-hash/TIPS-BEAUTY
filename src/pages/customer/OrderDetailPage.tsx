@@ -1,14 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { CheckCircle2, Loader2 } from 'lucide-react';
-import { Order, OrderStatusEntry, PaymentMethod } from '../../types';
-import { fetchMyOrder, fetchOrderHistory, fetchPaymentMethods, cancelMyOrder, uploadPaymentProof, submitPaymentProof, subscribeToOrder } from '../../lib/api';
+import { CheckCircle2, Loader2, RotateCcw, Star } from 'lucide-react';
+import { Order, OrderStatusEntry, PaymentMethod, ReviewableItem } from '../../types';
+import { fetchMyOrder, fetchOrderHistory, fetchPaymentMethods, fetchReviewableItems, cancelMyOrder, uploadPaymentProof, submitPaymentProof, subscribeToOrder } from '../../lib/api';
 import { errorMessage } from '../../lib/errors';
 import { orderUnitPrice } from '../../lib/pricing';
 import { formatSDG, formatDateTime } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
+import { useStore } from '../../context/StoreContext';
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_METHOD_LABELS, StatusBadge } from './MyOrdersPage';
-import { Notice, StatusPill, inputClass } from '../../components/ui';
+import { Card, Notice, StatusPill, inputClass, secondaryButtonClass } from '../../components/ui';
 import { OrderStepper } from '../../components/orders/OrderStepper';
 import { DeliveryCard } from '../../components/orders/DeliveryCard';
 
@@ -19,6 +20,7 @@ type LocationState = { justOrdered?: boolean; orderNumber?: string; proofWarning
 export const OrderDetailPage: React.FC = () => {
     const { id } = useParams();
     const { user } = useAuth();
+    const { products, addToCart } = useStore();
     const location = useLocation();
     const state = (location.state ?? null) as LocationState;
 
@@ -35,6 +37,8 @@ export const OrderDetailPage: React.FC = () => {
     const [proofError, setProofError] = useState<string | null>(null);
     const [proofSubmitting, setProofSubmitting] = useState(false);
     const [notice, setNotice] = useState<string | null>(state?.proofWarning ?? null);
+    const [reviewable, setReviewable] = useState<ReviewableItem[]>([]);
+    const [justReordered, setJustReordered] = useState(false);
 
     const load = useCallback(async () => {
         if (!id) return;
@@ -64,8 +68,38 @@ export const OrderDetailPage: React.FC = () => {
         fetchPaymentMethods().then(setMethods).catch(err => console.error('payment methods', err));
     }, []);
 
+    // The review prompt only matters once delivered; fetch lazily rather than on every order.
+    useEffect(() => {
+        if (order?.status !== 'delivered') return;
+        fetchReviewableItems()
+            .then(items => setReviewable(items.filter(i => i.orderId === order.id)))
+            .catch(err => console.error('reviewable items', err));
+    }, [order?.status, order?.id]);
+
     const method = order ? methods.find(m => m.code === order.paymentMethod) ?? null : null;
     const needsProof = !!order && !!method?.requiresProof && order.paymentStatus === 'pending' && order.status !== 'cancelled';
+
+    const handleReorder = () => {
+        if (!order) return;
+        const live = new Map(products.map(p => [p.id, p]));
+        let added = 0;
+        let skipped = 0;
+        for (const item of order.items) {
+            const product = live.get(item.id);
+            const variant = item.variant_id ? product?.variants.find(v => v.id === item.variant_id) ?? null : null;
+            if (!product || (item.variant_id && !variant) || (!variant && product.stock <= 0)) { skipped++; continue; }
+            addToCart(product, variant, item.quantity);
+            added++;
+        }
+        if (added === 0) {
+            setNotice('عذراً، منتجات هذا الطلب لم تعد متوفرة حالياً.');
+            return;
+        }
+        setNotice(skipped > 0
+            ? `تمت إضافة ${added} منتج للسلة؛ تعذر إضافة ${skipped} لعدم توفره حالياً.`
+            : 'تمت إضافة منتجات الطلب للسلة.');
+        setJustReordered(true);
+    };
 
     const handleCancel = async () => {
         if (!order || !window.confirm('هل تريدين إلغاء هذا الطلب؟')) return;
@@ -142,18 +176,30 @@ export const OrderDetailPage: React.FC = () => {
                 </div>
             )}
 
-            {notice && <div className="bg-amber-50 border border-amber-100 text-amber-800 rounded-control p-4 text-sm">{notice}</div>}
+            {notice && (
+                <div className="bg-amber-50 border border-amber-100 text-amber-800 rounded-control p-4 text-sm flex items-center justify-between gap-3">
+                    <span>{notice}</span>
+                    {justReordered && <Link to="/cart" className="font-bold underline shrink-0">عرض السلة</Link>}
+                </div>
+            )}
             {error && <Notice kind="error">{error}</Notice>}
 
             {order.status === 'shipped' && <DeliveryCard orderId={order.id} />}
 
-            <div className="bg-white rounded-2xl shadow-sm border border-brand-blue-soft p-6">
+            <Card className="p-6">
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                     <div>
                         <h1 className="text-xl font-bold text-gray-800">طلب {order.orderNumber}</h1>
                         <p className="text-xs text-gray-500 mt-1">{formatDateTime(order.createdAt)}</p>
                     </div>
-                    <StatusBadge status={order.status} />
+                    <div className="flex items-center gap-2">
+                        {order.status === 'delivered' && (
+                            <button type="button" onClick={handleReorder} className={`${secondaryButtonClass} flex items-center gap-2 text-sm py-2 px-4`}>
+                                <RotateCcw className="w-4 h-4" /> إعادة الطلب
+                            </button>
+                        )}
+                        <StatusBadge status={order.status} />
+                    </div>
                 </div>
 
                 <div className="mb-6 rounded-card border border-gray-100 bg-gray-50/60 p-4">
@@ -202,10 +248,10 @@ export const OrderDetailPage: React.FC = () => {
                     <div className="flex justify-between text-gray-600"><span>رسوم التوصيل</span><span>{formatSDG(order.shippingFee)}</span></div>
                     <div className="flex justify-between font-bold text-lg text-gray-800 pt-2"><span>الإجمالي النهائي</span><span className="text-brand-blue">{formatSDG(order.total)}</span></div>
                 </div>
-            </div>
+            </Card>
 
             <div className="grid md:grid-cols-2 gap-6">
-                <div className="bg-white rounded-2xl shadow-sm border border-brand-blue-soft p-6 text-sm space-y-2">
+                <Card className="p-6 text-sm space-y-2">
                     <h2 className="font-bold text-gray-800 mb-3">التوصيل والدفع</h2>
                     <p><span className="text-gray-500">العنوان:</span> <span className="text-gray-800">{address}</span></p>
                     <p><span className="text-gray-500">طريقة الدفع:</span> <span className="text-gray-800">{method?.nameAr ?? PAYMENT_METHOD_LABELS[order.paymentMethod] ?? order.paymentMethod}</span></p>
@@ -223,9 +269,9 @@ export const OrderDetailPage: React.FC = () => {
                             {cancelling ? 'جاري الإلغاء...' : 'إلغاء الطلب'}
                         </button>
                     )}
-                </div>
+                </Card>
 
-                <div className="bg-white rounded-2xl shadow-sm border border-brand-blue-soft p-6">
+                <Card className="p-6">
                     <h2 className="font-bold text-gray-800 mb-3">سجل الطلب</h2>
                     {history.length === 0 ? (
                         <p className="text-sm text-gray-500">{ORDER_STATUS_LABELS[order.status]}</p>
@@ -243,8 +289,26 @@ export const OrderDetailPage: React.FC = () => {
                             ))}
                         </ol>
                     )}
-                </div>
+                </Card>
             </div>
+
+            {order.status === 'delivered' && reviewable.length > 0 && (
+                <Card className="p-6">
+                    <h2 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><Star className="w-5 h-5 text-brand-blue" /> قيّمي منتجاتك</h2>
+                    <ul className="space-y-2">
+                        {reviewable.map((item) => (
+                            <li key={item.productId} className="flex items-center justify-between gap-3 text-sm">
+                                <span className="font-bold text-gray-800">{item.productName}</span>
+                                {item.alreadyReviewed ? (
+                                    <span className="text-xs font-bold text-green-700 flex items-center gap-1 shrink-0"><CheckCircle2 className="w-4 h-4" /> تم التقييم</span>
+                                ) : (
+                                    <Link to={`/product/${item.productId}`} className={`${secondaryButtonClass} text-xs py-1.5 px-3 shrink-0`}>قيّمي المنتج</Link>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                </Card>
+            )}
 
             {needsProof && (
                 <form onSubmit={handleProofSubmit} className="bg-white rounded-2xl shadow-sm border border-amber-200 p-6 space-y-3">

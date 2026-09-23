@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { signupErrorMessage } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
 import { Mail, Lock, User, Phone, Loader2, MailCheck } from 'lucide-react';
+import { Notice } from '../../components/ui';
 
 export const SignupPage: React.FC = () => {
     const navigate = useNavigate();
@@ -78,11 +79,7 @@ export const SignupPage: React.FC = () => {
                     </div>
 
                     <form onSubmit={handleSignup} className="space-y-4">
-                        {error && (
-                            <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm border border-red-100">
-                                {error}
-                            </div>
-                        )}
+                        {error && <Notice kind="error">{error}</Notice>}
 
                         <label className="space-y-2 block">
                             <span className="text-sm font-bold text-gray-700">الاسم الكامل</span>

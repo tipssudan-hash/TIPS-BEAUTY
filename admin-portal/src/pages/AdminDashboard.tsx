@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingBag, DollarSign, PackageCheck, Clock, Plus, AlertTriangle, Loader2, MapPin } from 'lucide-react';
+import { ShoppingBag, DollarSign, PackageCheck, Clock, Plus, AlertTriangle, MapPin } from 'lucide-react';
 import { fetchBusinessReport, type BusinessReport } from '../lib/adminApi';
 import { formatNumber, formatSDG } from '../lib/format';
 import { errorMessage } from '../lib/errors';
+import { Card, Notice, Spinner } from '../components/ui';
 
 const DAYS = 30;
 
@@ -42,17 +43,15 @@ export const AdminDashboard: React.FC = () => {
                 </div>
             </div>
 
-            {error && <div className="bg-red-50 border border-red-100 text-red-700 rounded-2xl px-6 py-4 text-sm font-bold">{error}</div>}
+            {error && <Notice kind="error">{error}</Notice>}
 
-            {!report && !error && (
-                <div className="flex items-center justify-center py-20 text-slate-400"><Loader2 className="w-8 h-8 animate-spin" /></div>
-            )}
+            {!report && !error && <Spinner />}
 
             {report && (
                 <>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         {kpiCards.map((card) => (
-                            <div key={card.label} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                            <Card key={card.label} className="p-6 hover:shadow-md transition-shadow relative overflow-hidden group">
                                 <div className={`absolute top-0 right-0 w-24 h-24 ${KPI_STYLES[card.color].blob} rounded-full -mr-12 -mt-12 opacity-50 group-hover:scale-110 transition-transform`}></div>
                                 <div className="relative">
                                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 border ${KPI_STYLES[card.color].icon}`}>
@@ -61,12 +60,12 @@ export const AdminDashboard: React.FC = () => {
                                     <p className="text-sm font-bold text-slate-500 mb-1">{card.label}</p>
                                     <h3 className="text-2xl font-black text-slate-900">{card.value}</h3>
                                 </div>
-                            </div>
+                            </Card>
                         ))}
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+                        <Card className="p-8">
                             <h3 className="text-xl font-black text-slate-900 mb-6">إجراءات سريعة</h3>
                             <div className="grid grid-cols-2 gap-4">
                                 <Link to="/orders?status=new" className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl bg-slate-50 border border-slate-100 text-slate-700 hover:bg-blue-50 hover:border-blue-100 hover:text-brand-blue transition-all group">
@@ -86,9 +85,9 @@ export const AdminDashboard: React.FC = () => {
                                     <span className="font-bold text-sm">تم التوصيل ({formatNumber(report.delivered_orders)})</span>
                                 </Link>
                             </div>
-                        </div>
+                        </Card>
 
-                        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+                        <Card className="p-8">
                             <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-2"><MapPin className="w-5 h-5 text-brand-blue" /> الطلبات حسب المحلية</h3>
                             {report.by_city.length === 0 ? (
                                 <p className="text-sm text-slate-400 font-bold">لا توجد طلبات في هذه الفترة.</p>
@@ -102,9 +101,9 @@ export const AdminDashboard: React.FC = () => {
                                     ))}
                                 </ul>
                             )}
-                        </div>
+                        </Card>
 
-                        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+                        <Card className="p-8">
                             <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-amber-500" /> مخزون منخفض</h3>
                             {report.low_stock.length === 0 ? (
                                 <p className="text-sm text-slate-400 font-bold">لا توجد منتجات تحت حد إعادة الطلب.</p>
@@ -123,7 +122,7 @@ export const AdminDashboard: React.FC = () => {
                                     ))}
                                 </ul>
                             )}
-                        </div>
+                        </Card>
                     </div>
                 </>
             )}

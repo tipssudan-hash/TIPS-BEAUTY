@@ -41,7 +41,7 @@ export const OrderStepper: React.FC<{ status: OrderStatus; history: OrderStatusE
                             <span className="min-w-0">
                                 <span className={cn('block text-sm', upcoming ? 'text-gray-400' : 'font-bold text-gray-800')}>{step.label}</span>
                                 {current && <span className="block text-xs text-gray-500">{step.hint}</span>}
-                                {at && !upcoming && <span className="block text-[11px] text-gray-400">{formatDateTime(at)}</span>}
+                                {at && !upcoming && <span className="block text-[10px] text-gray-400">{formatDateTime(at)}</span>}
                             </span>
                         </li>
                     );

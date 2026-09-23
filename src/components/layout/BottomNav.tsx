@@ -29,7 +29,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ cartCount }) => {
                             <Link
                                 to={to}
                                 aria-current={active ? 'page' : undefined}
-                                className={cn('relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-bold transition-colors', active ? 'text-brand-blue' : 'text-gray-500 hover:text-brand-blue')}
+                                className={cn('relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-colors', active ? 'text-brand-blue' : 'text-gray-500 hover:text-brand-blue')}
                             >
                                 <Icon className={cn('w-5 h-5', active && 'stroke-[2.5]')} />
                                 <span>{label}</span>

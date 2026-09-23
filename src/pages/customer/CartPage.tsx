@@ -4,6 +4,7 @@ import { useStore } from '../../context/StoreContext';
 import { Trash2, Plus, Minus, ShoppingBag } from 'lucide-react';
 import { cartLineKey, cartLineUnavailable, cartUnitPrice } from '../../lib/pricing';
 import { formatSDG } from '../../lib/format';
+import { EmptyState, primaryButtonClass } from '../../components/ui';
 
 export const CartPage: React.FC = () => {
     const { cart, products, removeFromCart, updateQuantity } = useStore();
@@ -13,18 +14,13 @@ export const CartPage: React.FC = () => {
 
     if (cart.length === 0) {
         return (
-            <div className="max-w-4xl mx-auto p-8 text-center">
-                <div className="bg-white rounded-2xl shadow-sm border border-brand-blue-soft p-12">
-                    <ShoppingBag className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <h2 className="text-2xl font-bold text-gray-800 mb-2">السلة فارغة</h2>
-                    <p className="text-gray-600 mb-6">لم تضيفي أي منتجات بعد</p>
-                    <Link
-                        to="/"
-                        className="inline-block bg-brand-blue hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl transition-all"
-                    >
-                        تسوقي الآن
-                    </Link>
-                </div>
+            <div className="max-w-4xl mx-auto p-8">
+                <EmptyState
+                    icon={<ShoppingBag className="w-7 h-7" />}
+                    title="السلة فارغة"
+                    body="لم تضيفي أي منتجات بعد"
+                    action={<Link to="/" className={primaryButtonClass}>تسوقي الآن</Link>}
+                />
             </div>
         );
     }
@@ -45,7 +41,7 @@ export const CartPage: React.FC = () => {
                     {cart.map((item) => (
                         <div
                             key={cartLineKey(item)}
-                            className="bg-white rounded-xl shadow-sm border border-brand-blue-soft p-4 flex gap-4"
+                            className="bg-white rounded-xl shadow-card border border-brand-blue-soft p-4 flex gap-4"
                         >
                             <img
                                 src={item.image}
@@ -64,7 +60,7 @@ export const CartPage: React.FC = () => {
                                 <button
                                     aria-label="إزالة"
                                     onClick={() => removeFromCart(cartLineKey(item))}
-                                    className="text-red-500 hover:text-red-700 p-1"
+                                    className="min-w-11 min-h-11 flex items-center justify-center text-red-500 hover:text-red-700"
                                 >
                                     <Trash2 className="w-4 h-4" />
                                 </button>
@@ -72,7 +68,7 @@ export const CartPage: React.FC = () => {
                                     <button
                                         aria-label="تقليل الكمية"
                                         onClick={() => updateQuantity(cartLineKey(item), item.quantity - 1)}
-                                        className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                                        className="min-w-11 min-h-11 flex items-center justify-center hover:bg-gray-200 rounded-lg transition-colors"
                                     >
                                         <Minus className="w-4 h-4" />
                                     </button>
@@ -80,7 +76,7 @@ export const CartPage: React.FC = () => {
                                     <button
                                         aria-label="زيادة الكمية"
                                         onClick={() => updateQuantity(cartLineKey(item), item.quantity + 1)}
-                                        className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                                        className="min-w-11 min-h-11 flex items-center justify-center hover:bg-gray-200 rounded-lg transition-colors"
                                     >
                                         <Plus className="w-4 h-4" />
                                     </button>
@@ -92,7 +88,7 @@ export const CartPage: React.FC = () => {
 
                 {/* Order Summary */}
                 <div className="md:col-span-1">
-                    <div className="bg-white rounded-xl shadow-sm border border-brand-blue-soft p-6 sticky top-4">
+                    <div className="bg-white rounded-xl shadow-card border border-brand-blue-soft p-6 sticky top-4">
                         <h2 className="font-bold text-gray-800 mb-4">ملخص الطلب</h2>
                         <div className="space-y-3 mb-4">
                             <div className="flex justify-between text-sm">

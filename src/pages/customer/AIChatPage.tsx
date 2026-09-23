@@ -4,6 +4,7 @@ import { Send, Sparkles } from 'lucide-react';
 import { askBeautyAdvice } from '../../lib/api';
 import { errorMessage } from '../../lib/errors';
 import { useAuth } from '../../context/AuthContext';
+import { Card } from '../../components/ui';
 
 export const AIChatPage: React.FC = () => {
     const { user, loading: authLoading } = useAuth();
@@ -64,7 +65,7 @@ export const AIChatPage: React.FC = () => {
                 </Link>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-brand-blue-soft flex-1 flex flex-col overflow-hidden">
+            <Card className="flex-1 flex flex-col overflow-hidden">
                 {/* Header */}
                 <div className="bg-gradient-to-r from-brand-blue to-teal-500 p-4 text-white">
                     <div className="flex items-center gap-2">
@@ -128,7 +129,7 @@ export const AIChatPage: React.FC = () => {
                         </button>
                     </div>
                 </div>
-            </div>
+            </Card>
         </div>
     );
 };

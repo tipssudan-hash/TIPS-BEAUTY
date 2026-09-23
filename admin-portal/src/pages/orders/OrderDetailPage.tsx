@@ -9,6 +9,7 @@ import {
 import { ALLOWED_TRANSITIONS, formatDateTime, formatSDG, orderStatusDot, orderStatusLabel, orderStatusStyle, paymentMethodLabel, paymentStatusLabel, paymentStatusStyle, type OrderStatus } from '../../lib/format';
 import { orderLineRuleLabel, orderUnitPrice } from '../../lib/pricing';
 import { errorMessage } from '../../lib/errors';
+import { Card, Notice } from '../../components/ui';
 
 const PROOF_STATUS_LABELS: Record<string, string> = { pending: 'بانتظار المراجعة', verified: 'تم التحقق', rejected: 'مرفوض' };
 
@@ -139,11 +140,11 @@ export const OrderDetailPage: React.FC = () => {
                 </div>
             </div>
 
-            {error && <div className="bg-red-50 border border-red-100 text-red-700 rounded-2xl px-6 py-4 text-sm font-bold">{error}</div>}
+            {error && <Notice kind="error">{error}</Notice>}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-8">
-                    <section className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                    <Card className="overflow-hidden">
                         <h2 className="px-6 py-4 font-black text-slate-900 border-b border-slate-100">المنتجات</h2>
                         <table className="w-full text-right">
                             <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -180,9 +181,9 @@ export const OrderDetailPage: React.FC = () => {
                                 <tr className="border-t border-slate-200"><td colSpan={3} className="px-6 py-3 font-black text-slate-900">الإجمالي النهائي</td><td className="px-6 py-3 text-left font-black text-brand-blue text-lg">{formatSDG(order.total)}</td></tr>
                             </tfoot>
                         </table>
-                    </section>
+                    </Card>
 
-                    <section className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+                    <Card className="p-6">
                         <h2 className="font-black text-slate-900 mb-4 flex items-center gap-2"><Clock className="w-5 h-5 text-brand-blue" /> تغيير الحالة</h2>
                         <textarea
                             value={note}
@@ -207,9 +208,9 @@ export const OrderDetailPage: React.FC = () => {
                                 ))}
                             </div>
                         )}
-                    </section>
+                    </Card>
 
-                    <section className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+                    <Card className="p-6">
                         <h2 className="font-black text-slate-900 mb-4">سجل الحالات</h2>
                         <ol className="space-y-3">
                             {history.map((entry) => (
@@ -223,19 +224,19 @@ export const OrderDetailPage: React.FC = () => {
                             ))}
                             {history.length === 0 && <li className="text-sm text-slate-400">لا يوجد سجل بعد.</li>}
                         </ol>
-                    </section>
+                    </Card>
                 </div>
 
                 <div className="space-y-8">
-                    <section className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 text-sm">
+                    <Card className="p-6 text-sm">
                         <h2 className="font-black text-slate-900 mb-4 flex items-center gap-2"><MapPin className="w-5 h-5 text-brand-blue" /> العميل والتوصيل</h2>
                         <p className="font-bold text-slate-900">{order.customer_name}</p>
                         <p className="text-slate-600" dir="ltr">{order.phone}</p>
                         <p className="text-slate-600 mt-3">{[order.shipping_address, order.city, order.state].filter(Boolean).join('، ')}</p>
                         {order.notes && <p className="mt-3 text-slate-500 text-xs bg-slate-50 rounded-xl p-3">{order.notes}</p>}
-                    </section>
+                    </Card>
 
-                    <section className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 text-sm">
+                    <Card className="p-6 text-sm">
                         <h2 className="font-black text-slate-900 mb-4 flex items-center gap-2"><CreditCard className="w-5 h-5 text-brand-blue" /> الدفع</h2>
                         <dl className="space-y-2">
                             <div className="flex justify-between"><dt className="text-slate-500">الطريقة</dt><dd className="font-bold">{paymentMethodLabel(order.payment_method)}</dd></div>
@@ -279,9 +280,9 @@ export const OrderDetailPage: React.FC = () => {
                                 )}
                             </div>
                         )}
-                    </section>
+                    </Card>
 
-                    <section className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 text-sm">
+                    <Card className="p-6 text-sm">
                         <h2 className="font-black text-slate-900 mb-4 flex items-center gap-2"><Truck className="w-5 h-5 text-brand-blue" /> التجهيز والتوصيل</h2>
                         <label className="block mb-3">
                             <span className="text-xs font-bold text-slate-500 flex items-center gap-1 mb-1"><Warehouse className="w-3 h-3" /> المخزن</span>
@@ -316,7 +317,7 @@ export const OrderDetailPage: React.FC = () => {
                             حفظ التعيين
                         </button>
                         {assignmentLocked && <p className="text-[11px] text-slate-400 mt-2">لا يمكن تغيير التعيين بعد بدء التوصيل.</p>}
-                    </section>
+                    </Card>
                 </div>
             </div>
         </div>

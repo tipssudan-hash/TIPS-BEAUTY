@@ -7,6 +7,7 @@ import { Heart, Share2, ShoppingCart, Check } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { ReviewSection } from '../../components/ui/ReviewSection';
 import { RelatedProducts } from '../../components/ui/RelatedProducts';
+import { Card, EmptyState, Spinner } from '../../components/ui';
 
 export const ProductDetailsPage: React.FC = () => {
     const { id } = useParams();
@@ -71,22 +72,12 @@ export const ProductDetailsPage: React.FC = () => {
         setNotice(variant ? `تمت إضافة ${product.name_ar} (${variant.name_ar}) للسلة` : 'تمت إضافة المنتج للسلة');
     };
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-blue mx-auto mb-4"></div>
-                    <p className="text-gray-600">جاري التحميل...</p>
-                </div>
-            </div>
-        );
-    }
+    if (loading) return <Spinner />;
 
     if (!product) {
         return (
-            <div className="p-8 text-center">
-                <h1 className="text-2xl font-bold mb-4">المنتج غير موجود</h1>
-                <Link to="/" className="text-brand-blue underline">العودة للرئيسية</Link>
+            <div className="p-8">
+                <EmptyState title="المنتج غير موجود" action={<Link to="/" className="text-brand-blue underline font-bold">العودة للرئيسية</Link>} />
             </div>
         );
     }
@@ -110,7 +101,7 @@ export const ProductDetailsPage: React.FC = () => {
                 ← العودة للمنتجات
             </Link>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-brand-blue-soft overflow-hidden">
+            <Card className="overflow-hidden">
                 {/* Image Gallery */}
                 <div className="relative aspect-square bg-gray-50">
                     <img
@@ -249,7 +240,7 @@ export const ProductDetailsPage: React.FC = () => {
                         {product.stock > 0 ? 'أضيفي للسلة' : 'غير متوفر'}
                     </button>
                 </div>
-            </div>
+            </Card>
 
             <RelatedProducts currentProduct={product} />
             <ReviewSection productId={product.id} />

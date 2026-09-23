@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { User as UserIcon, LogOut, Package, ChevronLeft, Percent, Bell } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { Card } from '../../components/ui';
 
 export const SettingsPage: React.FC = () => {
     const { user, signOut } = useAuth();
@@ -20,7 +21,7 @@ export const SettingsPage: React.FC = () => {
             </div>
 
             <div className="space-y-6">
-                <section className="bg-white rounded-2xl p-6 shadow-sm border border-brand-blue-soft overflow-hidden relative">
+                <Card className="p-6 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-brand-blue-soft rounded-full -mr-16 -mt-16 opacity-50"></div>
                     <div className="relative flex items-center gap-4">
                         <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-brand-blue">
@@ -33,14 +34,14 @@ export const SettingsPage: React.FC = () => {
                             <p className="text-gray-500 text-sm">{user?.email}</p>
                         </div>
                     </div>
-                </section>
+                </Card>
 
                 {[
                     { to: '/orders', label: 'طلباتي', icon: Package },
                     { to: '/notifications', label: 'الإشعارات', icon: Bell },
                     { to: '/offers', label: 'العروض', icon: Percent },
                 ].map(({ to, label, icon: Icon }) => (
-                    <Link key={to} to={to} className="flex items-center justify-between bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:border-brand-blue-soft transition-colors">
+                    <Link key={to} to={to} className="flex items-center justify-between bg-white rounded-card p-6 shadow-card border border-brand-blue-soft hover:border-brand-blue transition-colors">
                         <span className="flex items-center gap-3 font-bold text-gray-800">
                             <Icon className="w-6 h-6 text-brand-blue" />
                             {label}

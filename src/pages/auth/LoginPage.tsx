@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { loginErrorMessage } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
 import { Mail, Lock, Loader2 } from 'lucide-react';
+import { Notice } from '../../components/ui';
 
 export const LoginPage: React.FC = () => {
     const navigate = useNavigate();
@@ -46,11 +47,7 @@ export const LoginPage: React.FC = () => {
                     </div>
 
                     <form onSubmit={handleLogin} className="space-y-6">
-                        {error && (
-                            <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm border border-red-100">
-                                {error}
-                            </div>
-                        )}
+                        {error && <Notice kind="error">{error}</Notice>}
 
                         <label className="space-y-2 block">
                             <span className="text-sm font-bold text-gray-700">البريد الإلكتروني</span>

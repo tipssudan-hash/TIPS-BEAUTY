@@ -97,7 +97,7 @@ export const CollectionFormPage: React.FC = () => {
 
     return (
         <div className="max-w-4xl mx-auto space-y-8 pb-20">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-5 rounded-3xl border border-slate-100 shadow-sm sticky top-4 z-30">
+            <Card className="flex flex-col md:flex-row md:items-center justify-between gap-6 p-5 sticky top-4 z-30">
                 <div className="flex items-center gap-4">
                     <button type="button" onClick={() => navigate('/collections')} className="p-3 bg-slate-50 hover:bg-blue-50 hover:text-brand-blue rounded-2xl transition-all" aria-label="رجوع">
                         <ArrowRight className="w-6 h-6" />
@@ -108,7 +108,7 @@ export const CollectionFormPage: React.FC = () => {
                     {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                     <span>حفظ التشكيلة</span>
                 </button>
-            </div>
+            </Card>
 
             {error && <Notice kind="error">{error}</Notice>}
 

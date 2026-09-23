@@ -8,7 +8,7 @@ import { cn } from '../lib/cn';
 // Checked for export-surface parity by scripts/check-primitives-parity.mjs.
 
 export const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
-    <div className={cn('bg-white rounded-card border border-gray-100 shadow-card', className)}>{children}</div>
+    <div className={cn('bg-white rounded-card border border-brand-blue-soft shadow-card', className)}>{children}</div>
 );
 
 export const Notice: React.FC<{ kind: 'error' | 'success'; children: React.ReactNode }> = ({ kind, children }) => (

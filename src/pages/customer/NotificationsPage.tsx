@@ -22,7 +22,7 @@ const NotificationRow: React.FC<{ n: CustomerNotification; onOpen: (n: CustomerN
             <span className="min-w-0 flex-1">
                 <span className="flex items-start justify-between gap-3">
                     <span className={`text-sm ${n.isRead ? 'font-semibold text-gray-700' : 'font-bold text-gray-900'}`}>{n.title}</span>
-                    <time dateTime={n.createdAt} className="shrink-0 text-[11px] text-gray-400">{formatRelative(n.createdAt)}</time>
+                    <time dateTime={n.createdAt} className="shrink-0 text-[10px] text-gray-400">{formatRelative(n.createdAt)}</time>
                 </span>
                 <span className="mt-0.5 block text-sm text-gray-600">{n.body}</span>
             </span>

@@ -161,7 +161,7 @@ export const AdminLayout: React.FC = () => {
                 </header>
 
                 {/* Dashboard Viewport */}
-                <main className="flex-1 overflow-y-auto bg-[#F8FAFC] custom-scrollbar">
+                <main className="flex-1 overflow-y-auto bg-slate-50 custom-scrollbar">
                     <div className="max-w-[1600px] mx-auto p-4 md:p-8 lg:p-10">
                         <Outlet />
                     </div>
