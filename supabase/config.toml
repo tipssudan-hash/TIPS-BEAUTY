@@ -422,3 +422,14 @@ verify_jwt = true
 
 [functions.order-status-push]
 verify_jwt = true
+
+# Supabase's Send SMS hook signs with a shared secret (webhook-signature), not a user JWT, so gateway
+# JWT verification would reject every call. The function verifies SEND_SMS_HOOK_SECRET itself and fails
+# closed when it is unset.
+[functions.send-otp]
+verify_jwt = false
+
+# Invoked by pg_cron (dispatch_whatsapp_queue) via net.http_post, which sends only x-cron-key. Same
+# arrangement as send-order-emails.
+[functions.send-order-whatsapp]
+verify_jwt = false

@@ -19,8 +19,9 @@ the Sudanese leg.
 
 Preconditions, in this order. Each one blocks everything under it.
 
-- [ ] All 31 migrations applied (`supabase db push` — see the command in `docs/MOBILE.md`)
-- [ ] Edge functions deployed: `send-otp`, `send-order-whatsapp`, `order-status-push`
+- [x] All 33 migrations applied (done 2026-09-24)
+- [x] Edge functions deployed: `send-otp`, `send-order-whatsapp`, `order-status-push` (done
+      2026-09-24; all three return their own 401 until their secrets exist — deployed is not configured)
 - [ ] Google Cloud OAuth clients (web + Android + iOS) created and listed on Supabase's Google provider
 - [ ] Apple: App ID with Sign in with Apple + Associated Domains, listed on Supabase's Apple provider
 - [ ] Firebase project with both apps, APNs `.p8` key uploaded, `FCM_SERVICE_ACCOUNT_JSON` set
