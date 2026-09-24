@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { cartLineKey, cartLineUnavailable, cartUnitPrice, orderUnitPrice } from '../../src/lib/pricing';
+﻿import { describe, expect, it } from 'vitest';
+import { cartLineKey, cartLineUnavailable, cartUnitPrice, orderUnitPrice } from '@domain/valueObjects';
 
 // Prices come from the backend (effective_price); these helpers only choose which snapshot to show.
 

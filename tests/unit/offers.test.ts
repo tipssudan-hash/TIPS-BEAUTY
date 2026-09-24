@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { offerEndsLabel, offerScopeLabel, offerValueLabel } from '../../src/lib/offers';
+﻿import { describe, expect, it } from 'vitest';
+import { offerEndsLabel, offerScopeLabel, offerValueLabel } from '@application/services/offers';
 
 describe('offer copy', () => {
     it('says how much, on what, and until when in the glossary words', () => {

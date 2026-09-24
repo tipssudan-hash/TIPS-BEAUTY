@@ -10,7 +10,7 @@ import path from 'node:path';
 
 const repoRoot = path.dirname(fileURLToPath(import.meta.url)) + '/..';
 
-const STOREFRONT_UI = path.join(repoRoot, 'src/components/ui.tsx');
+const STOREFRONT_UI = path.join(repoRoot, 'src/presentation/components/ui/index.tsx');
 const ADMIN_UI = path.join(repoRoot, 'admin-portal/src/components/ui.tsx');
 
 // The subset both portals genuinely use today (per the design-system audit). Names outside

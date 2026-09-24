@@ -1,36 +1,36 @@
 import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { Header } from './src/components/layout/Header';
-import { BottomNav } from './src/components/layout/BottomNav';
-import { ErrorBoundary } from './src/components/layout/ErrorBoundary';
-import { VerifiedRoute } from './src/components/layout/VerifiedRoute';
-import { NativeBridge } from './src/components/layout/NativeBridge';
-import { OfflineBanner } from './src/components/layout/OfflineBanner';
-import { Spinner } from './src/components/ui';
-import { HomePage } from './src/pages/customer/HomePage';
-import { useStore } from './src/context/StoreContext';
-import { useAuth } from './src/context/AuthContext';
+import { Header } from '@presentation/components/layout/Header';
+import { BottomNav } from '@presentation/components/layout/BottomNav';
+import { ErrorBoundary } from '@presentation/components/layout/ErrorBoundary';
+import { VerifiedRoute } from '@presentation/components/layout/VerifiedRoute';
+import { NativeBridge } from '@presentation/components/layout/NativeBridge';
+import { OfflineBanner } from '@presentation/components/layout/OfflineBanner';
+import { Spinner } from '@presentation/components/ui';
+import { HomePage } from '@presentation/pages/customer/HomePage';
+import { useStore } from '@presentation/context/StoreContext';
+import { useAuth } from '@presentation/context/AuthContext';
 
 // Home ships in the main bundle (it is the landing page); every other route loads on demand so the
 // first paint on a phone is not paying for checkout, orders and the AI chat.
-const SearchPage = lazy(() => import('./src/pages/customer/SearchPage').then((m) => ({ default: m.SearchPage })));
-const ProductDetailsPage = lazy(() => import('./src/pages/customer/ProductDetailsPage').then((m) => ({ default: m.ProductDetailsPage })));
-const CartPage = lazy(() => import('./src/pages/customer/CartPage').then((m) => ({ default: m.CartPage })));
-const CheckoutPage = lazy(() => import('./src/pages/customer/CheckoutPage').then((m) => ({ default: m.CheckoutPage })));
-const MyOrdersPage = lazy(() => import('./src/pages/customer/MyOrdersPage').then((m) => ({ default: m.MyOrdersPage })));
-const OrderDetailPage = lazy(() => import('./src/pages/customer/OrderDetailPage').then((m) => ({ default: m.OrderDetailPage })));
-const SettingsPage = lazy(() => import('./src/pages/customer/SettingsPage').then((m) => ({ default: m.SettingsPage })));
-const OffersPage = lazy(() => import('./src/pages/customer/OffersPage').then((m) => ({ default: m.OffersPage })));
-const NotificationsPage = lazy(() => import('./src/pages/customer/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
-const AIChatPage = lazy(() => import('./src/pages/customer/AIChatPage').then((m) => ({ default: m.AIChatPage })));
-const LoginPage = lazy(() => import('./src/pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
-const SignupPage = lazy(() => import('./src/pages/auth/SignupPage').then((m) => ({ default: m.SignupPage })));
-const AuthCallbackPage = lazy(() => import('./src/pages/auth/AuthCallbackPage').then((m) => ({ default: m.AuthCallbackPage })));
-const PrivacyPolicyPage = lazy(() => import('./src/pages/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage })));
-const DriverLayout = lazy(() => import('./src/pages/driver/DriverLayout').then((m) => ({ default: m.DriverLayout })));
-const DriverHomePage = lazy(() => import('./src/pages/driver/DriverHomePage').then((m) => ({ default: m.DriverHomePage })));
-const DriverOrderPage = lazy(() => import('./src/pages/driver/DriverOrderPage').then((m) => ({ default: m.DriverOrderPage })));
-const NotFoundPage = lazy(() => import('./src/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
+const SearchPage = lazy(() => import('@presentation/pages/customer/SearchPage').then((m) => ({ default: m.SearchPage })));
+const ProductDetailsPage = lazy(() => import('@presentation/pages/customer/ProductDetailsPage').then((m) => ({ default: m.ProductDetailsPage })));
+const CartPage = lazy(() => import('@presentation/pages/customer/CartPage').then((m) => ({ default: m.CartPage })));
+const CheckoutPage = lazy(() => import('@presentation/pages/customer/CheckoutPage').then((m) => ({ default: m.CheckoutPage })));
+const MyOrdersPage = lazy(() => import('@presentation/pages/customer/MyOrdersPage').then((m) => ({ default: m.MyOrdersPage })));
+const OrderDetailPage = lazy(() => import('@presentation/pages/customer/OrderDetailPage').then((m) => ({ default: m.OrderDetailPage })));
+const SettingsPage = lazy(() => import('@presentation/pages/customer/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const OffersPage = lazy(() => import('@presentation/pages/customer/OffersPage').then((m) => ({ default: m.OffersPage })));
+const NotificationsPage = lazy(() => import('@presentation/pages/customer/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
+const AIChatPage = lazy(() => import('@presentation/pages/customer/AIChatPage').then((m) => ({ default: m.AIChatPage })));
+const LoginPage = lazy(() => import('@presentation/pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
+const SignupPage = lazy(() => import('@presentation/pages/auth/SignupPage').then((m) => ({ default: m.SignupPage })));
+const AuthCallbackPage = lazy(() => import('@presentation/pages/auth/AuthCallbackPage').then((m) => ({ default: m.AuthCallbackPage })));
+const PrivacyPolicyPage = lazy(() => import('@presentation/pages/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage })));
+const DriverLayout = lazy(() => import('@presentation/pages/driver/DriverLayout').then((m) => ({ default: m.DriverLayout })));
+const DriverHomePage = lazy(() => import('@presentation/pages/driver/DriverHomePage').then((m) => ({ default: m.DriverHomePage })));
+const DriverOrderPage = lazy(() => import('@presentation/pages/driver/DriverOrderPage').then((m) => ({ default: m.DriverOrderPage })));
+const NotFoundPage = lazy(() => import('@presentation/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
@@ -66,11 +66,11 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50/50 pb-20 font-sans text-gray-900" dir="rtl">
+    <div className="min-h-screen bg-gray-50/50 pb-20 md:pb-10 font-sans text-gray-900 flex flex-col justify-between" dir="rtl">
       <NativeBridge />
       <OfflineBanner />
       <Header cartCount={cartCount} />
-      <main>
+      <main className="flex-1">
         <ErrorBoundary>
           <Suspense fallback={<Spinner />}>
             <Routes>

@@ -2,12 +2,12 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import './index.css';
-import { AuthProvider } from './src/context/AuthContext';
-import { StoreProvider } from './src/context/StoreContext';
-import { NotificationsProvider } from './src/context/NotificationsContext';
+import { AuthProvider } from '@presentation/context/AuthContext';
+import { StoreProvider } from '@presentation/context/StoreContext';
+import { NotificationsProvider } from '@presentation/context/NotificationsContext';
 import { BrowserRouter } from 'react-router-dom';
-import { bootstrapNative } from './src/lib/native/bootstrap';
-import { isNative } from './src/lib/auth/platform';
+import { bootstrapNative } from '@infrastructure/native/bootstrap';
+import { isNative } from '@infrastructure/auth/platform';
 
 // Native plugins and the native sign-in strategy are registered before React mounts, so no screen
 // can render against a half-initialised shell. Failures are logged, never fatal.

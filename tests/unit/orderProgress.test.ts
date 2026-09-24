@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { orderProgress } from '../../src/lib/orderProgress';
-import type { OrderStatusEntry } from '../../src/types';
+﻿import { describe, expect, it } from 'vitest';
+import { orderProgress } from '@application/services/orderProgress';
+import type { OrderStatusEntry } from '@domain/entities';
 
 const entry = (status: OrderStatusEntry['status'], at: string, note: string | null = null): OrderStatusEntry => ({ id: `${status}-${at}`, status, note, createdAt: at });
 

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { formatSudanPhone, isValidSudanPhone, normalizeSudanPhone } from '../../src/lib/auth/phone';
+﻿import { describe, expect, it } from 'vitest';
+import { formatSudanPhone, isValidSudanPhone, normalizeSudanPhone } from '@infrastructure/auth/phone';
 
 // This must agree with normalize_sd_phone() in the database, case for case. If the two ever disagree,
 // a customer types a number, gets a code sent to a different string, and the verification "fails" for

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+﻿import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
@@ -12,7 +12,7 @@ function arabicAvoidTerms(): { term: string; entry: string }[] {
     const glossary = readFileSync(join(ROOT, 'CONTEXT.md'), 'utf8');
     const out: { term: string; entry: string }[] = [];
     let entry = '';
-    for (const line of glossary.split('\n')) {
+    for (const line of glossary.split(/\r?\n/)) {
         const heading = line.match(/^\*\*(.+?)\*\*/);
         if (heading) entry = heading[1];
         const avoid = line.match(/^_Avoid_:\s*(.+)$/);

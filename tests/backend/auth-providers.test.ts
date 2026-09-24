@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { anonClient, creds, haveCreds, rpc, signedInClient } from './helpers';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { anonClient, creds, haveCreds, rpc, signedInClient, type Client } from './helpers';
 
 // Multi-provider auth (migration 20260923000000). Three contracts the app leans on:
 // - normalize_sd_phone is the single definition of "the same number", so the unique index on a
@@ -11,7 +11,11 @@ import { anonClient, creds, haveCreds, rpc, signedInClient } from './helpers';
 const suite = haveCreds ? describe : describe.skip;
 
 suite('normalize_sd_phone', () => {
-    const anon = anonClient();
+    let anon: Client;
+
+    beforeAll(() => {
+        anon = anonClient();
+    });
     const normalize = async (input: string | null) => {
         const { data, error } = await rpc(anon, 'normalize_sd_phone', { p_phone: input });
         if (error) throw error;

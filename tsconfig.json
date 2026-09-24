@@ -14,7 +14,19 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "allowImportingTsExtensions": true,
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@domain/*": ["src/domain/*"],
+      "@domain": ["src/domain/index.ts"],
+      "@application/*": ["src/application/*"],
+      "@application": ["src/application/index.ts"],
+      "@infrastructure/*": ["src/infrastructure/*"],
+      "@infrastructure": ["src/infrastructure/index.ts"],
+      "@presentation/*": ["src/presentation/*"],
+      "@presentation": ["src/presentation/index.ts"],
+      "@/*": ["src/*"]
+    }
   },
   "include": ["src", "App.tsx", "index.tsx", "vite.config.ts"]
 }

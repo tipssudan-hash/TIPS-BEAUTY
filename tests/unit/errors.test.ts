@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import * as storefront from '../../src/lib/errors';
+﻿import { describe, expect, it } from 'vitest';
+import * as storefront from '@application/errors';
 import * as admin from '../../admin-portal/src/lib/errors';
 
 // One error-mapping module and one formatting module per app (T2-05). The backend raises

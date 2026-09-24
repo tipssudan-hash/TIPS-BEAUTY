@@ -1,12 +1,13 @@
 # Admin Application - Setup Guide
 
-## Current Status
+###### Current Status
 
 The **Admin application is currently NOT implemented** as a separate application. During the refactoring process, we prioritized the customer-facing application as per your requirements.
 
 ## What Happened to the Old Admin Features?
 
 The original monolithic `App.tsx` contained admin features (product management, order tracking, promotions, etc.). These were **removed** during the refactor to:
+
 1. Keep the customer app clean and focused
 2. Prepare for a separate admin application with its own authentication and permissions
 
@@ -17,29 +18,29 @@ The original monolithic `App.tsx` contained admin features (product management, 
 This is the approach you requested. Here's how to proceed:
 
 1. **Create a new directory** for the admin app:
+
    ```
    tips-beauty-admin/
    ```
-
 2. **Initialize a new React app** with the same tech stack:
+
    ```bash
    npm create vite@latest tips-beauty-admin -- --template react-ts
    ```
-
 3. **Share the Supabase backend** by using the same `.env` credentials
-
 4. **Implement admin-specific features**:
+
    - Product CRUD operations
    - Order management dashboard
    - Inventory tracking
    - Analytics and reports
    - Promotion management
-
 5. **Add authentication** using Supabase Auth:
+
    - Only allow specific email addresses (admin@tips-beauty.com)
    - Implement role-based access control (RBAC)
-
 6. **Deploy separately** on a different subdomain:
+
    - Customer app: `https://tips-beauty.com`
    - Admin app: `https://admin.tips-beauty.com`
 

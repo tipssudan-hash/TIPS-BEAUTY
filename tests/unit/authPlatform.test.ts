@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { isNative, nativePlatform, shouldOfferApple } from '../../src/lib/auth/platform';
+﻿import { afterEach, describe, expect, it } from 'vitest';
+import { isNative, nativePlatform, shouldOfferApple } from '@infrastructure/auth/platform';
 
 // The shell detection decides which sign-in flow runs: redirect on the web, native id_token in the
 // app. Getting it wrong on the web would send customers into a plugin that isn't there; getting it

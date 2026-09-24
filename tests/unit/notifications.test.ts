@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { notificationCategory, notificationLink } from '../../src/lib/notifications';
+﻿import { describe, expect, it } from 'vitest';
+import { notificationCategory, notificationLink } from '@application/services/notifications';
 
 // Trigger payloads only say '/orders'; the Storefront derives the real destination from the row.
 

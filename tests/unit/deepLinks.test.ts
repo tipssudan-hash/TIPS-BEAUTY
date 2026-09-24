@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { pathFromDeepLink } from '../../src/lib/native/deepLinks';
+﻿import { describe, expect, it } from 'vitest';
+import { pathFromDeepLink } from '@infrastructure/native/deepLinks';
 
 // Every order link we send by WhatsApp or email lands here. Two failure modes matter: a real link
 // that does not open the right screen (the customer gives up), and a foreign link that navigates the

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { formatDate, formatDateTime, formatSDG } from '../../src/lib/format';
+﻿import { describe, expect, it } from 'vitest';
+import { formatDate, formatDateTime, formatSDG } from '@application/services/format';
 import * as adminFormat from '../../admin-portal/src/lib/format';
 
 // One formatting module per app (T2-05); both apps must render the same money and dates.

@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.dirname(fileURLToPath(import.meta.url)) + '/..';
 
 const PAGE_GLOBS = [
-    path.join(repoRoot, 'src/pages'),
+    path.join(repoRoot, 'src/presentation/pages'),
     path.join(repoRoot, 'admin-portal/src/pages'),
 ];
 
