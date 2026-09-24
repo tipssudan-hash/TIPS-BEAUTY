@@ -12,10 +12,10 @@ TIPS-BEAUTY/
 ├── admin-portal/           # Staff Admin Management Portal (Vite + React 19 + Tailwind CSS)
 ├── mobile-app/             # Customer Mobile Application (React Native / Expo SDK 54 / Expo Router)
 ├── supabase/               # Complete Backend & Database Migrations
-│   ├── migrations/         # 26 incremental SQL migrations (0000 to 0025)
-│   ├── functions/          # Deno Edge Functions (beauty-advice, order-status-push, send-order-emails)
+│   ├── migrations/         # 31 incremental SQL migrations (run in filename order)
+│   ├── functions/          # Deno Edge Functions (beauty-advice, order-status-push, send-order-emails, send-otp, send-order-whatsapp)
 │   ├── storage-current.sql # Storage bucket definitions and RLS policies
-│   └── full_schema_setup.sql # 1-Click consolidated database initialization script
+│   └── full_schema_setup.sql # 1-Click consolidated init script (GENERATED — scripts/generate-full-schema.mjs)
 ├── tests/                  # Backend and Unit Test Suites (Vitest)
 │   ├── backend/            # Supabase RPC and database behavior tests
 │   └── unit/               # Frontend utility and pricing calculation tests
@@ -74,6 +74,11 @@ npm run dev:metro
 1. Open [Supabase Dashboard](https://supabase.com/dashboard) → **SQL Editor**.
 2. Paste contents of `supabase/full_schema_setup.sql` and run.
 3. Run `supabase/storage-current.sql` for storage buckets.
+
+> `full_schema_setup.sql` is generated from `supabase/migrations` by
+> `node scripts/generate-full-schema.mjs`. Never edit it by hand, and re-run the script after adding a
+> migration — `npm run lint` fails when it is out of date. A stale copy is worse than none: it produces a
+> database that looks complete while silently missing whatever was added after it was last generated.
 
 ### Option B: Supabase CLI
 ```bash

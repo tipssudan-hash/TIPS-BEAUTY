@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit -p tsconfig.json && vite build && node scripts/generate-well-known.mjs",
     "preview": "vite preview",
-    "lint": "eslint . && node scripts/check-primitives-parity.mjs && node scripts/check-no-local-style-constants.mjs",
+    "lint": "eslint . && node scripts/check-primitives-parity.mjs && node scripts/check-no-local-style-constants.mjs && node scripts/generate-full-schema.mjs --check",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:backend": "vitest run tests/backend",
