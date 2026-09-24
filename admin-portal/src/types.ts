@@ -175,6 +175,37 @@ export interface AdminReview {
     is_verified_purchase: boolean;
 }
 
+// Message delivery health. Three pipelines fail in three different tables (order notifications, login
+// codes, push), and a customer who heard nothing cannot tell you which one broke.
+export type DeliverySource = 'notification_queue' | 'otp_delivery_log' | 'push_notification_deliveries';
+
+export interface DeliveryFailure {
+    source: DeliverySource;
+    channel: string;
+    status: string;
+    recipient: string | null;
+    reference: string | null;
+    error_message: string | null;
+    attempts: number | null;
+    order_number: string | null;
+    created_at: string;
+}
+
+export interface DeliveryChannelStats {
+    sent: number;
+    pending?: number;
+    blocked?: number;
+    failed: number;
+}
+
+export interface DeliverySummary {
+    hours: number;
+    email: DeliveryChannelStats;
+    whatsapp: DeliveryChannelStats;
+    otp: DeliveryChannelStats;
+    push: DeliveryChannelStats;
+}
+
 export const SUDANESE_STATES = [
     'الخرطوم', 'الجزيرة', 'البحر الأحمر', 'نهر النيل', 'الشمالية',
     'شمال دارفور', 'غرب دارفور', 'جنوب دارفور', 'وسط دارفور', 'شرق دارفور',

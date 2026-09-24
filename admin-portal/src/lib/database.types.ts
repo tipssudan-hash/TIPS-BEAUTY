@@ -1674,6 +1674,21 @@ export type Database = {
         Args: { p_end?: string; p_start?: string }
         Returns: Json
       }
+      admin_delivery_failures: {
+        Args: { p_hours?: number; p_limit?: number }
+        Returns: {
+          attempts: number | null
+          channel: string
+          created_at: string
+          error_message: string | null
+          order_number: string | null
+          recipient: string | null
+          reference: string | null
+          source: string
+          status: string
+        }[]
+      }
+      admin_delivery_summary: { Args: { p_hours?: number }; Returns: Json }
       admin_delete_collection: { Args: { p_id: string }; Returns: undefined }
       admin_delete_coupon: { Args: { p_id: string }; Returns: undefined }
       admin_delete_promotion: { Args: { p_id: string }; Returns: undefined }

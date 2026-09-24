@@ -142,3 +142,55 @@ Nothing above proves delivery. On real handsets, one per network:
 4. Confirm the cooldown and the hourly cap behave, and read them back from `otp_delivery_log`.
 
 Choose the production provider from those numbers — verified delivery, reliability, then cost.
+
+---
+
+## Order confirmations on WhatsApp
+
+Phone sign-in creates customers with **no email address**, and the email pipeline sends confirmations to
+`profiles.email` — so those customers would hear nothing about an order they just placed. That hole is
+what the WhatsApp order notification closes.
+
+Scope is **one message**: the order confirmation, matching exactly what email customers get. Every extra
+template is a separate Meta approval in Arabic, and utility messages outside the 24-hour window are
+billed individually.
+
+- `queue_order_whatsapp_notification()` is a **second trigger** on `orders`, not an edit to the email
+  one, so a fault here cannot break the channel that already works. It queues only when the profile has
+  no email and a Sudanese phone can be resolved (profile first, then the order's own phone).
+- `dispatch_whatsapp_queue()` mirrors `dispatch_email_queue()` — same vault-secret pattern, same "do
+  nothing until the secrets exist" posture — and `send-order-whatsapp` drains the queue.
+- A number with no WhatsApp account (Meta error 131026/131051) is **cancelled rather than retried**:
+  retrying cannot fix it and each attempt is billable.
+
+Setup, once Meta Business Verification is through:
+
+```bash
+npx supabase functions deploy send-order-whatsapp --no-verify-jwt
+npx supabase secrets set WHATSAPP_ORDER_TEMPLATE=tips_beauty_order_created WHATSAPP_ORDER_LANGUAGE=ar
+```
+
+Then store the dispatcher's credentials in the vault, the same way the email pipeline does:
+
+```sql
+select vault.create_secret('<CRON_SECRET>', 'send_order_whatsapp_key');
+select vault.create_secret('https://<ref>.supabase.co/functions/v1/send-order-whatsapp', 'send_order_whatsapp_url');
+```
+
+The template must be a **utility**-category template with one body variable (the order number) —
+separate from the authentication template used for login codes, and approved separately.
+
+## Monitoring: حالة الإشعارات
+
+Admin Portal → **حالة الإشعارات** (`/delivery-health`) is the one screen that answers "did our messages
+actually go out?". It reads `admin_delivery_summary()` and `admin_delivery_failures()`, which union the
+three pipelines that used to fail in three separate tables:
+
+| Source | What it holds |
+| --- | --- |
+| `notification_queue` | Order confirmations, email and WhatsApp |
+| `otp_delivery_log` | Login codes, including rate-limiter refusals |
+| `push_notification_deliveries` | Push rejected by Expo or FCM |
+
+Rate-limiter refusals show as **محجوب** (amber), not as failures — that is the limiter working, and
+colouring it red would train staff to ignore the screen.

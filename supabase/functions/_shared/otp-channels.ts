@@ -8,6 +8,8 @@
 // fallback. Sudan has frequent nationwide internet shutdowns and SMS survives a data-only outage, which
 // is why both exist rather than just the cheap one.
 
+import { sendWhatsappTemplate, whatsappConfigured } from "./whatsapp.ts";
+
 export type OtpChannel = "whatsapp" | "sms";
 
 export type SendResult = {
@@ -20,53 +22,24 @@ export type SendResult = {
 const env = (key: string) => Deno.env.get(key)?.trim() || undefined;
 
 // ---------------------------------------------------------------------------- WhatsApp (Meta Cloud API)
-// Authentication-category template. The template itself is fixed-text and approved in Meta's console;
-// only the code is variable. Its name and language are configuration because approval is per-template.
-
-export function whatsappConfigured(): boolean {
-  return Boolean(env("WHATSAPP_PHONE_NUMBER_ID") && env("WHATSAPP_ACCESS_TOKEN"));
-}
+// Authentication-category template: fixed text, one body variable (the code), and a one-tap copy button
+// whose parameter is the same code. Approved separately from the order-notification template, which is
+// why the name and language are configuration.
 
 async function sendWhatsapp(phone: string, code: string): Promise<SendResult> {
-  const phoneNumberId = env("WHATSAPP_PHONE_NUMBER_ID");
-  const token = env("WHATSAPP_ACCESS_TOKEN");
-  const template = env("WHATSAPP_OTP_TEMPLATE") ?? "tips_beauty_otp";
-  const language = env("WHATSAPP_OTP_LANGUAGE") ?? "ar";
-  const version = env("WHATSAPP_API_VERSION") ?? "v21.0";
-
-  if (!phoneNumberId || !token) {
-    return { ok: false, provider: "whatsapp_cloud", messageId: null, error: "WhatsApp is not configured" };
-  }
-
-  try {
-    const response = await fetch(`https://graph.facebook.com/${version}/${phoneNumberId}/messages`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        // Meta wants the number without a leading +.
-        to: phone.replace(/^\+/, ""),
-        type: "template",
-        template: {
-          name: template,
-          language: { code: language },
-          components: [
-            { type: "body", parameters: [{ type: "text", text: code }] },
-            // Authentication templates carry a one-tap copy button whose payload is the code itself.
-            { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: code }] },
-          ],
-        },
-      }),
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const message = payload?.error?.message ?? `HTTP ${response.status}`;
-      return { ok: false, provider: "whatsapp_cloud", messageId: null, error: message };
-    }
-    return { ok: true, provider: "whatsapp_cloud", messageId: payload?.messages?.[0]?.id ?? null, error: null };
-  } catch (error) {
-    return { ok: false, provider: "whatsapp_cloud", messageId: null, error: error instanceof Error ? error.message : "WhatsApp send failed" };
-  }
+  const result = await sendWhatsappTemplate({
+    phone,
+    template: env("WHATSAPP_OTP_TEMPLATE") ?? "tips_beauty_otp",
+    language: env("WHATSAPP_OTP_LANGUAGE") ?? "ar",
+    bodyParams: [{ type: "text", text: code }],
+    buttonParams: [{ type: "text", text: code }],
+  });
+  return {
+    ok: result.ok,
+    provider: "whatsapp_cloud",
+    messageId: result.messageId,
+    error: result.error,
+  };
 }
 
 // ---------------------------------------------------------------------------- SMS

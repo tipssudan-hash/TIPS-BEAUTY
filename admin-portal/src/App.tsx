@@ -17,6 +17,7 @@ import { CouponsPage } from './pages/CouponsPage';
 import { PromotionsPage } from './pages/PromotionsPage';
 import { ReviewsPage } from './pages/ReviewsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { DeliveryHealthPage } from './pages/DeliveryHealthPage';
 
 function App() {
   return (
@@ -41,6 +42,7 @@ function App() {
         <Route path="coupons" element={<CouponsPage />} />
         <Route path="promotions" element={<PromotionsPage />} />
         <Route path="reviews" element={<ReviewsPage />} />
+        <Route path="delivery-health" element={<DeliveryHealthPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

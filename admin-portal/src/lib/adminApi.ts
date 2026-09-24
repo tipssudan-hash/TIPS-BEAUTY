@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import type { DeliveryChannelStats, DeliveryFailure, DeliverySummary } from '../types';
 
 // Orders / dashboard API. Product and catalogue CRUD live in catalogApi.ts.
 
@@ -234,5 +235,33 @@ export function subscribeToOrders(onChange: () => void): () => void {
     return () => {
         if (timer) clearTimeout(timer);
         void supabase.removeChannel(channel);
+    };
+}
+
+// Message delivery health -------------------------------------------------------
+// Both RPCs check is_admin() server-side; these wrappers only shape the result.
+
+export async function fetchDeliveryFailures(hours = 48, limit = 200): Promise<DeliveryFailure[]> {
+    const { data, error } = await supabase.rpc('admin_delivery_failures', { p_hours: hours, p_limit: limit });
+    if (error) throw error;
+    return (data ?? []) as DeliveryFailure[];
+}
+
+export async function fetchDeliverySummary(hours = 48): Promise<DeliverySummary> {
+    const { data, error } = await supabase.rpc('admin_delivery_summary', { p_hours: hours });
+    if (error) throw error;
+    const raw = (data ?? {}) as Partial<DeliverySummary>;
+    const channel = (value: DeliveryChannelStats | undefined): DeliveryChannelStats => ({
+        sent: Number(value?.sent ?? 0),
+        pending: value?.pending == null ? undefined : Number(value.pending),
+        blocked: value?.blocked == null ? undefined : Number(value.blocked),
+        failed: Number(value?.failed ?? 0),
+    });
+    return {
+        hours: Number(raw.hours ?? hours),
+        email: channel(raw.email),
+        whatsapp: channel(raw.whatsapp),
+        otp: channel(raw.otp),
+        push: channel(raw.push),
     };
 }
