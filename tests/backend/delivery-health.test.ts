@@ -59,9 +59,13 @@ suite('WhatsApp order notifications', () => {
         expect(profile?.email).toBeTruthy();
 
         const { data: rows, error } = await admin.from('notification_queue')
-            .select('id,channel')
+            .select('id,channel,payload')
             .eq('customer_id', user.user!.id)
-            .eq('channel', 'whatsapp');
+            .eq('channel', 'whatsapp')
+            // Only rows OUR trigger queued. A pre-existing trigger has been queueing whatsapp rows for
+            // every customer and every event since before this project; the dispatcher ignores those,
+            // and this assertion would be about someone else's design if it counted them.
+            .contains('payload', { notifier: 'order_confirmation_v1' });
         expect(error).toBeNull();
         // Email reaches them; sending both would be two costs for one message.
         expect(rows ?? []).toHaveLength(0);

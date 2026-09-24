@@ -24,6 +24,8 @@ type QueueRow = {
 
 const BATCH = 20;
 const MAX_ATTEMPTS = 5;
+// Set by queue_order_whatsapp_notification(); see migration 20260924000400.
+const NOTIFIER = "order_confirmation_v1";
 const TEMPLATE = Deno.env.get("WHATSAPP_ORDER_TEMPLATE") ?? "tips_beauty_order_created";
 const LANGUAGE = Deno.env.get("WHATSAPP_ORDER_LANGUAGE") ?? "ar";
 
@@ -40,9 +42,16 @@ Deno.serve(async (request) => {
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
 
+  // A pre-existing trigger (orders_queue_notifications) has been queueing channel = 'whatsapp' rows for
+  // every customer and every order event since 2026-09-07, and nothing ever drained them. Draining
+  // them now would send weeks-old updates, several per customer, each one billable — and would
+  // double-send every confirmation, because that trigger queues order_created for everyone while ours
+  // queues it only for customers email cannot reach. So this sends only rows carrying our marker.
   const { data: queue, error: queueError } = await service.from("notification_queue")
     .select("id,order_id,customer_id,event_type,recipient_phone,payload,attempts")
     .eq("channel", "whatsapp").eq("status", "pending").lt("attempts", MAX_ATTEMPTS)
+    .eq("event_type", "order_created")
+    .contains("payload", { notifier: NOTIFIER })
     .order("created_at").limit(BATCH);
   if (queueError) return new Response(JSON.stringify({ error: queueError.message }), { status: 500 });
   if (!queue?.length) return new Response(JSON.stringify({ processed: 0 }), { status: 200 });
