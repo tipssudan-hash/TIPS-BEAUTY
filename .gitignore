@@ -45,3 +45,4 @@ ios/App/App/GoogleService-Info.plist
 deploy-storefront.zip
 deploy-admin.zip
 fix-storefront-htaccess.zip
+fix-admin-assets.zip
