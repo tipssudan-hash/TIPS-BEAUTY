@@ -40,3 +40,7 @@ ios/App/App/GoogleService-Info.plist
 
 # @capacitor/assets writes a stray PWA icon set at the repo root; public/icons is the real one
 /icons/
+
+# Deployment bundles built by hand for Hostinger File Manager upload.
+deploy-storefront.zip
+deploy-admin.zip
