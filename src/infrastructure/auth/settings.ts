@@ -18,7 +18,7 @@ export type AuthMethodFlags = {
 // migration has not been applied to this environment yet — customers can still sign in.
 export const DEFAULT_AUTH_FLAGS: AuthMethodFlags = {
     password: true,
-    google: false,
+    google: true,
     apple: false,
     phone: false,
     captcha: false,
