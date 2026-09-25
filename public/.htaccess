@@ -4,53 +4,68 @@
 #
 # It exists because the app uses BrowserRouter: the server sees real paths like /orders/123,
 # /privacy and /auth/callback, and there is no file at any of them. Without the rewrite below every
-# one of those is a bare 404 — including the Google sign-in callback, which would break social login
-# on the live site, and /privacy, which both app stores check.
+# one of those is a bare 404 — including the Google sign-in callback, which breaks social login, and
+# /privacy, which both app stores check.
 #
-# NOT here on purpose: an HTTP->HTTPS redirect. Hostinger's hPanel "Force HTTPS" toggle writes its
-# own rewrite block into this file, and a second hand-written one means the platform silently edits
-# a file that is under version control. Use the toggle.
+# NOT here on purpose: an HTTP->HTTPS redirect. Hostinger's hPanel "Force HTTPS" toggle handles that
+# (verified: http:// 301s to https:// with no rule of ours), and a second hand-written one means the
+# platform editing a file that is under version control.
 
 DirectoryIndex index.html
 Options -Indexes
 
-# Without this the manifest is served as text/plain and the PWA install prompt never appears.
-AddType application/manifest+json .webmanifest
-
 <IfModule mod_mime.c>
-    # Universal Links: Apple fetches this extensionless file and requires application/json. Apache
-    # would otherwise serve it as text/plain and iOS would reject it silently.
+    # Shared hosting sometimes serves modules as text/plain, which blocks them as ES imports.
+    AddType application/javascript .js .mjs
+    AddType text/css .css
+    AddType application/json .json
+    AddType image/svg+xml .svg
+
+    # The manifest's own media type. Not application/json: some browsers ignore a manifest served as
+    # plain JSON and the install prompt silently never appears.
+    AddType application/manifest+json .webmanifest
+
+    # Universal Links: Apple fetches this extensionless file and requires application/json. No AddType
+    # rule can reach a file with no extension, so it needs ForceType. Inert until the file exists —
+    # it is only generated once APPLE_TEAM_ID is set at build time.
     <Files "apple-app-site-association">
         ForceType application/json
     </Files>
 </IfModule>
 
 <IfModule mod_headers.c>
-    # Vite fingerprints these (index-a1b2c3d4.js), so the name changes whenever the bytes do and a
+    # Vite fingerprints these (index-DYAcY-mM.js), so the name changes whenever the bytes do and a
     # year is safe. Matching the hash rather than the extension deliberately excludes sw.js and the
     # unhashed files in public/ — a logo cached for a year cannot be replaced.
     <FilesMatch "-[A-Za-z0-9_-]{8,}\.(js|css|woff2?)$">
         Header set Cache-Control "public, max-age=31536000, immutable"
     </FilesMatch>
 
-    # The three files that must never be stale. sw.js is network-first for navigations internally,
-    # but that logic never runs if the browser was handed a cached copy of the worker itself.
-    <FilesMatch "^(index\.html|sw\.js|manifest\.webmanifest)$">
+    # The files that must never be stale. Hostinger's default gives static files a week, which for
+    # sw.js means a deploy does not reach anyone who has already visited until that week is up: the
+    # worker is network-first for navigations internally, but that logic never runs if the browser
+    # was handed a cached copy of the worker itself.
+    <Files "index.html">
         Header set Cache-Control "no-cache, must-revalidate"
-    </FilesMatch>
+    </Files>
+    <Files "sw.js">
+        Header set Cache-Control "no-cache, must-revalidate"
+    </Files>
+    <Files "manifest.webmanifest">
+        Header set Cache-Control "no-cache, must-revalidate"
+    </Files>
 </IfModule>
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Let missing .well-known files 404 honestly. Without this they fall through to the SPA rule
-    # below and return index.html with a 200, so Apple's and Google's verifiers read HTML where they
-    # expect JSON and report a confusing parse error instead of "file not found".
+    # Let missing .well-known files 404 honestly. Without this they fall through to the SPA rule and
+    # return index.html with a 200, so Apple's and Google's verifiers read HTML where they expect
+    # JSON and report a parse error instead of "file not found".
     RewriteRule ^\.well-known/ - [L]
 
-    # Anything that exists on disk is served as-is; everything else is the SPA's own route.
-    RewriteCond %{REQUEST_FILENAME} -f [OR]
-    RewriteCond %{REQUEST_FILENAME} -d
-    RewriteRule ^ - [L]
-    RewriteRule ^ index.html [L]
+    RewriteRule ^index\.html$ - [L]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule . index.html [L]
 </IfModule>
