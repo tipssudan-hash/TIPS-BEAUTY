@@ -27,7 +27,7 @@ describe('pathFromDeepLink', () => {
         // Look-alike hosts are the reason this is an exact host match and not a suffix check.
         expect(pathFromDeepLink('https://beauty.tips-sd.com.evil.example/orders/1')).toBeNull();
         expect(pathFromDeepLink('https://evil.example/orders/1')).toBeNull();
-        expect(pathFromDeepLink('https://admin.beauty.tips-sd.com/orders')).toBeNull();
+        expect(pathFromDeepLink('https://admin.tips-sd.com/orders')).toBeNull();
         expect(pathFromDeepLink('http://beauty.tips-sd.com/orders/1')).toBeNull();
         expect(pathFromDeepLink('javascript:alert(1)')).toBeNull();
         expect(pathFromDeepLink('not a url')).toBeNull();

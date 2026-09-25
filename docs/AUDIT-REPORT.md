@@ -106,10 +106,10 @@ Severity: **S** security · **D** data integrity · **B** bug · **P** performan
 
 ## 6. Launch checklist (owner actions)
 
-1. **Secrets** (Supabase → Edge Functions → Secrets): `GEMINI_API_KEY`; `RESEND_API_KEY`; `CRON_SECRET` (random string); optional `EMAIL_FROM`, `ADMIN_PORTAL_URL`, `ALLOWED_ORIGINS=https://beauty.tips-sd.com,https://admin.beauty.tips-sd.com`.
+1. **Secrets** (Supabase → Edge Functions → Secrets): `GEMINI_API_KEY`; `RESEND_API_KEY`; `CRON_SECRET` (random string); optional `EMAIL_FROM`, `ADMIN_PORTAL_URL`, `ALLOWED_ORIGINS=https://beauty.tips-sd.com,https://admin.tips-sd.com`.
 2. **Vault** (SQL editor): `select vault.create_secret('<same CRON_SECRET>', 'send_order_emails_key'); select vault.create_secret('https://eaomyiihsuikinkdhwzy.supabase.co/functions/v1/send-order-emails', 'send_order_emails_url');` — until these exist the email job is a silent no-op.
 3. **Resend + DNS**: verify `tips-sd.com` in Resend (SPF/DKIM), sender `orders@tips-sd.com`; configure Supabase Auth SMTP with Resend so verification emails send.
-4. **Auth settings**: keep email confirmation on; add redirect URLs `https://beauty.tips-sd.com/*`, `https://admin.beauty.tips-sd.com/*`, `tipsbeauty://*`.
+4. **Auth settings**: keep email confirmation on; add redirect URLs `https://beauty.tips-sd.com/*`, `https://admin.tips-sd.com/*`, `tipsbeauty://*`.
 5. **Admin settings page**: enter staff alert recipients.
 6. **Test data**: delete the `QA E2E` warehouse/driver, the two `test-*@tips-sd.com` accounts, orders whose `customer_name` starts with `TEST-`, the test review, and the test driver "مندوب اختبار الخرطوم". Rotate the database password (it was shared in chat).
 7. **Inventory**: review Khartoum quantities (migrated from the old stock column) and set Port Sudan quantities.

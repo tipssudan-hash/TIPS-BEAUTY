@@ -98,7 +98,7 @@ Process followed: inspect (3 code/schema inspections) → delegated independent 
 
 ### 5.3 Edge Functions
 - `beauty-advice`, `order-status-push`: add CORS/OPTIONS handling; redeploy (G9). Set `GEMINI_API_KEY` secret (owner supplies key).
-- New `send-order-emails`: reads pending `email` rows (batch), renders Arabic templates (customer confirmation; staff alert with admin link `https://admin.beauty.tips-sd.com/orders/<id>`), sends via Resend (`RESEND_API_KEY` secret, from `orders@tips-sd.com`), marks `sent`/`failed` with error, never throws into order flow. Sudan time (`Africa/Khartoum`) in email bodies.
+- New `send-order-emails`: reads pending `email` rows (batch), renders Arabic templates (customer confirmation; staff alert with admin link `https://admin.tips-sd.com/orders/<id>`), sends via Resend (`RESEND_API_KEY` secret, from `orders@tips-sd.com`), marks `sent`/`failed` with error, never throws into order flow. Sudan time (`Africa/Khartoum`) in email bodies.
 
 ### 5.4 Storefront files
 - `src/context/StoreContext.tsx`: `rpc('get_public_products')`; drop `costPrice`; error handling; remove debug log.
@@ -119,7 +119,7 @@ Process followed: inspect (3 code/schema inspections) → delegated independent 
 - `AdminDashboard.tsx`: `admin_business_report`; remove fake trends/Gemini text; fix dynamic classes. Remove `CategoriesPage`, `MarketingPage`, `BIPage` from nav (Tier 2). `AdminLayout.tsx`: live badge. `index.html`: title/lang/dir.
 
 ## 6. Dependencies and configuration (owner-side)
-- Supabase Auth: email confirmation ON; Resend SMTP for auth mails; redirect URLs `https://beauty.tips-sd.com/*`, `https://admin.beauty.tips-sd.com/*`, `tipsbeauty://*`.
+- Supabase Auth: email confirmation ON; Resend SMTP for auth mails; redirect URLs `https://beauty.tips-sd.com/*`, `https://admin.tips-sd.com/*`, `tipsbeauty://*`.
 - Secrets: `GEMINI_API_KEY`, `RESEND_API_KEY`, Vault secret for cron→Edge Function auth. Never in `.env`.
 - DNS for `tips-sd.com` (SPF/DKIM) before production; until then sends fail gracefully and stay `failed` in the queue.
 

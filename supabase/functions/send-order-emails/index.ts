@@ -39,7 +39,7 @@ type OrderRow = {
 const BATCH = 20;
 const MAX_ATTEMPTS = 5;
 const FROM = Deno.env.get("EMAIL_FROM") ?? "TIPS Beauty <orders@tips-sd.com>";
-const ADMIN_URL = (Deno.env.get("ADMIN_PORTAL_URL") ?? "https://admin.beauty.tips-sd.com").replace(/\/$/, "");
+const ADMIN_URL = (Deno.env.get("ADMIN_PORTAL_URL") ?? "https://admin.tips-sd.com").replace(/\/$/, "");
 const TIMEZONE = "Africa/Khartoum";
 
 const statusLabels: Record<string, string> = {

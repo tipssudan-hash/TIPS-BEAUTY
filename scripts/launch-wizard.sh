@@ -194,7 +194,7 @@ PROJECT_REF="eaomyiihsuikinkdhwzy"
 SUPABASE_URL="https://${PROJECT_REF}.supabase.co"
 DASH="https://supabase.com/dashboard/project/${PROJECT_REF}"
 STOREFRONT_URL="https://beauty.tips-sd.com"
-ADMIN_URL="https://admin.beauty.tips-sd.com"
+ADMIN_URL="https://admin.tips-sd.com"
 
 # set_fn_secret NAME VALUE writes an Edge Function secret with the Supabase CLI.
 set_fn_secret() {

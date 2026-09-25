@@ -1,0 +1,56 @@
+# Apache / LiteSpeed config for the Storefront on shared hosting (Hostinger).
+#
+# Vite copies public/ into dist/ verbatim, so this ships with every build and needs no build step.
+#
+# It exists because the app uses BrowserRouter: the server sees real paths like /orders/123,
+# /privacy and /auth/callback, and there is no file at any of them. Without the rewrite below every
+# one of those is a bare 404 — including the Google sign-in callback, which would break social login
+# on the live site, and /privacy, which both app stores check.
+#
+# NOT here on purpose: an HTTP->HTTPS redirect. Hostinger's hPanel "Force HTTPS" toggle writes its
+# own rewrite block into this file, and a second hand-written one means the platform silently edits
+# a file that is under version control. Use the toggle.
+
+DirectoryIndex index.html
+Options -Indexes
+
+# Without this the manifest is served as text/plain and the PWA install prompt never appears.
+AddType application/manifest+json .webmanifest
+
+<IfModule mod_mime.c>
+    # Universal Links: Apple fetches this extensionless file and requires application/json. Apache
+    # would otherwise serve it as text/plain and iOS would reject it silently.
+    <Files "apple-app-site-association">
+        ForceType application/json
+    </Files>
+</IfModule>
+
+<IfModule mod_headers.c>
+    # Vite fingerprints these (index-a1b2c3d4.js), so the name changes whenever the bytes do and a
+    # year is safe. Matching the hash rather than the extension deliberately excludes sw.js and the
+    # unhashed files in public/ — a logo cached for a year cannot be replaced.
+    <FilesMatch "-[A-Za-z0-9_-]{8,}\.(js|css|woff2?)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+
+    # The three files that must never be stale. sw.js is network-first for navigations internally,
+    # but that logic never runs if the browser was handed a cached copy of the worker itself.
+    <FilesMatch "^(index\.html|sw\.js|manifest\.webmanifest)$">
+        Header set Cache-Control "no-cache, must-revalidate"
+    </FilesMatch>
+</IfModule>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Let missing .well-known files 404 honestly. Without this they fall through to the SPA rule
+    # below and return index.html with a 200, so Apple's and Google's verifiers read HTML where they
+    # expect JSON and report a confusing parse error instead of "file not found".
+    RewriteRule ^\.well-known/ - [L]
+
+    # Anything that exists on disk is served as-is; everything else is the SPA's own route.
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+    RewriteRule ^ index.html [L]
+</IfModule>

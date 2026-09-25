@@ -22,7 +22,7 @@ Brand tagline (bilingual, user-confirmed): **اكتشفي جمالك الطبي�
 
 ## Operating Context
 
-- Two separate apps sharing one Supabase backend (project `eaomyiihsuikinkdhwzy`): the **Storefront** (customer-facing, `beauty.tips-sd.com`) and the **Admin Portal** (staff-only, `admin.beauty.tips-sd.com`).
+- Two separate apps sharing one Supabase backend (project `eaomyiihsuikinkdhwzy`): the **Storefront** (customer-facing, `beauty.tips-sd.com`) and the **Admin Portal** (staff-only, `admin.tips-sd.com`).
 - The backend is mature and authoritative: ~35 tables, ~50 SECURITY DEFINER RPCs, RLS everywhere, 2 deployed Edge Functions (`beauty-advice` — server-side Gemini chat; `order-status-push` — Expo push). The app code must be rewired to call these RPCs rather than reading/writing tables directly.
 - Pre-launch: existing database rows are treated as real, not test data.
 - Delivery is fulfilled only by Tips Beauty's own employed Drivers, never a third-party courier.
@@ -49,7 +49,7 @@ Brand tagline (bilingual, user-confirmed): **اكتشفي جمالك الطبي�
 - Name: **Tips Beauty** (تيبس بيوتي); parent company TIPS INTEGRATED SOLUTIONS.
 - Tagline: اكتشفي جمالك الطبيعي / "Discover Your Natural Beauty."
 - Arabic-first interface. Currency is always SDG, displayed as ج.س.
-- Domains: `beauty.tips-sd.com` (Storefront), `admin.beauty.tips-sd.com` (Admin Portal).
+- Domains: `beauty.tips-sd.com` (Storefront), `admin.tips-sd.com` (Admin Portal).
 - A native wrapper (iOS + Android, scheme `tipsbeauty://`, name "TIPS Beauty" / "تيبس بيوتي") is built and maintained by others; this project's job is to keep the web app wrapper-ready and PWA-capable, not to design native-only UI.
 
 ## Evidence on Hand
