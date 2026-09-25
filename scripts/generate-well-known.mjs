@@ -14,6 +14,12 @@
 //
 //   APPLE_TEAM_ID        e.g. A1B2C3D4E5        (Apple Developer > Membership)
 //   ANDROID_CERT_SHA256  e.g. AB:CD:...:12      (keytool -list -v -keystore release.keystore)
+//
+// ANDROID_CERT_SHA256 accepts several comma-separated fingerprints. Android matches a link against
+// every entry in the array, so a debug-signed test build and the release build can both verify at the
+// same time — which is what lets a tester check deep links before a release keystore exists. Google
+// sign-in does not need this file at all (Credential Manager does not use Digital Asset Links); only
+// App Links do.
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -46,12 +52,17 @@ if (teamId) {
 }
 
 if (certSha256) {
+    // Split on commas so a debug and a release fingerprint can coexist; dedupe because pasting the
+    // same value twice is an easy mistake and a duplicated entry makes Google's verifier complain.
+    const fingerprints = [...new Set(
+        certSha256.split(',').map((value) => value.trim().toUpperCase()).filter(Boolean),
+    )];
     const assetLinks = [{
         relation: ['delegate_permission/common.handle_all_urls'],
         target: {
             namespace: 'android_app',
             package_name: APP_ID,
-            sha256_cert_fingerprints: [certSha256.toUpperCase()],
+            sha256_cert_fingerprints: fingerprints,
         },
     }];
     mkdirSync(outDir, { recursive: true });

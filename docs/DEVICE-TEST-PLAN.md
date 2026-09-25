@@ -17,7 +17,23 @@ the Sudanese leg.
 
 ## Before you start
 
-Preconditions, in this order. Each one blocks everything under it.
+**These are not one gate.** The sections below are independent, and treating the list as atomic delays
+testing by weeks for no reason. Two tracks run in parallel:
+
+**Fast track — days, no paid account.** Sections 1, 6, 9, 10 and the password half of 11 need *no* new
+external account at all: email+password is already on (`auth_password_enabled` defaults true), so a
+throwaway account exercises them today. Add a free Google Cloud project and section 2 joins them —
+Google sign-in works on a **debug-signed** build, using the debug SHA-1 from
+`cd android && ./gradlew signingReport`, with testers added under OAuth consent screen → Test users.
+Neither a release keystore nor `assetlinks.json` is required for it: Credential Manager does not use
+Digital Asset Links. Requires Android Studio installed (bundles the JDK and SDK; free, no account).
+
+**Slow track — weeks, paid or identity-verified.** Section 3 (Apple) needs enrolment *and* a Mac or a
+cloud macOS builder — there is no CI in this repo, so nothing can produce an iOS build today. Sections
+4 and 5 need Meta Business Verification and an alphanumeric SMS sender ID. Start that paperwork on day
+one and run the fast track while it clears.
+
+Preconditions for the *full* run, in the order they unblock things:
 
 - [x] All 33 migrations applied (done 2026-09-24)
 - [x] Edge functions deployed: `send-otp`, `send-order-whatsapp`, `order-status-push` (done
@@ -29,6 +45,8 @@ Preconditions, in this order. Each one blocks everything under it.
       *and* utility)
 - [ ] SMS: candidate provider configured, alphanumeric sender ID registered
 - [ ] `.well-known/apple-app-site-association` and `assetlinks.json` live on `beauty.tips-sd.com`
+      (`ANDROID_CERT_SHA256` takes comma-separated fingerprints, so a debug and a release build can
+      both verify at once — section 8 does not have to wait for the release keystore)
 - [ ] Flags on: `UPDATE app_settings SET auth_phone_enabled = true, auth_google_enabled = true, auth_apple_enabled = true, otp_whatsapp_enabled = true, otp_sms_enabled = true;`
 
 **Use throwaway accounts.** Test 9 deletes an account permanently, and test 4 sends real money's worth of
