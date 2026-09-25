@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Header } from '@presentation/components/layout/Header';
+import { Footer } from '@presentation/components/layout/Footer';
 import { BottomNav } from '@presentation/components/layout/BottomNav';
 import { ErrorBoundary } from '@presentation/components/layout/ErrorBoundary';
 import { VerifiedRoute } from '@presentation/components/layout/VerifiedRoute';
@@ -20,6 +21,8 @@ const CheckoutPage = lazy(() => import('@presentation/pages/customer/CheckoutPag
 const MyOrdersPage = lazy(() => import('@presentation/pages/customer/MyOrdersPage').then((m) => ({ default: m.MyOrdersPage })));
 const OrderDetailPage = lazy(() => import('@presentation/pages/customer/OrderDetailPage').then((m) => ({ default: m.OrderDetailPage })));
 const SettingsPage = lazy(() => import('@presentation/pages/customer/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const ProfilePage = lazy(() => import('@presentation/pages/customer/ProfilePage').then((m) => ({ default: m.ProfilePage })));
+const DeleteProfilePage = lazy(() => import('@presentation/pages/customer/DeleteProfilePage').then((m) => ({ default: m.DeleteProfilePage })));
 const OffersPage = lazy(() => import('@presentation/pages/customer/OffersPage').then((m) => ({ default: m.OffersPage })));
 const NotificationsPage = lazy(() => import('@presentation/pages/customer/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
 const AIChatPage = lazy(() => import('@presentation/pages/customer/AIChatPage').then((m) => ({ default: m.AIChatPage })));
@@ -93,6 +96,8 @@ function App() {
               <Route path="/orders/:id" element={<ProtectedRoute><OrderDetailPage /></ProtectedRoute>} />
               <Route path="/ai-chat" element={<ProtectedRoute><AIChatPage /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+              <Route path="/delete-profile" element={<ProtectedRoute><DeleteProfilePage /></ProtectedRoute>} />
 
               <Route path="/track-order" element={<Navigate to="/orders" replace />} />
               <Route path="*" element={<NotFoundPage />} />
@@ -100,6 +105,7 @@ function App() {
           </Suspense>
         </ErrorBoundary>
       </main>
+      <Footer />
       <BottomNav cartCount={cartCount} />
     </div>
   );

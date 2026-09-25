@@ -7,17 +7,25 @@ import { StoreProvider } from '@presentation/context/StoreContext';
 import { NotificationsProvider } from '@presentation/context/NotificationsContext';
 import { BrowserRouter } from 'react-router-dom';
 import { bootstrapNative } from '@infrastructure/native/bootstrap';
-import { isNative } from '@infrastructure/auth/platform';
 
 // Native plugins and the native sign-in strategy are registered before React mounts, so no screen
 // can render against a half-initialised shell. Failures are logged, never fatal.
 void bootstrapNative();
 
-// The offline shell is a web-only concern: Capacitor already serves these assets from the bundle.
-if (!isNative() && 'serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    void navigator.serviceWorker.register('/sw.js').catch((error) => console.error('sw_register', error));
-  });
+// Ensure all old service workers and stale caches are cleaned up
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    for (const registration of registrations) {
+      void registration.unregister();
+    }
+  }).catch(() => {});
+}
+if ('caches' in window) {
+  caches.keys().then((keys) => {
+    for (const key of keys) {
+      void caches.delete(key);
+    }
+  }).catch(() => {});
 }
 
 createRoot(document.getElementById('root')!).render(

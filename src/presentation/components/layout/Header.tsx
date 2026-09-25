@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ShoppingCart, Search, User, LogOut, Menu, X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -75,7 +75,15 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
                         {user ? (
                             <div className="flex items-center gap-4 border-r border-gray-100 pr-4 mr-2">
                                 <Link to="/settings" className={`flex items-center gap-2 hover:text-brand-blue transition-colors ${currentPath === '/settings' ? 'text-brand-blue font-bold' : 'text-gray-600'}`}>
-                                    <User className="w-4 h-4" />
+                                    {((user.user_metadata?.avatar_url || user.user_metadata?.picture) as string | undefined) ? (
+                                        <img
+                                            src={(user.user_metadata?.avatar_url || user.user_metadata?.picture) as string}
+                                            alt="Avatar"
+                                            className="w-6 h-6 rounded-full object-cover border border-brand-blue/30"
+                                        />
+                                    ) : (
+                                        <User className="w-4 h-4" />
+                                    )}
                                     <span>حسابي</span>
                                 </Link>
                                 <button
@@ -124,7 +132,16 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
                         {user ? (
                             <>
                                 <Link to="/settings" className={`p-2 rounded-lg flex items-center gap-2 ${currentPath === '/settings' ? 'bg-brand-blue-soft text-brand-blue font-bold' : 'text-gray-600'}`} onClick={() => setIsMenuOpen(false)}>
-                                    <User className="w-4 h-4" /> حسابي
+                                    {((user.user_metadata?.avatar_url || user.user_metadata?.picture) as string | undefined) ? (
+                                        <img
+                                            src={(user.user_metadata?.avatar_url || user.user_metadata?.picture) as string}
+                                            alt="Avatar"
+                                            className="w-5 h-5 rounded-full object-cover border border-brand-blue/30"
+                                        />
+                                    ) : (
+                                        <User className="w-4 h-4" />
+                                    )}
+                                    حسابي
                                 </Link>
                                 <button onClick={() => { signOut(); setIsMenuOpen(false); }} className="p-2 rounded-lg flex items-center gap-2 text-red-500 hover:bg-red-50 w-full text-right">
                                     <LogOut className="w-4 h-4" /> تسجيل الخروج
