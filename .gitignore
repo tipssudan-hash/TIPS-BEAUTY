@@ -44,3 +44,4 @@ ios/App/App/GoogleService-Info.plist
 # Deployment bundles built by hand for Hostinger File Manager upload.
 deploy-storefront.zip
 deploy-admin.zip
+fix-storefront-htaccess.zip
