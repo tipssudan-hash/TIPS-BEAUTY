@@ -6,7 +6,10 @@ import tseslint from 'typescript-eslint';
 import { defineConfig, globalIgnores } from 'eslint/config';
 
 export default defineConfig([
-    globalIgnores(['dist', 'admin-portal', 'mobile-app', 'supabase', 'node_modules', 'src/lib/database.types.ts']),
+    // 'android' and 'ios' hold the native projects: Capacitor copies its own native-bridge.js into
+    // android/app/build/ during a build, and linting generated vendor output reports errors nobody
+    // can fix in this repo. They were invisible until the first APK build produced them.
+    globalIgnores(['dist', 'admin-portal', 'mobile-app', 'supabase', 'node_modules', 'android', 'ios', 'src/lib/database.types.ts']),
     {
         files: ['**/*.{ts,tsx}'],
         extends: [

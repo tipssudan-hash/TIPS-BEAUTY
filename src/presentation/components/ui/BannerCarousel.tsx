@@ -20,7 +20,18 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners, onSelec
         const el = track.current;
         if (!el) return;
         const slide = el.children[index] as HTMLElement | undefined;
-        slide?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+        if (!slide) return;
+        // Never scrollIntoView() here. It scrolls every scrollable ancestor, the document included:
+        // once the customer has scrolled the page past the carousel, the slide is outside the
+        // viewport on the vertical axis, so the auto-advance below dragged the whole page back up to
+        // it every few seconds. block:'nearest' does not prevent that — "nearest" still scrolls an
+        // axis when the target is not visible on it.
+        //
+        // Scrolling the track itself can only ever move the track. The distance is measured from
+        // rendered positions rather than offsetLeft or scrollLeft because RTL scrollers report both
+        // differently across browsers, and this carousel is RTL.
+        const delta = slide.getBoundingClientRect().left - el.getBoundingClientRect().left;
+        el.scrollBy({ left: delta, behavior: 'smooth' });
     }, []);
 
     // Which slide is in view, from the scroll position (works in both text directions).

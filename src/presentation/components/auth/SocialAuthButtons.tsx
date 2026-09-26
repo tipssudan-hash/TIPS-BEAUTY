@@ -35,13 +35,35 @@ type Props = {
 };
 
 export const SocialAuthButtons: React.FC<Props> = ({ redirectAfter, intent = 'login' }) => {
-    const { authFlags } = useAuth();
+    const { authFlags, authFlagsUnavailable, reloadAuthFlags } = useAuth();
     const [pending, setPending] = useState<SocialProvider | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     // Apple's button belongs on iOS, where guideline 4.8 requires it once Google is offered.
     const showGoogle = authFlags.google;
     const showApple = authFlags.apple && shouldOfferApple();
+
+    // The flags could not be read, so we genuinely do not know which providers are on. Say so
+    // instead of rendering nothing: an empty space here is indistinguishable from the owner having
+    // switched every provider off, and it is what a customer with no connection used to see.
+    // Email+password still works below, so this informs rather than blocks.
+    if (authFlagsUnavailable) {
+        return (
+            <div className="mt-6">
+                <Notice kind="error">
+                    تعذّر تحميل طرق تسجيل الدخول. تحقّقي من اتصالك بالإنترنت ثم أعيدي المحاولة.
+                </Notice>
+                <button
+                    type="button"
+                    onClick={reloadAuthFlags}
+                    className="mt-3 w-full text-sm font-medium text-rose-700 underline underline-offset-4"
+                >
+                    إعادة المحاولة
+                </button>
+            </div>
+        );
+    }
+
     if (!showGoogle && !showApple) return null;
 
     const start = async (provider: SocialProvider) => {
