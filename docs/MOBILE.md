@@ -34,7 +34,7 @@ Windows. Compiling and signing it still needs macOS or a cloud build service.
 | Session storage | `src/infrastructure/storage/sessionStorage.ts` | iOS evicts WKWebView localStorage under disk pressure, logging customers out at random. Preferences writes to UserDefaults instead. |
 | Sign-in | `src/infrastructure/auth/nativeSocial.ts` | Google refuses OAuth inside embedded WebViews (`disallowed_useragent`), so native uses the platform SDK and `signInWithIdToken` instead of a redirect. |
 | Deep links | `src/infrastructure/native/deepLinks.ts`, `NativeBridge.tsx` | An order link in a WhatsApp message opens the app when installed, the website when not. |
-| Offline | `OfflineBanner.tsx`, `public/sw.js` | Sudan has nationwide internet shutdowns every year since 2023. Without this the app looks broken on those days. |
+| Offline | `OfflineBanner.tsx` | Sudan has nationwide internet shutdowns every year since 2023. Without this the app looks broken on those days. |
 | Android back button | `NativeBridge.tsx` | Back must walk history, not kill the app mid-checkout. |
 
 ## One-time setup, in the order it unblocks things
