@@ -1,4 +1,4 @@
-﻿import type { FC } from 'react';
+import type { FC } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../components/ui';
 
@@ -93,7 +93,7 @@ export const PrivacyPolicyPage: FC = () => (
 
             <Section title="التواصل">
                 <p>
-                    لأي سؤال عن الخصوصية: <a href="mailto:privacy@tips-sd.com" className="text-brand-blue font-bold underline">privacy@tips-sd.com</a>
+                    لأي سؤال عن الخصوصية: <a href="mailto:tips.sudan@gmail.com" className="text-brand-blue font-bold underline">tips.sudan@gmail.com</a>
                 </p>
             </Section>
         </Card>

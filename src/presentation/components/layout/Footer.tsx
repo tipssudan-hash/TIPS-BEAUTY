@@ -15,7 +15,7 @@ export const Footer: React.FC = () => {
                             </div>
                             <div>
                                 <h4 className="font-bold text-gray-900 text-sm">منتجات أصلية 100%</h4>
-                                <p className="text-xs text-gray-500 mt-0.5">ضمان الجودة من أفضل الماركات العالمية</p>
+                                <p className="text-xs text-gray-500 mt-0.5">من أفضل الماركات المحلية والعالمية</p>
                             </div>
                         </div>
 
@@ -34,8 +34,8 @@ export const Footer: React.FC = () => {
                                 <ShieldCheck className="w-6 h-6" />
                             </div>
                             <div>
-                                <h4 className="font-bold text-gray-900 text-sm">تسوق آمن ودفع مرن</h4>
-                                <p className="text-xs text-gray-500 mt-0.5">الدفع عند الاستلام وبطاقات الدفع الإلكتروني</p>
+                                <h4 className="font-bold text-gray-900 text-sm">تسوق آمن ومضمون</h4>
+                                <p className="text-xs text-gray-500 mt-0.5">الدفع عند الاستلام مع ضمان الجودة</p>
                             </div>
                         </div>
                     </div>
@@ -48,7 +48,7 @@ export const Footer: React.FC = () => {
                     {/* Brand Info */}
                     <div className="space-y-4 md:col-span-1 text-center md:text-right">
                         <Link to="/" className="inline-block">
-                            <img src="/logo.PNG" alt="Tips Beauty" className="h-11 w-auto object-contain mx-auto md:mx-0" />
+                            <img src="/logo.PNG" alt="تيبس بيوتي" className="h-11 w-auto object-contain mx-auto md:mx-0" />
                         </Link>
                         <p className="text-sm text-gray-600 leading-relaxed">
                             وجهتكم الموثوقة الأولى لمستحضرات التجميل الأصلية ومنتجات العناية بالبشرة في السودان.
@@ -99,15 +99,19 @@ export const Footer: React.FC = () => {
                         <ul className="space-y-2.5 text-sm text-gray-600">
                             <li className="flex items-center justify-center md:justify-start gap-2">
                                 <MapPin className="w-4 h-4 text-brand-blue shrink-0" />
-                                <span>السودان — الخرطوم والولايات</span>
+                                <span>الخرطوم وبورتسودان</span>
                             </li>
                             <li className="flex items-center justify-center md:justify-start gap-2">
                                 <Mail className="w-4 h-4 text-brand-blue shrink-0" />
-                                <span>support@tips-sd.com</span>
+                                <a href="mailto:tips.sudan@gmail.com" className="hover:text-brand-blue transition-colors">tips.sudan@gmail.com</a>
                             </li>
                             <li className="flex items-center justify-center md:justify-start gap-2">
                                 <Phone className="w-4 h-4 text-brand-blue shrink-0" />
-                                <span dir="ltr">+249 91 234 5678</span>
+                                <div className="flex items-center gap-1.5" dir="ltr">
+                                    <a href="tel:+249110186000" className="hover:text-brand-blue transition-colors">+249 110186000</a>
+                                    <span className="text-gray-400">/</span>
+                                    <a href="tel:+249900960653" className="hover:text-brand-blue transition-colors">+249 900960653</a>
+                                </div>
                             </li>
                         </ul>
                     </div>
@@ -115,7 +119,7 @@ export const Footer: React.FC = () => {
 
                 {/* Copyright */}
                 <div className="border-t border-gray-100 mt-10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-500">
-                    <p>© {new Date().getFullYear()} Tips Beauty (تيبس بيوتي). جميع الحقوق محفوظة.</p>
+                    <p>© {new Date().getFullYear()} تيبس بيوتي. جميع الحقوق محفوظة.</p>
                     <p className="flex items-center gap-1">
                         <span>صُنع بحب</span>
                         <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500 inline" />
