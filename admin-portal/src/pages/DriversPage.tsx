@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Truck, Plus, Edit, X, Link2, Unlink } from 'lucide-react';
 import type { Driver, DriverStatus, Warehouse } from '../types';
 import { fetchDrivers, fetchWarehouses, linkDriverUser, saveDriver, unlinkDriverUser, type DriverInput } from '../lib/catalogApi';
+import { isValidSudanPhone, normalizeSudanPhone } from '../lib/phone';
 import { errorMessage } from '../lib/errors';
 import { formatDateTime } from '../lib/format';
 import { Card, Field, Notice, PageHeader, Spinner, Table, inputClass, primaryButtonClass, secondaryButtonClass, smallButtonClass } from '../components/ui';
@@ -69,14 +70,16 @@ export const DriversPage: React.FC = () => {
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editing) return;
-        if (editing.data.name.trim().length < 2 || editing.data.phone.trim().length < 5) { setError('الاسم ورقم الهاتف مطلوبان.'); return; }
+        if (editing.data.name.trim().length < 2) { setError('يرجى إدخال اسم المندوب.'); return; }
+        const trimmedPhone = editing.data.phone.trim();
+        if (!isValidSudanPhone(trimmedPhone)) { setError('يرجى إدخال رقم هاتف سوداني صحيح للمندوب (مثال: 0912345678 أو 0123456789).'); return; }
         setSaving(true);
         setError(null);
         try {
             await saveDriver(editing.id, {
                 ...editing.data,
                 name: editing.data.name.trim(),
-                phone: editing.data.phone.trim(),
+                phone: normalizeSudanPhone(trimmedPhone) ?? trimmedPhone,
                 company: editing.data.company?.trim() || null,
                 vehicle: editing.data.vehicle?.trim() || null,
             });

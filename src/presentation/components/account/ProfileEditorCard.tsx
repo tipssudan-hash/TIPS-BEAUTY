@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Check, Loader2, Save, User as UserIcon, Mail, Phone, ShieldCheck } from 'lucide-react';
 import { Card, Notice, primaryButtonClass } from '../ui';
 import { useAuth } from '../../context/AuthContext';
+import { isValidSudanPhone, normalizeSudanPhone } from '@infrastructure/auth/phone';
 import { fetchUserProfile, updateUserProfile, uploadUserAvatar, type UserProfile } from '@infrastructure/auth/profileService';
 
 export const ProfileEditorCard: React.FC = () => {
@@ -58,7 +59,7 @@ export const ProfileEditorCard: React.FC = () => {
             setAvatarUrl(url);
             setSuccessMessage('تم تحديث الصورة الشخصية بنجاح');
             setTimeout(() => setSuccessMessage(null), 4000);
-        } catch (err) {
+        } catch {
             setErrorMessage('تعذر رفع الصورة، يرجى المحاولة مرة أخرى');
         } finally {
             setUploadingAvatar(false);
@@ -69,6 +70,12 @@ export const ProfileEditorCard: React.FC = () => {
         e.preventDefault();
         if (!user) return;
 
+        const trimmedPhone = phone.trim();
+        if (trimmedPhone && !isValidSudanPhone(trimmedPhone)) {
+            setErrorMessage('يرجى إدخال رقم هاتف سوداني صحيح (مثال: 0912345678 أو 0123456789)');
+            return;
+        }
+
         setSaving(true);
         setErrorMessage(null);
         setSuccessMessage(null);
@@ -76,7 +83,7 @@ export const ProfileEditorCard: React.FC = () => {
         try {
             await updateUserProfile(user.id, {
                 fullName: fullName.trim(),
-                phone: phone.trim() || undefined,
+                phone: trimmedPhone ? (normalizeSudanPhone(trimmedPhone) ?? trimmedPhone) : undefined,
             });
             setSuccessMessage('تم حفظ التغييرات بنجاح');
             setTimeout(() => setSuccessMessage(null), 4000);

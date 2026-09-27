@@ -1,7 +1,8 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signupErrorMessage } from '@application/errors';
 import { supabase } from '@infrastructure/supabase';
+import { isValidSudanPhone, normalizeSudanPhone } from '@infrastructure/auth/phone';
 import { Mail, Lock, User, Phone, Loader2, MailCheck } from 'lucide-react';
 import { Notice } from '../../components/ui';
 import { SocialAuthButtons } from '../../components/auth/SocialAuthButtons';
@@ -22,18 +23,25 @@ export const SignupPage: React.FC = () => {
 
     const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault();
-        setLoading(true);
         setError(null);
+
+        const trimmedPhone = formData.phone.trim();
+        if (trimmedPhone && !isValidSudanPhone(trimmedPhone)) {
+            setError('يرجى إدخال رقم هاتف سوداني صحيح (مثال: 0912345678 أو 0123456789).');
+            return;
+        }
+
+        setLoading(true);
 
         try {
             const { data, error: authError } = await supabase.auth.signUp({
-                email: formData.email,
+                email: formData.email.trim(),
                 password: formData.password,
                 options: {
                     emailRedirectTo: `${window.location.origin}/auth/callback`,
                     data: {
-                        full_name: formData.fullName,
-                        phone: formData.phone
+                        full_name: formData.fullName.trim(),
+                        phone: trimmedPhone ? (normalizeSudanPhone(trimmedPhone) ?? trimmedPhone) : undefined
                     }
                 }
             });

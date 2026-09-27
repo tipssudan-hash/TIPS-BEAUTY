@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { loginErrorMessage } from '@application/errors';
 import { supabase } from '@infrastructure/supabase';
@@ -107,7 +107,15 @@ export const LoginPage: React.FC = () => {
                         </label>
 
                         <label className="space-y-2 block">
-                            <span className="text-sm font-bold text-gray-700">كلمة المرور</span>
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm font-bold text-gray-700">كلمة المرور</span>
+                                <Link
+                                    to="/forgot-password"
+                                    className="text-xs text-brand-blue font-bold hover:underline"
+                                >
+                                    نسيت كلمة المرور؟
+                                </Link>
+                            </div>
                             <div className="relative">
                                 <input
                                     type="password"

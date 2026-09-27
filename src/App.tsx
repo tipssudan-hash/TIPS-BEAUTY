@@ -28,6 +28,8 @@ const NotificationsPage = lazy(() => import('@presentation/pages/customer/Notifi
 const AIChatPage = lazy(() => import('@presentation/pages/customer/AIChatPage').then((m) => ({ default: m.AIChatPage })));
 const LoginPage = lazy(() => import('@presentation/pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
 const SignupPage = lazy(() => import('@presentation/pages/auth/SignupPage').then((m) => ({ default: m.SignupPage })));
+const ForgotPasswordPage = lazy(() => import('@presentation/pages/auth/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })));
+const ResetPasswordPage = lazy(() => import('@presentation/pages/auth/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })));
 const AuthCallbackPage = lazy(() => import('@presentation/pages/auth/AuthCallbackPage').then((m) => ({ default: m.AuthCallbackPage })));
 const PrivacyPolicyPage = lazy(() => import('@presentation/pages/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage })));
 const DriverLayout = lazy(() => import('@presentation/pages/driver/DriverLayout').then((m) => ({ default: m.DriverLayout })));
@@ -87,6 +89,8 @@ function App() {
 
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
               {/* Google and Apple return web customers here; native builds never use it. */}
               <Route path="/auth/callback" element={<AuthCallbackPage />} />
 

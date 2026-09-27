@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { formatSudanPhone, isValidSudanPhone, normalizeSudanPhone } from '@infrastructure/auth/phone';
 
 // This must agree with normalize_sd_phone() in the database, case for case. If the two ever disagree,
@@ -7,13 +7,14 @@ import { formatSudanPhone, isValidSudanPhone, normalizeSudanPhone } from '@infra
 
 describe('normalizeSudanPhone', () => {
     it('folds every way a Sudanese number gets typed into one E.164 value', () => {
-        for (const input of ['0912345678', '+249912345678', '249912345678', '00249912345678', '091 234 5678', '091-234-5678', ' 0912345678 ']) {
+        for (const input of ['0912345678', '+249912345678', '249912345678', '00249912345678', '091 234 5678', '091-234-5678', ' 0912345678 ', '٠٩١٢٣٤٥٦٧٨']) {
             expect(normalizeSudanPhone(input), input).toBe('+249912345678');
         }
     });
 
     it('accepts the 1xx mobile range as well as 9xx', () => {
         expect(normalizeSudanPhone('0123456789')).toBe('+249123456789');
+        expect(normalizeSudanPhone('٠١٢٣٤٥٦٧٨٩')).toBe('+249123456789');
     });
 
     it('rejects anything that is not a Sudanese mobile number', () => {

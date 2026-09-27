@@ -1,9 +1,10 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 import { useAuth } from '../../context/AuthContext';
 import { CouponPreview, DeliveryZone, PaymentMethod } from '@domain/entities';
 import { checkout, previewCoupon, uploadPaymentProof, submitPaymentProof, fetchPaymentMethods, fetchDeliveryZones } from '@infrastructure/repositories';
+import { isValidSudanPhone, normalizeSudanPhone } from '@infrastructure/auth/phone';
 import { couponRefusalMessage, errorMessage } from '@application/errors';
 import { cartLineKey, cartLineUnavailable, cartUnitPrice } from '@domain/valueObjects';
 import { formatSDG } from '@application/services/format';
@@ -141,7 +142,12 @@ export const CheckoutPage: React.FC = () => {
     const handleProofChange = (file: File | null) => {
         setProofError(null);
         if (!file) { setProofFile(null); return; }
-        if (!file.type.startsWith('image/')) { setProofError('يرجى اختيار صورة لإثبات الدفع.'); setProofFile(null); return; }
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+        if (!allowedTypes.includes(file.type)) {
+            setProofError('يرجى اختيار صورة صحيحة لإثبات الدفع بصيغة PNG أو JPG أو WebP.');
+            setProofFile(null);
+            return;
+        }
         if (file.size > MAX_PROOF_BYTES) { setProofError('حجم الصورة يجب ألا يتجاوز 5 ميجابايت.'); setProofFile(null); return; }
         setProofFile(file);
     };
@@ -150,6 +156,12 @@ export const CheckoutPage: React.FC = () => {
         e.preventDefault();
         setSubmitError(null);
         if (!user || !selectedZone || !selectedMethod) return;
+
+        if (!isValidSudanPhone(formData.phone)) {
+            setSubmitError('يرجى إدخال رقم هاتف سوداني صحيح (مثال: 0912345678 أو 0123456789).');
+            return;
+        }
+
         if (selectedMethod.requiresProof) {
             if (!formData.reference.trim()) { setSubmitError('يرجى إدخال الرقم المرجعي.'); return; }
             if (!proofFile) { setProofError('يرجى إرفاق إثبات الدفع.'); return; }
@@ -165,7 +177,7 @@ export const CheckoutPage: React.FC = () => {
 
             const result = await checkout({
                 customerName: formData.name.trim(),
-                phone: formData.phone.trim(),
+                phone: normalizeSudanPhone(formData.phone) ?? formData.phone.trim(),
                 shippingAddress: formData.address.trim(),
                 zoneName: selectedZone.name,
                 state: formData.state,

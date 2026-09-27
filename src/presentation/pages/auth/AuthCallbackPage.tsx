@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ShieldAlert } from 'lucide-react';
 import { EmptyState, Notice, Spinner, primaryButtonClass } from '../../components/ui';
@@ -27,7 +27,7 @@ export const AuthCallbackPage: React.FC = () => {
             return;
         }
 
-        const finish = async () => {
+        const finish = async (isRecovery = false) => {
             const { data, error: sessionError } = await supabase.auth.getSession();
             if (cancelled) return;
             if (sessionError) {
@@ -35,11 +35,19 @@ export const AuthCallbackPage: React.FC = () => {
                 return;
             }
             if (!data.session) return; // still exchanging; the auth listener below will call again
+            if (isRecovery || params.get('type') === 'recovery') {
+                navigate('/reset-password', { replace: true });
+                return;
+            }
             navigate(await resolvePostLoginPath(data.session.user.id, next), { replace: true });
         };
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (session) void finish();
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'PASSWORD_RECOVERY') {
+                void finish(true);
+            } else if (session) {
+                void finish();
+            }
         });
         void finish();
 

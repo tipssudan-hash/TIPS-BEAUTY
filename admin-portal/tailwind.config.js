@@ -1,4 +1,4 @@
-import { brand, ringFocus, status } from '../design/tokens.js';
+import { brand, ringFocus, status } from '../src/presentation/design/tokens.js';
 
 /** @type {import('tailwindcss').Config} */
 export default {

@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
@@ -9,7 +9,7 @@ const SOURCE_DIRS = ['src', 'admin-portal/src', 'supabase/functions'];
 const SOURCE_EXT = /\.(ts|tsx)$/;
 
 function arabicAvoidTerms(): { term: string; entry: string }[] {
-    const glossary = readFileSync(join(ROOT, 'CONTEXT.md'), 'utf8');
+    const glossary = readFileSync(join(ROOT, 'docs', 'CONTEXT.md'), 'utf8');
     const out: { term: string; entry: string }[] = [];
     let entry = '';
     for (const line of glossary.split(/\r?\n/)) {

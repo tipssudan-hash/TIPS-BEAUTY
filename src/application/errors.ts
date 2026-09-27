@@ -40,6 +40,14 @@ export function signupErrorMessage(message: string): string {
     return 'فشل إنشاء الحساب، حاولي مرة أخرى.';
 }
 
+export function resetPasswordErrorMessage(message: string): string {
+    if (/rate limit/i.test(message)) return 'تم تجاوز عدد المحاولات، يرجى الانتظار والمحاولة لاحقاً.';
+    if (/user not found/i.test(message)) return 'لم يتم العثور على حساب مسجل بهذا البريد الإلكتروني.';
+    if (/password/i.test(message)) return 'كلمة المرور يجب أن تكون 6 أحرف على الأقل.';
+    if (/expired|invalid.*token/i.test(message)) return 'انتهت صلاحية رابط إعادة التعيين أو أنه غير صالح. اطلبي رابطاً جديداً.';
+    return 'تعذر إتمام طلب إعادة تعيين كلمة المرور، حاولي مرة أخرى.';
+}
+
 // Why the backend refused a Coupon (preview_coupon reasons), in the customer's words.
 const couponRefusals: Record<string, string> = {
     unknown: 'كود الخصم غير صحيح.',
