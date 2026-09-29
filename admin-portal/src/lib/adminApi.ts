@@ -165,6 +165,17 @@ export async function reviewPaymentProof(proofId: string, status: 'verified' | '
     if (error) throw error;
 }
 
+export async function confirmCodPayment(orderId: string): Promise<void> {
+    const { error } = await supabase.rpc('confirm_cod_payment' as any, { p_order_id: orderId } as any);
+    if (error) throw error;
+}
+
+export async function checkCreditCustomer(customerId: string): Promise<boolean> {
+    const { data, error } = await supabase.from('profiles').select('is_credit_customer').eq('id', customerId).maybeSingle();
+    if (error) return false;
+    return (data as unknown as { is_credit_customer?: boolean })?.is_credit_customer ?? false;
+}
+
 export interface DriverOption {
     id: string;
     name: string;

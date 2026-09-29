@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowRight, Loader2, CheckCircle2, XCircle, Truck, MapPin, CreditCard, Clock, Warehouse, AlertTriangle, Zap } from 'lucide-react';
+import { ArrowRight, Loader2, CheckCircle2, XCircle, Truck, MapPin, CreditCard, Clock, Warehouse, AlertTriangle, Zap, Banknote, ShieldCheck } from 'lucide-react';
 import {
     fetchActiveWarehouses, fetchDrivers, fetchOrder, fetchOrderHistory, fetchPaymentProof, markOrderViewed,
     reviewPaymentProof, signedProofUrl, updateOrderOperation, checkDuplicatePaymentReference, verifyAndAdvanceOrder,
+    confirmCodPayment, checkCreditCustomer,
     type AdminOrder, type DriverOption, type OrderHistoryEntry, type PaymentProof, type WarehouseOption, type DuplicateProofWarning,
 } from '../../lib/adminApi';
 import { ALLOWED_TRANSITIONS, formatDateTime, formatSDG, orderStatusDot, orderStatusLabel, orderStatusStyle, paymentMethodLabel, paymentStatusLabel, paymentStatusStyle, type OrderStatus } from '../../lib/format';
@@ -26,6 +27,7 @@ export const OrderDetailPage: React.FC = () => {
     const [notFound, setNotFound] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+    const [isCreditCustomer, setIsCreditCustomer] = useState(false);
 
     const [note, setNote] = useState('');
     const [reviewNote, setReviewNote] = useState('');
@@ -44,6 +46,10 @@ export const OrderDetailPage: React.FC = () => {
             setDriverId(orderData.driver_id ?? '');
             setWarehouseId(orderData.fulfillment_warehouse_id ?? '');
             setProofUrl(proofData ? await signedProofUrl(proofData.proof_path) : null);
+
+            if (orderData.customer_id) {
+                checkCreditCustomer(orderData.customer_id).then(setIsCreditCustomer).catch(() => setIsCreditCustomer(false));
+            }
 
             if (proofData?.transaction_reference) {
                 const dup = await checkDuplicatePaymentReference(proofData.transaction_reference, id);
@@ -83,10 +89,22 @@ export const OrderDetailPage: React.FC = () => {
         }
     };
 
+    const paymentReady = order?.payment_status === 'paid' || isCreditCustomer;
+
     const changeStatus = (status: OrderStatus) => {
         if (!order) return;
         if (status === 'cancelled' && !window.confirm('هل تريد إلغاء هذا الطلب؟ سيتم إرجاع المخزون والنقاط المستخدمة.')) return;
+        if (status === 'delivered' && !paymentReady) {
+            setError('لا يمكن تسليم الطلب قبل تأكيد الدفع. يرجى تأكيد استلام المبلغ أولاً.');
+            return;
+        }
         void run(() => updateOrderOperation({ orderId: order.id, expectedStatus: order.status, status, note }));
+    };
+
+    const handleConfirmCod = () => {
+        if (!order) return;
+        if (!window.confirm('هل تؤكد أن المبلغ النقدي تم استلامه من العميل؟')) return;
+        void run(() => confirmCodPayment(order.id));
     };
 
     const saveAssignment = () => {
@@ -143,6 +161,9 @@ export const OrderDetailPage: React.FC = () => {
     const transitions = ALLOWED_TRANSITIONS[order.status as OrderStatus] ?? [];
     const assignmentLocked = !['new', 'confirmed', 'preparing', 'delivery_failed'].includes(order.status);
     const canReviewProof = proof?.status === 'pending';
+    const needsPaymentBeforeDelivery = transitions.includes('delivered' as OrderStatus) && !paymentReady;
+    const isCod = order.payment_method === 'COD';
+    const codNeedsConfirmation = isCod && order.payment_status !== 'paid';
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
@@ -212,20 +233,56 @@ export const OrderDetailPage: React.FC = () => {
                             rows={2}
                             className="w-full mb-4 p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-blue"
                         />
+                        {needsPaymentBeforeDelivery && (
+                            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2 text-xs text-amber-800 mb-4">
+                                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="font-black">⚠️ الدفع غير مؤكد</p>
+                                    <p className="mt-0.5">
+                                        {isCod
+                                            ? 'يجب تأكيد استلام المبلغ النقدي من العميل قبل تسجيل التسليم.'
+                                            : 'يجب التحقق من إثبات الدفع والموافقة عليه قبل تسجيل التسليم.'}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {codNeedsConfirmation && order.status === 'shipped' && (
+                            <button
+                                disabled={busy}
+                                onClick={handleConfirmCod}
+                                className="w-full mb-4 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-black hover:bg-emerald-700 disabled:opacity-50 shadow-sm"
+                            >
+                                <Banknote className="w-4 h-4" /> تأكيد استلام المبلغ النقدي
+                            </button>
+                        )}
+
+                        {isCreditCustomer && order.payment_status !== 'paid' && (
+                            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-2 text-xs text-blue-800 mb-4">
+                                <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                                <p><span className="font-black">عميل آجل</span> — يُسمح بتسليم الطلب بدون تأكيد الدفع المسبق.</p>
+                            </div>
+                        )}
+
                         {transitions.length === 0 ? (
                             <p className="text-sm text-slate-400 font-bold">لا توجد إجراءات متاحة لهذه الحالة.</p>
                         ) : (
                             <div className="flex flex-wrap gap-2">
-                                {transitions.map((next) => (
-                                    <button
-                                        key={next}
-                                        disabled={busy}
-                                        onClick={() => changeStatus(next)}
-                                        className={`px-4 py-2 rounded-xl text-sm font-black border transition-colors disabled:opacity-50 ${next === 'cancelled' ? 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100' : 'bg-brand-blue text-white border-brand-blue hover:bg-blue-700'}`}
-                                    >
-                                        {next === 'cancelled' ? 'إلغاء الطلب' : `→ ${orderStatusLabel(next)}`}
-                                    </button>
-                                ))}
+                                {transitions.map((next) => {
+                                    const isDelivered = next === 'delivered';
+                                    const blocked = isDelivered && !paymentReady;
+                                    return (
+                                        <button
+                                            key={next}
+                                            disabled={busy || blocked}
+                                            onClick={() => changeStatus(next)}
+                                            title={blocked ? 'يرجى تأكيد الدفع أولاً' : undefined}
+                                            className={`px-4 py-2 rounded-xl text-sm font-black border transition-colors disabled:opacity-50 ${next === 'cancelled' ? 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100' : blocked ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-brand-blue text-white border-brand-blue hover:bg-blue-700'}`}
+                                        >
+                                            {next === 'cancelled' ? 'إلغاء الطلب' : `→ ${orderStatusLabel(next)}`}
+                                        </button>
+                                    );
+                                })}
                             </div>
                         )}
                     </Card>
