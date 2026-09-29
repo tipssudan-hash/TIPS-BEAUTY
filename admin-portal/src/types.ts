@@ -206,9 +206,35 @@ export interface DeliverySummary {
     push: DeliveryChannelStats;
 }
 
+export interface CustomerProfile {
+    id: string;
+    full_name: string | null;
+    email: string | null;
+    phone: string | null;
+    role: string;
+    created_at: string;
+    beauty_points: number;
+    loyalty_lifetime_points: number;
+    loyalty_tier: string;
+    referral_code: string | null;
+    orders_count?: number;
+    total_spent?: number;
+}
+
+export interface LoyaltyLedgerEntry {
+    id: string;
+    customer_id: string;
+    order_id: string | null;
+    points_delta: number;
+    event_type: string;
+    note: string | null;
+    created_at: string;
+}
+
 export const SUDANESE_STATES = [
     'الخرطوم', 'الجزيرة', 'البحر الأحمر', 'نهر النيل', 'الشمالية',
     'شمال دارفور', 'غرب دارفور', 'جنوب دارفور', 'وسط دارفور', 'شرق دارفور',
     'شمال كردفان', 'جنوب كردفان', 'غرب كردفان', 'سنار', 'النيل الأبيض',
     'النيل الأزرق', 'القضارف', 'كسلا',
 ];
+

@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { DeliveryChannelStats, DeliveryFailure, DeliverySummary } from '../types';
+import type { CustomerProfile, DeliveryChannelStats, DeliveryFailure, DeliverySummary, LoyaltyLedgerEntry } from '../types';
 
 // Orders / dashboard API. Product and catalogue CRUD live in catalogApi.ts.
 
@@ -265,3 +265,157 @@ export async function fetchDeliverySummary(hours = 48): Promise<DeliverySummary>
         push: channel(raw.push),
     };
 }
+
+// Customers & Users Management --------------------------------------------------
+
+export interface CustomerFilters {
+    search?: string;
+    tier?: string;
+    role?: string;
+    page: number;
+    pageSize: number;
+}
+
+export async function fetchCustomers(filters: CustomerFilters): Promise<{ rows: CustomerProfile[]; total: number }> {
+    const from = filters.page * filters.pageSize;
+    let query = supabase.from('profiles').select('*', { count: 'exact' }).order('created_at', { ascending: false }).range(from, from + filters.pageSize - 1);
+    
+    if (filters.role) query = query.eq('role', filters.role);
+    if (filters.tier) query = query.eq('loyalty_tier', filters.tier);
+    
+    const search = filters.search?.trim();
+    if (search) {
+        const escaped = search.replace(/[%,()]/g, ' ');
+        query = query.or(`full_name.ilike.%${escaped}%,phone.ilike.%${escaped}%,email.ilike.%${escaped}%,referral_code.ilike.%${escaped}%`);
+    }
+
+    const { data, error, count } = await query;
+    if (error) throw error;
+    const profiles = (data ?? []) as unknown as CustomerProfile[];
+
+    // Aggregate orders summary for these customers
+    if (profiles.length > 0) {
+        const customerIds = profiles.map((p) => p.id);
+        const { data: ordersData } = await supabase
+            .from('orders')
+            .select('customer_id,total,status')
+            .in('customer_id', customerIds);
+
+        const statsMap = new Map<string, { count: number; spent: number }>();
+        (ordersData ?? []).forEach((ord) => {
+            if (!ord.customer_id) return;
+            const current = statsMap.get(ord.customer_id) ?? { count: 0, spent: 0 };
+            current.count += 1;
+            if (ord.status !== 'cancelled') {
+                current.spent += Number(ord.total ?? 0);
+            }
+            statsMap.set(ord.customer_id, current);
+        });
+
+        profiles.forEach((p) => {
+            const stat = statsMap.get(p.id);
+            p.orders_count = stat?.count ?? 0;
+            p.total_spent = stat?.spent ?? 0;
+        });
+    }
+
+    return { rows: profiles, total: count ?? 0 };
+}
+
+export interface CustomerDetailData {
+    profile: CustomerProfile;
+    orders: AdminOrder[];
+    loyaltyHistory: LoyaltyLedgerEntry[];
+}
+
+export async function fetchCustomerDetail(customerId: string): Promise<CustomerDetailData | null> {
+    const [profileRes, ordersRes, ledgerRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', customerId).maybeSingle(),
+        supabase.from('orders').select(ORDER_DETAIL_COLUMNS).eq('customer_id', customerId).order('created_at', { ascending: false }),
+        supabase.from('loyalty_ledger').select('*').eq('customer_id', customerId).order('created_at', { ascending: false }),
+    ]);
+
+    if (profileRes.error) throw profileRes.error;
+    if (!profileRes.data) return null;
+
+    const profile = profileRes.data as unknown as CustomerProfile;
+    const orders = (ordersRes.data ?? []).map((row) => ({
+        ...row,
+        items: Array.isArray((row as unknown as { items?: unknown }).items) ? ((row as unknown as { items: unknown[] }).items as unknown as OrderItem[]) : [],
+        total: Number(row.total),
+        shipping_fee: Number(row.shipping_fee ?? 0),
+        discount_amount: Number(row.discount_amount ?? 0),
+        points_discount: Number(row.points_discount ?? 0),
+    })) as AdminOrder[];
+
+    profile.orders_count = orders.length;
+    profile.total_spent = orders.filter((o) => o.status !== 'cancelled').reduce((sum, o) => sum + o.total, 0);
+
+    return {
+        profile,
+        orders,
+        loyaltyHistory: (ledgerRes.data ?? []) as LoyaltyLedgerEntry[],
+    };
+}
+
+export async function adjustCustomerPoints(customerId: string, delta: number, note: string): Promise<number> {
+    const { data, error } = await supabase.rpc('adjust_loyalty_points', {
+        p_customer_id: customerId,
+        p_points_delta: delta,
+        p_note: note,
+    });
+    if (error) throw error;
+    return Number(data);
+}
+
+// Payment Verification Helpers --------------------------------------------------
+
+export interface DuplicateProofWarning {
+    found: boolean;
+    orderId?: string;
+    orderNumber?: string;
+    status?: string;
+}
+
+export async function checkDuplicatePaymentReference(reference: string, currentOrderId: string): Promise<DuplicateProofWarning> {
+    const trimmed = reference.trim();
+    if (!trimmed) return { found: false };
+
+    const { data, error } = await supabase
+        .from('payment_proofs')
+        .select('id,order_id,status,orders(id,order_number)')
+        .eq('transaction_reference', trimmed)
+        .neq('order_id', currentOrderId)
+        .limit(1);
+
+    if (error || !data || data.length === 0) return { found: false };
+    const first = data[0] as unknown as { order_id: string; status: string; orders?: { order_number?: string } };
+    return {
+        found: true,
+        orderId: first.order_id,
+        orderNumber: first.orders?.order_number,
+        status: first.status,
+    };
+}
+
+export async function verifyAndAdvanceOrder(params: {
+    orderId: string;
+    proofId: string;
+    expectedStatus: string;
+    targetStatus: string;
+    reviewNote?: string;
+}): Promise<void> {
+    // 1. Verify payment proof
+    await reviewPaymentProof(params.proofId, 'verified', params.reviewNote);
+
+    // 2. Advance order status (e.g. from 'new' or 'payment_pending' to 'processing' or 'confirmed')
+    if (params.targetStatus && params.targetStatus !== params.expectedStatus) {
+        await updateOrderOperation({
+            orderId: params.orderId,
+            expectedStatus: params.expectedStatus,
+            status: params.targetStatus,
+            note: params.reviewNote ? `تأكيد الدفع التلقائي: ${params.reviewNote}` : 'تم تأكيد الدفع ونقل الطلب للتجهيز',
+        });
+    }
+}
+

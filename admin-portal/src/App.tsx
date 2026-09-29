@@ -16,6 +16,7 @@ import { CollectionFormPage } from './pages/collections/CollectionFormPage';
 import { CouponsPage } from './pages/CouponsPage';
 import { PromotionsPage } from './pages/PromotionsPage';
 import { ReviewsPage } from './pages/ReviewsPage';
+import { CustomersPage } from './pages/CustomersPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { DeliveryHealthPage } from './pages/DeliveryHealthPage';
 
@@ -28,6 +29,7 @@ function App() {
         <Route path="dashboard" element={<AdminDashboard />} />
         <Route path="orders" element={<OrderListPage />} />
         <Route path="orders/:id" element={<OrderDetailPage />} />
+        <Route path="customers" element={<CustomersPage />} />
         <Route path="products" element={<ProductListPage />} />
         <Route path="products/new" element={<ProductFormPage />} />
         <Route path="products/edit/:id" element={<ProductFormPage />} />

@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowRight, Loader2, CheckCircle2, XCircle, Truck, MapPin, CreditCard, Clock, Warehouse } from 'lucide-react';
+import { ArrowRight, Loader2, CheckCircle2, XCircle, Truck, MapPin, CreditCard, Clock, Warehouse, AlertTriangle, Zap } from 'lucide-react';
 import {
     fetchActiveWarehouses, fetchDrivers, fetchOrder, fetchOrderHistory, fetchPaymentProof, markOrderViewed,
-    reviewPaymentProof, signedProofUrl, updateOrderOperation,
-    type AdminOrder, type DriverOption, type OrderHistoryEntry, type PaymentProof, type WarehouseOption,
+    reviewPaymentProof, signedProofUrl, updateOrderOperation, checkDuplicatePaymentReference, verifyAndAdvanceOrder,
+    type AdminOrder, type DriverOption, type OrderHistoryEntry, type PaymentProof, type WarehouseOption, type DuplicateProofWarning,
 } from '../../lib/adminApi';
 import { ALLOWED_TRANSITIONS, formatDateTime, formatSDG, orderStatusDot, orderStatusLabel, orderStatusStyle, paymentMethodLabel, paymentStatusLabel, paymentStatusStyle, type OrderStatus } from '../../lib/format';
 import { orderLineRuleLabel, orderUnitPrice } from '../../lib/pricing';
@@ -19,6 +19,7 @@ export const OrderDetailPage: React.FC = () => {
     const [history, setHistory] = useState<OrderHistoryEntry[]>([]);
     const [proof, setProof] = useState<PaymentProof | null>(null);
     const [proofUrl, setProofUrl] = useState<string | null>(null);
+    const [duplicateWarning, setDuplicateWarning] = useState<DuplicateProofWarning | null>(null);
     const [drivers, setDrivers] = useState<DriverOption[]>([]);
     const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
     const [loading, setLoading] = useState(true);
@@ -43,6 +44,13 @@ export const OrderDetailPage: React.FC = () => {
             setDriverId(orderData.driver_id ?? '');
             setWarehouseId(orderData.fulfillment_warehouse_id ?? '');
             setProofUrl(proofData ? await signedProofUrl(proofData.proof_path) : null);
+
+            if (proofData?.transaction_reference) {
+                const dup = await checkDuplicatePaymentReference(proofData.transaction_reference, id);
+                setDuplicateWarning(dup.found ? dup : null);
+            } else {
+                setDuplicateWarning(null);
+            }
         } catch (err) {
             setError(errorMessage(err, 'تعذر تحميل الطلب.'));
         } finally {
@@ -95,6 +103,18 @@ export const OrderDetailPage: React.FC = () => {
     const reviewProof = (status: 'verified' | 'rejected') => {
         if (!proof) return;
         void run(() => reviewPaymentProof(proof.id, status, reviewNote));
+    };
+
+    const verifyAndAdvance = () => {
+        if (!proof || !order) return;
+        const targetStatus = order.status === 'new' ? 'processing' : order.status;
+        void run(() => verifyAndAdvanceOrder({
+            orderId: order.id,
+            proofId: proof.id,
+            expectedStatus: order.status,
+            targetStatus,
+            reviewNote: reviewNote || undefined,
+        }));
     };
 
     const eligibleDrivers = useMemo(
@@ -247,6 +267,22 @@ export const OrderDetailPage: React.FC = () => {
                         {proof && (
                             <div className="mt-5 border-t border-slate-100 pt-5">
                                 <p className="font-black text-slate-900 mb-3">إثبات الدفع <span className="text-xs font-bold text-slate-400">({PROOF_STATUS_LABELS[proof.status] ?? proof.status})</span></p>
+
+                                {duplicateWarning && (
+                                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2 text-xs text-red-700 mb-3">
+                                        <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="font-bold">تحذير: اشتباه في تكرار الرقم المرجعي!</p>
+                                            <p className="text-[11px] mt-0.5">
+                                                هذا الرقم المرجعي مسجل مسبقاً في الطلب رقم{' '}
+                                                <Link to={`/orders/${duplicateWarning.orderId}`} target="_blank" className="underline font-bold text-red-800">
+                                                    {duplicateWarning.orderNumber ?? duplicateWarning.orderId?.slice(0, 8)}
+                                                </Link> ({duplicateWarning.status}).
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {proofUrl ? (
                                     <a href={proofUrl} target="_blank" rel="noreferrer" className="block mb-3">
                                         <img src={proofUrl} alt="إثبات الدفع" className="w-full max-h-72 object-contain rounded-xl border border-slate-100 bg-slate-50" />
@@ -265,15 +301,22 @@ export const OrderDetailPage: React.FC = () => {
                                         <input
                                             value={reviewNote}
                                             onChange={(e) => setReviewNote(e.target.value)}
-                                            placeholder="ملاحظة (اختياري)"
+                                            placeholder="ملاحظة مراجعة الدفع (اختياري)"
                                             className="w-full p-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-blue"
                                         />
+                                        <button
+                                            disabled={busy}
+                                            onClick={verifyAndAdvance}
+                                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-black hover:bg-emerald-700 disabled:opacity-50 shadow-sm"
+                                        >
+                                            <Zap className="w-4 h-4" /> تأكيد الدفع ونقل للتجهيز (خطوة واحدة)
+                                        </button>
                                         <div className="flex gap-2">
-                                            <button disabled={busy} onClick={() => reviewProof('verified')} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-black hover:bg-emerald-700 disabled:opacity-50">
-                                                <CheckCircle2 className="w-4 h-4" /> تأكيد الدفع
+                                            <button disabled={busy} onClick={() => reviewProof('verified')} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 disabled:opacity-50">
+                                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> تأكيد فقط
                                             </button>
                                             <button disabled={busy} onClick={() => reviewProof('rejected')} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-red-50 text-red-600 border border-red-100 text-xs font-black hover:bg-red-100 disabled:opacity-50">
-                                                <XCircle className="w-4 h-4" /> رفض
+                                                <XCircle className="w-3.5 h-3.5" /> رفض
                                             </button>
                                         </div>
                                     </div>

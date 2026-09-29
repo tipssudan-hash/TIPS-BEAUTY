@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, Navigate } from 'react-router-dom';
 import {
     LayoutDashboard, Package, LogOut, Menu, X, Loader2,
-    ShoppingBag, Settings, Truck, Boxes, Warehouse, MapPin, Image, MessageSquare, Radio, Layers, Ticket, Percent
+    ShoppingBag, Settings, Truck, Boxes, Warehouse, MapPin, Image, MessageSquare, Radio, Layers, Ticket, Percent, Users
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useUnseenOrders } from '../hooks/useUnseenOrders';
@@ -46,6 +46,7 @@ export const AdminLayout: React.FC = () => {
     const menuItems: { path: string; icon: typeof LayoutDashboard; label: string; badge: string | null }[] = [
         { path: '/dashboard', icon: LayoutDashboard, label: 'لوحة التحكم', badge: null },
         { path: '/orders', icon: ShoppingBag, label: 'الطلبات', badge: unseenOrders > 0 ? String(unseenOrders) : null },
+        { path: '/customers', icon: Users, label: 'العملاء', badge: null },
         { path: '/products', icon: Package, label: 'المنتجات', badge: null },
         { path: '/inventory', icon: Boxes, label: 'المخزون', badge: null },
         { path: '/warehouses', icon: Warehouse, label: 'المخازن', badge: null },
