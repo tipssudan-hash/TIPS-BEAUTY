@@ -26,7 +26,7 @@ DECLARE
 BEGIN
   IF NOT public.is_admin() THEN RAISE EXCEPTION 'Administrator access required'; END IF;
   IF trim(p_display_name) = '' THEN RAISE EXCEPTION 'Marketer display name is required'; END IF;
-  IF COALESCE(p_commission_rate, 0) < 0 OR p_commission_rate > 100 THEN RAISE EXCEPTION 'Commission rate must be between 0%% and 100%%'; END IF;
+  IF COALESCE(p_commission_rate, 0) < 0 OR p_commission_rate > 100 THEN RAISE EXCEPTION 'Commission rate must be between 0 and 100 percent'; END IF;
   IF p_status NOT IN ('pending', 'active', 'suspended', 'rejected') THEN RAISE EXCEPTION 'Invalid status'; END IF;
 
   IF p_id IS NULL THEN
