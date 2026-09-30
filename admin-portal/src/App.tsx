@@ -14,6 +14,7 @@ import { BannersPage } from './pages/BannersPage';
 import { CollectionsPage } from './pages/collections/CollectionsPage';
 import { CollectionFormPage } from './pages/collections/CollectionFormPage';
 import { CouponsPage } from './pages/CouponsPage';
+import { AffiliatesPage } from './pages/AffiliatesPage';
 import { PromotionsPage } from './pages/PromotionsPage';
 import { ReviewsPage } from './pages/ReviewsPage';
 import { CustomersPage } from './pages/CustomersPage';
@@ -42,6 +43,7 @@ function App() {
         <Route path="collections/new" element={<CollectionFormPage />} />
         <Route path="collections/edit/:id" element={<CollectionFormPage />} />
         <Route path="coupons" element={<CouponsPage />} />
+        <Route path="affiliates" element={<AffiliatesPage />} />
         <Route path="promotions" element={<PromotionsPage />} />
         <Route path="reviews" element={<ReviewsPage />} />
         <Route path="delivery-health" element={<DeliveryHealthPage />} />

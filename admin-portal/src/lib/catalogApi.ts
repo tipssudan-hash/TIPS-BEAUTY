@@ -341,19 +341,20 @@ export async function deleteCollection(id: string): Promise<void> {
 // Eligibility data: reads under the admin policy, every write through the admin RPCs.
 
 export async function fetchCoupons(): Promise<Coupon[]> {
-    const { data, error } = await supabase.rpc('admin_get_coupons');
+    const { data, error } = await supabase.rpc('admin_get_coupons' as any);
     if (error) throw error;
-    return (data ?? []).map((row) => ({
+    return (data ?? []).map((row: any) => ({
         ...row,
         discount_type: row.discount_type as Coupon['discount_type'],
         discount_value: Number(row.discount_value),
         max_discount_amount: row.max_discount_amount == null ? null : Number(row.max_discount_amount),
         min_order_amount: Number(row.min_order_amount),
+        affiliate_id: row.affiliate_id ?? null,
     }));
 }
 
 export async function saveCoupon(id: string | null, input: CouponInput): Promise<string> {
-    const { data, error } = await supabase.rpc('admin_save_coupon', {
+    const { data, error } = await supabase.rpc('admin_save_coupon' as any, {
         p_id: id ?? undefined,
         p_code: input.code.trim(),
         p_name: input.name.trim(),
@@ -367,14 +368,104 @@ export async function saveCoupon(id: string | null, input: CouponInput): Promise
         p_starts_at: input.starts_at,
         p_ends_at: input.ends_at ?? undefined,
         p_is_active: input.is_active,
-    });
+        p_affiliate_id: input.affiliate_id ?? undefined,
+    } as any);
     if (error) throw error;
     return data;
 }
 
 export async function deleteCoupon(id: string): Promise<void> {
-    const { error } = await supabase.rpc('admin_delete_coupon', { p_id: id });
+    const { error } = await supabase.rpc('admin_delete_coupon' as any, { p_id: id } as any);
     if (error) throw error;
+}
+
+// Marketers / Affiliates ---------------------------------------------------------------
+
+export async function fetchAffiliates(): Promise<import('../types').Affiliate[]> {
+    const { data, error } = await supabase.rpc('admin_get_affiliates' as any);
+    if (error) throw error;
+    return (data ?? []).map((row: any) => ({
+        ...row,
+        commission_rate: Number(row.commission_rate ?? 0),
+        minimum_payout: Number(row.minimum_payout ?? 0),
+        total_orders: Number(row.total_orders ?? 0),
+        total_sales: Number(row.total_sales ?? 0),
+        total_discount_given: Number(row.total_discount_given ?? 0),
+        total_commission_earned: Number(row.total_commission_earned ?? 0),
+        total_payouts_paid: Number(row.total_payouts_paid ?? 0),
+        pending_balance: Number(row.pending_balance ?? 0),
+        coupons_count: Number(row.coupons_count ?? 0),
+    }));
+}
+
+export async function saveAffiliate(id: string | null, input: import('../types').AffiliateInput): Promise<string> {
+    const { data, error } = await supabase.rpc('admin_save_affiliate' as any, {
+        p_id: id ?? undefined,
+        p_display_name: input.display_name.trim(),
+        p_phone: input.phone?.trim() || undefined,
+        p_email: input.email?.trim() || undefined,
+        p_commission_rate: input.commission_rate,
+        p_minimum_payout: input.minimum_payout,
+        p_payout_method: input.payout_method?.trim() || undefined,
+        p_payout_details: input.payout_details?.trim() || undefined,
+        p_admin_note: input.admin_note?.trim() || undefined,
+        p_status: input.status,
+    } as any);
+    if (error) throw error;
+    return data;
+}
+
+export async function recordAffiliatePayout(input: import('../types').AffiliatePayoutInput): Promise<string> {
+    const { data, error } = await supabase.rpc('admin_record_affiliate_payout' as any, {
+        p_affiliate_id: input.affiliate_id,
+        p_amount: input.amount,
+        p_payout_method: input.payout_method.trim(),
+        p_reference_number: input.reference_number?.trim() || undefined,
+        p_notes: input.notes?.trim() || undefined,
+    } as any);
+    if (error) throw error;
+    return data;
+}
+
+export async function fetchAffiliateDetails(id: string): Promise<import('../types').AffiliateDetails> {
+    const { data, error } = await supabase.rpc('admin_get_affiliate_details' as any, { p_affiliate_id: id } as any);
+    if (error) throw error;
+    const res = data as any;
+    return {
+        profile: {
+            ...res.profile,
+            commission_rate: Number(res.profile?.commission_rate ?? 0),
+            minimum_payout: Number(res.profile?.minimum_payout ?? 0),
+        },
+        stats: {
+            total_orders: Number(res.stats?.total_orders ?? 0),
+            total_sales: Number(res.stats?.total_sales ?? 0),
+            total_discount_given: Number(res.stats?.total_discount_given ?? 0),
+            total_commission_earned: Number(res.stats?.total_commission_earned ?? 0),
+            total_payouts_paid: Number(res.stats?.total_payouts_paid ?? 0),
+            pending_balance: Number(res.stats?.pending_balance ?? 0),
+        },
+        coupons: (res.coupons ?? []).map((c: any) => ({
+            ...c,
+            discount_value: Number(c.discount_value ?? 0),
+            max_discount_amount: c.max_discount_amount == null ? null : Number(c.max_discount_amount),
+            usage_count: Number(c.usage_count ?? 0),
+        })),
+        orders: (res.orders ?? []).map((o: any) => ({
+            ...o,
+            total: Number(o.total ?? 0),
+            discount_amount: Number(o.discount_amount ?? 0),
+        })),
+        commissions: (res.commissions ?? []).map((c: any) => ({
+            ...c,
+            commission_amount: Number(c.commission_amount ?? 0),
+            commission_rate: Number(c.commission_rate ?? 0),
+        })),
+        payouts: (res.payouts ?? []).map((p: any) => ({
+            ...p,
+            amount: Number(p.amount ?? 0),
+        })),
+    };
 }
 
 // Promotions ---------------------------------------------------------------------------

@@ -137,9 +137,125 @@ export interface Coupon {
     starts_at: string;
     ends_at: string | null;
     is_active: boolean;
+    affiliate_id?: string | null;
 }
 
 export type CouponInput = Omit<Coupon, 'id' | 'usage_count'>;
+
+export interface Affiliate {
+    id: string;
+    display_name: string;
+    code: string;
+    phone: string | null;
+    email: string | null;
+    status: 'pending' | 'active' | 'suspended' | 'rejected';
+    commission_rate: number;
+    minimum_payout: number;
+    payout_method: string | null;
+    payout_details: string | null;
+    admin_note: string | null;
+    total_orders: number;
+    total_sales: number;
+    total_discount_given: number;
+    total_commission_earned: number;
+    total_payouts_paid: number;
+    pending_balance: number;
+    coupons_count: number;
+    created_at: string;
+}
+
+export interface AffiliateInput {
+    display_name: string;
+    phone?: string | null;
+    email?: string | null;
+    commission_rate: number;
+    minimum_payout: number;
+    payout_method?: string | null;
+    payout_details?: string | null;
+    admin_note?: string | null;
+    status: 'pending' | 'active' | 'suspended' | 'rejected';
+}
+
+export interface AffiliatePayout {
+    id: string;
+    amount: number;
+    payout_method: string;
+    reference_number: string | null;
+    notes: string | null;
+    created_at: string;
+}
+
+export interface AffiliatePayoutInput {
+    affiliate_id: string;
+    amount: number;
+    payout_method: string;
+    reference_number?: string | null;
+    notes?: string | null;
+}
+
+export interface AffiliateOrder {
+    id: string;
+    order_number: string;
+    customer_name: string;
+    phone: string;
+    total: number;
+    discount_amount: number;
+    coupon_code: string | null;
+    status: string;
+    payment_status: string;
+    created_at: string;
+}
+
+export interface AffiliateCommission {
+    id: string;
+    order_id: string;
+    order_number: string | null;
+    commission_amount: number;
+    commission_rate: number;
+    status: 'pending' | 'approved' | 'paid' | 'reversed';
+    created_at: string;
+    paid_at: string | null;
+}
+
+export interface AffiliateDetails {
+    profile: {
+        id: string;
+        display_name: string;
+        code: string;
+        phone: string | null;
+        email: string | null;
+        status: 'pending' | 'active' | 'suspended' | 'rejected';
+        commission_rate: number;
+        minimum_payout: number;
+        payout_method: string | null;
+        payout_details: string | null;
+        admin_note: string | null;
+        created_at: string;
+    };
+    stats: {
+        total_orders: number;
+        total_sales: number;
+        total_discount_given: number;
+        total_commission_earned: number;
+        total_payouts_paid: number;
+        pending_balance: number;
+    };
+    coupons: {
+        id: string;
+        code: string;
+        name: string;
+        discount_type: 'percentage' | 'fixed';
+        discount_value: number;
+        max_discount_amount: number | null;
+        usage_count: number;
+        is_active: boolean;
+        starts_at: string;
+        ends_at: string | null;
+    }[];
+    orders: AffiliateOrder[];
+    commissions: AffiliateCommission[];
+    payouts: AffiliatePayout[];
+}
 
 // A scheduled reduction on all Products, a Category, a Brand or chosen Products. The status is
 // derived by the backend from the schedule; "end now" closes the schedule.
