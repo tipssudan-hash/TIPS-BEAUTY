@@ -46,3 +46,8 @@ deploy-storefront.zip
 deploy-admin.zip
 fix-storefront-htaccess.zip
 fix-admin-assets.zip
+
+# Playwright (T2-13 local smoke suite) output.
+/test-results/
+/playwright-report/
+/blob-report/
