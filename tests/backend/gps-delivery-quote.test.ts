@@ -8,7 +8,7 @@ import { creds, haveCreds, rpc, signedInClient, TEST_TAG, type Client } from './
 const TEST_STATE = `${TEST_TAG}-STATE`;
 
 const KRT = { lat: 15.5007, lon: 32.5599 };
-const NEAR = { lat: 15.6, lon: 32.6 }; // ~14km from KRT by haversine
+const NEAR = { lat: 15.6, lon: 32.6 }; // ~11.85km from KRT by haversine
 const FAR = { lat: 19.6158, lon: 37.2164 }; // ~660km from KRT by haversine (Port Sudan-ish)
 
 type Quote = { fee: number; eta_minutes: number | null; source: string };
@@ -67,9 +67,9 @@ suite('calculate_delivery_quote (GPS-02)', () => {
     it('computes base + distance x rate x road multiplier for a short in-state leg', async () => {
         const row = await quote();
         expect(row.source).toBe('dynamic');
-        // haversine(KRT, NEAR) ~ 14.1km -> 500 + 14.1*100*1.25 ~ 2262; loose bounds for rounding.
-        expect(row.fee).toBeGreaterThan(2000);
-        expect(row.fee).toBeLessThan(2600);
+        // haversine(KRT, NEAR) ~ 11.85km -> 500 + 11.85*100*1.25 ~ 1981; loose bounds for rounding.
+        expect(row.fee).toBeGreaterThan(1900);
+        expect(row.fee).toBeLessThan(2100);
         expect(row.eta_minutes).toBeGreaterThan(20);
     });
 
