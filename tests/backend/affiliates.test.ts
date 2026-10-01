@@ -4,13 +4,13 @@ import { haveCreds, signedInClient, creds, rpc, TEST_TAG } from './helpers';
 describe.skipIf(!haveCreds)('Affiliate & Coupon End-to-End Workflow', () => {
     it('creates marketer, links coupon, generates commission, and records payout with accurate balances', async () => {
         const admin = await signedInClient(creds.admin.email, creds.admin.password);
-        const testMarketerCode = `MKT${Date.now().toString().slice(-6)}`;
         const testCouponCode = `CPN${Date.now().toString().slice(-6)}`;
 
         // 1. Admin creates Marketer Profile with 10% commission
+        // admin_save_affiliate no longer takes p_code (20260930000200_affiliate_auto_code.sql):
+        // the code is now server-generated as AFF-<8 hex chars>, never admin-supplied.
         const { data: affiliateId, error: affErr } = await rpc(admin, 'admin_save_affiliate', {
             p_display_name: `${TEST_TAG} Marketer`,
-            p_code: testMarketerCode,
             p_phone: '0912345678',
             p_email: 'marketer@test.com',
             p_commission_rate: 10,
@@ -63,12 +63,14 @@ describe.skipIf(!haveCreds)('Affiliate & Coupon End-to-End Workflow', () => {
         });
         expect(detErr).toBeNull();
         const detailsObj = details as any;
-        expect(detailsObj.profile.code).toBe(testMarketerCode);
+        expect(detailsObj.profile.code).toMatch(/^AFF-[A-F0-9]{8}$/);
         expect(detailsObj.coupons.some((c: any) => c.code === testCouponCode)).toBe(true);
         expect(detailsObj.payouts.some((p: any) => p.id === payoutId)).toBe(true);
         expect(Number(detailsObj.stats.total_payouts_paid)).toBe(payoutAmount);
 
-        // Cleanup: Delete the test coupon
+        // Cleanup: delete the test coupon, then the test marketer profile (no admin_delete_affiliate
+        // RPC exists; authenticated has a direct, RLS-gated DELETE grant on affiliate_profiles).
         await rpc(admin, 'admin_delete_coupon', { p_id: couponId });
+        await admin.from('affiliate_profiles').delete().eq('id', affiliateId);
     });
 });
