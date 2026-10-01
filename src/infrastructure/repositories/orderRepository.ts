@@ -1,5 +1,5 @@
 import { supabase } from '../supabase/client';
-import type { CouponPreview, DeliveryQuote, Order, OrderItem, OrderStatusEntry } from '../../domain/entities';
+import type { CouponPreview, DeliveryQuote, Order, OrderItem, OrderReturn, OrderStatusEntry, ReturnItem, ReturnResolution } from '../../domain/entities';
 
 export interface CheckoutInput {
     customerName: string;
@@ -167,6 +167,54 @@ export async function previewDeliveryQuote(zoneName: string, state: string, item
     const row = (data as { fee: number; eta_minutes: number | null; source: DeliveryQuote['source'] }[] | null)?.[0];
     if (!row) throw new Error('Delivery quote preview returned nothing');
     return { fee: Number(row.fee), etaMinutes: row.eta_minutes, source: row.source };
+}
+
+type OrderReturnRow = {
+    id: string; order_id: string; items: unknown; reason: string; requested_resolution: string; status: string;
+    customer_note: string | null; admin_note: string | null; created_at: string; updated_at: string;
+};
+
+function mapOrderReturn(row: OrderReturnRow): OrderReturn {
+    return {
+        id: row.id,
+        orderId: row.order_id,
+        items: Array.isArray(row.items) ? (row.items as ReturnItem[]) : [],
+        reason: row.reason,
+        requestedResolution: row.requested_resolution as ReturnResolution,
+        status: row.status as OrderReturn['status'],
+        customerNote: row.customer_note,
+        adminNote: row.admin_note,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+    };
+}
+
+export async function fetchOrderReturns(orderId: string): Promise<OrderReturn[]> {
+    const { data, error } = await supabase.from('order_returns')
+        .select('id,order_id,items,reason,requested_resolution,status,customer_note,admin_note,created_at,updated_at')
+        .eq('order_id', orderId).order('created_at', { ascending: false });
+    if (error) throw error;
+    return ((data ?? []) as OrderReturnRow[]).map(mapOrderReturn);
+}
+
+export interface ReturnRequestInput {
+    orderId: string;
+    items: ReturnItem[];
+    reason: string;
+    requestedResolution: ReturnResolution;
+    customerNote?: string | null;
+}
+
+export async function requestReturn(input: ReturnRequestInput): Promise<string> {
+    const { data, error } = await supabase.rpc('request_order_return', {
+        p_order_id: input.orderId,
+        p_items: input.items,
+        p_reason: input.reason.trim(),
+        p_requested_resolution: input.requestedResolution,
+        p_customer_note: input.customerNote?.trim() || undefined,
+    });
+    if (error) throw error;
+    return data as string;
 }
 
 // Customers may only INSERT into payment-proofs, so every attempt gets its own object name.

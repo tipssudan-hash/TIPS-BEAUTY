@@ -12,6 +12,7 @@ import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_METHOD_LABELS, Stat
 import { Card, Notice, StatusPill, inputClass, secondaryButtonClass } from '../../components/ui';
 import { OrderStepper } from '../../components/orders/OrderStepper';
 import { DeliveryCard } from '../../components/orders/DeliveryCard';
+import { ReturnSection } from '../../components/orders/ReturnSection';
 
 const MAX_PROOF_BYTES = 5 * 1024 * 1024;
 
@@ -309,6 +310,8 @@ export const OrderDetailPage: React.FC = () => {
                     </ul>
                 </Card>
             )}
+
+            {order.status === 'delivered' && <ReturnSection order={order} history={history} />}
 
             {needsProof && (
                 <form onSubmit={handleProofSubmit} className="bg-white rounded-2xl shadow-sm border border-amber-200 p-6 space-y-3">

@@ -609,3 +609,26 @@ export async function moderateReview(id: string, status: 'published' | 'hidden')
     const { error } = await supabase.rpc('moderate_product_review', { p_review_id: id, p_status: status, p_remove_images: false });
     if (error) throw error;
 }
+
+// Returns (T2-12) ------------------------------------------------------------------
+
+export async function fetchOrderReturns(): Promise<import('../types').OrderReturn[]> {
+    // admin_list_order_returns is ahead of generated types until this migration is applied and
+    // `supabase gen types` is re-run — same as any pattern as elsewhere in this file.
+    const { data, error } = await supabase.rpc('admin_list_order_returns' as any);
+    if (error) throw error;
+    return ((data ?? []) as any[]).map((r) => ({
+        ...r,
+        items: Array.isArray(r.items) ? r.items : [],
+    }));
+}
+
+export async function reviewOrderReturn(returnId: string, status: import('../types').ReturnStatus, adminNote?: string, restock?: boolean): Promise<void> {
+    const { error } = await supabase.rpc('review_order_return', {
+        p_return_id: returnId,
+        p_status: status,
+        p_admin_note: adminNote?.trim() || undefined,
+        p_restock: restock ?? false,
+    });
+    if (error) throw error;
+}
