@@ -1,6 +1,6 @@
 // Domain entities barrel export — every consumer imports from here.
 export type { Product, ProductVariant, PricingRule, PricingRuleKind } from './product';
-export type { Order, OrderItem, OrderStatus, PaymentStatus, OrderStatusEntry } from './order';
+export type { Order, OrderItem, OrderStatus, PaymentStatus, OrderStatusEntry, OrderReturn, ReturnItem, ReturnStatus, ReturnResolution } from './order';
 export type { CartItem } from './cart';
 export type { Offer } from './offer';
 export type { Banner, BannerActionType } from './banner';

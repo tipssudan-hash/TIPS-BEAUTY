@@ -21,6 +21,7 @@ import { CustomersPage } from './pages/CustomersPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { DeliveryHealthPage } from './pages/DeliveryHealthPage';
 import { DeliveryPricingPage } from './pages/DeliveryPricingPage';
+import { ReturnsPage } from './pages/ReturnsPage';
 
 function App() {
   return (
@@ -31,6 +32,7 @@ function App() {
         <Route path="dashboard" element={<AdminDashboard />} />
         <Route path="orders" element={<OrderListPage />} />
         <Route path="orders/:id" element={<OrderDetailPage />} />
+        <Route path="returns" element={<ReturnsPage />} />
         <Route path="customers" element={<CustomersPage />} />
         <Route path="products" element={<ProductListPage />} />
         <Route path="products/new" element={<ProductFormPage />} />

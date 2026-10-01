@@ -47,3 +47,28 @@ export interface OrderStatusEntry {
   note: string | null;
   createdAt: string;
 }
+
+export type ReturnStatus = 'requested' | 'approved' | 'rejected' | 'received' | 'refunded' | 'closed';
+export type ReturnResolution = 'refund' | 'exchange';
+
+// A plain type alias (not an interface) so it structurally satisfies the jsonb Json param type
+// when passed straight into supabase.rpc — see CheckoutItem for the same reasoning.
+export type ReturnItem = {
+  id: string;
+  quantity: number;
+  name_ar?: string;
+  variant_name?: string | null;
+};
+
+export interface OrderReturn {
+  id: string;
+  orderId: string;
+  items: ReturnItem[];
+  reason: string;
+  requestedResolution: ReturnResolution;
+  status: ReturnStatus;
+  customerNote: string | null;
+  adminNote: string | null;
+  createdAt: string;
+  updatedAt: string;
+}

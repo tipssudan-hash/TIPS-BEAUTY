@@ -377,6 +377,36 @@ export interface LoyaltyLedgerEntry {
     created_at: string;
 }
 
+export type ReturnStatus = 'requested' | 'approved' | 'rejected' | 'received' | 'refunded' | 'closed';
+
+export interface ReturnItem {
+    id: string;
+    quantity: number;
+    name_ar?: string;
+    variant_name?: string | null;
+}
+
+export interface OrderReturn {
+    id: string;
+    order_id: string;
+    order_number: string | null;
+    customer_name: string | null;
+    phone: string | null;
+    city: string | null;
+    state: string | null;
+    customer_id: string;
+    items: ReturnItem[];
+    reason: string;
+    requested_resolution: 'refund' | 'exchange';
+    status: ReturnStatus;
+    customer_note: string | null;
+    admin_note: string | null;
+    restocked_at: string | null;
+    reviewed_at: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
 export const SUDANESE_STATES = [
     'الخرطوم', 'الجزيرة', 'البحر الأحمر', 'نهر النيل', 'الشمالية',
     'شمال دارفور', 'غرب دارفور', 'جنوب دارفور', 'وسط دارفور', 'شرق دارفور',
