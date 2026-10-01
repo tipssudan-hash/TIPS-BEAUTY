@@ -50,7 +50,9 @@ suite('smoke: customer checkout then admin confirm', () => {
         await loginCustomer(page);
 
         await page.goto(`${STOREFRONT}/product/${product.id}`);
-        await page.getByRole('button', { name: 'أضيفي للسلة' }).click();
+        // The product page also renders a "related products" carousel with the same button
+        // label on each mini card; the main product's own CTA is the first one in DOM order.
+        await page.getByRole('button', { name: 'أضيفي للسلة' }).first().click();
 
         await page.goto(`${STOREFRONT}/checkout`);
         await page.getByLabel('الاسم بالكامل').fill(TEST_TAG);
@@ -88,6 +90,9 @@ suite('smoke: customer checkout then admin confirm', () => {
         await expect(confirmButton).toBeVisible({ timeout: 10_000 });
         await confirmButton.click();
 
-        await expect(page.getByText('مؤكد', { exact: true }).first()).toBeVisible({ timeout: 10_000 });
+        // Scoped to this order's row — the page also has a status filter <select> with a hidden
+        // "مؤكد" <option> that a page-wide text search would otherwise match instead.
+        const row = page.locator('tr', { hasText: orderNumber });
+        await expect(row.getByText('مؤكد', { exact: true })).toBeVisible({ timeout: 10_000 });
     });
 });
