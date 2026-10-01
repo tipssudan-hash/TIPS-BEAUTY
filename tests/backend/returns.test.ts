@@ -134,8 +134,8 @@ suite('returns over request_order_return / review_order_return (T2-12)', () => {
         const reject = await rpc(admin, 'review_order_return', { p_return_id: returnId, p_status: 'rejected', p_admin_note: `${TEST_TAG} no fault found` });
         expect(reject.error).toBeNull();
 
-        const { data: notifications } = await admin.from('customer_notifications').select('type,body').eq('order_id', order.order_id).eq('type', 'return_rejected');
+        const { data: notifications } = await admin.from('customer_notifications').select('type,body_ar').eq('order_id', order.order_id).eq('type', 'return_rejected');
         expect(notifications).toHaveLength(1);
-        expect(notifications![0].body).toContain(`${TEST_TAG} no fault found`);
+        expect(notifications![0].body_ar).toContain(`${TEST_TAG} no fault found`);
     });
 });

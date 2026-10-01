@@ -67,9 +67,9 @@ suite('calculate_delivery_quote (GPS-02)', () => {
     it('computes base + distance x rate x road multiplier for a short in-state leg', async () => {
         const row = await quote();
         expect(row.source).toBe('dynamic');
-        // haversine(KRT, NEAR) ~ 14.1km -> 500 + 14.1*100*1.25 ~ 2262; loose bounds for rounding.
-        expect(row.fee).toBeGreaterThan(2000);
-        expect(row.fee).toBeLessThan(2600);
+        // haversine(KRT, NEAR) ~ 11.85km -> 500 + 11.85*100*1.25 ~ 1981; loose bounds for rounding.
+        expect(row.fee).toBeGreaterThan(1900);
+        expect(row.fee).toBeLessThan(2100);
         expect(row.eta_minutes).toBeGreaterThan(20);
     });
 
