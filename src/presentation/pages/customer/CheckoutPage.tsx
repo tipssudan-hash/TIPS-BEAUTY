@@ -10,6 +10,7 @@ import { cartLineKey, cartLineUnavailable, cartUnitPrice } from '@domain/valueOb
 import { formatSDG } from '@application/services/format';
 import { Banknote, Wallet, Loader2, Ticket, X } from 'lucide-react';
 import { Card, Notice, Field, inputClass, primaryButtonClass } from '../../components/ui';
+import { useCustomerGps, type CustomerGpsState } from '../../hooks/useCustomerGps';
 
 const IDEMPOTENCY_KEY = 'checkout_idempotency_key';
 const MAX_PROOF_BYTES = 5 * 1024 * 1024;
@@ -27,11 +28,43 @@ function getIdempotencyKey(): string {
 const isDefaultZone = (zone: DeliveryZone) => zone.name.endsWith(DEFAULT_SUFFIX);
 const zoneLabel = (zone: DeliveryZone) => isDefaultZone(zone) ? `محليات أخرى في ${zone.state ?? ''}` : zone.name;
 
+const GPS_FAILURE_MESSAGES: Partial<Record<CustomerGpsState['status'], string>> = {
+    denied: 'لم تُمنح صلاحية الموقع. يمكنك تفعيلها من إعدادات المتصفح.',
+    unavailable: 'الموقع الجغرافي غير متاح على هذا الجهاز.',
+    timeout: 'استغرق تحديد الموقع وقتاً طويلاً، يمكنك المحاولة مجدداً.',
+};
+
+const GpsCapture: React.FC<{ gps: CustomerGpsState }> = ({ gps }) => {
+    if (gps.status === 'requesting') {
+        return (
+            <p className="flex items-center gap-2 text-sm text-gray-600" role="status">
+                <Loader2 className="w-4 h-4 animate-spin" /> جاري تحديد موقعك...
+            </p>
+        );
+    }
+    if (gps.status === 'granted') {
+        return (
+            <div className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-sm text-green-700" role="status">
+                <span>✓ تم تحديد موقعك{gps.accuracyMeters != null ? ` (دقة: ${Math.round(gps.accuracyMeters)} متر)` : ''}</span>
+                <button type="button" onClick={gps.clearGps} className="text-gray-400 hover:text-red-500 min-w-8 min-h-8 flex items-center justify-center" aria-label="إلغاء تحديد الموقع"><X className="w-4 h-4" /></button>
+            </div>
+        );
+    }
+    const failure = GPS_FAILURE_MESSAGES[gps.status];
+    return (
+        <div className="space-y-1">
+            <button type="button" onClick={gps.requestGps} className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50">📍 حدد موقعي</button>
+            {failure && <p role="alert" className="text-xs text-gray-500">{failure}</p>}
+        </div>
+    );
+};
+
 export const CheckoutPage: React.FC = () => {
     const { cart, cartCount, clearCart, products } = useStore();
     const live = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
     const { user } = useAuth();
     const navigate = useNavigate();
+    const gps = useCustomerGps();
 
     const [zones, setZones] = useState<DeliveryZone[]>([]);
     const [methods, setMethods] = useState<PaymentMethod[]>([]);
@@ -116,12 +149,12 @@ export const CheckoutPage: React.FC = () => {
     useEffect(() => {
         if (!selectedZone) { setDeliveryQuote(null); return; }
         let cancelled = false;
-        previewDeliveryQuote(selectedZone.name, formData.state, cartItems)
+        previewDeliveryQuote(selectedZone.name, formData.state, cartItems, gps.latitude, gps.longitude)
             .then(q => { if (!cancelled) setDeliveryQuote(q); })
             .catch(err => { console.error('Delivery quote preview failed', err); if (!cancelled) setDeliveryQuote(null); });
         return () => { cancelled = true; };
         // eslint-disable-next-line react-hooks/exhaustive-deps -- cartSignature stands in for cartItems/cart
-    }, [selectedZone?.id, formData.state, cartSignature]);
+    }, [selectedZone?.id, formData.state, cartSignature, gps.latitude, gps.longitude]);
 
     const lineSubtotal = cart.reduce((sum, item) => sum + cartUnitPrice(item, live.get(item.productId)) * item.quantity, 0);
     // An accepted Coupon replaces the line rules: the Order is priced from the base subtotal minus the Coupon.
@@ -204,6 +237,8 @@ export const CheckoutPage: React.FC = () => {
                 items: cartItems,
                 couponCode: couponApplied?.code ?? null,
                 idempotencyKey,
+                customerLat: gps.latitude,
+                customerLng: gps.longitude,
             });
 
             let proofWarning: string | undefined;
@@ -259,6 +294,8 @@ export const CheckoutPage: React.FC = () => {
                         <Field label="العنوان بالتفصيل" required>
                             <textarea required minLength={5} value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} className={inputClass} rows={3} />
                         </Field>
+                        {/* GPS-05: optional location pin */}
+                        <GpsCapture gps={gps} />
                     </Card>
 
                     <fieldset className="bg-white p-6 rounded-card shadow-card border border-gray-100 space-y-4">

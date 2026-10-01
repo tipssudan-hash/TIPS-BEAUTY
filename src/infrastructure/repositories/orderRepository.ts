@@ -11,6 +11,8 @@ export interface CheckoutInput {
     items: CheckoutItem[];
     couponCode?: string | null;
     idempotencyKey: string;
+    customerLat?: number | null;
+    customerLng?: number | null;
 }
 
 // A checkout line as the backend takes it: the Variant is optional and must belong to the Product.
@@ -119,7 +121,7 @@ export async function cancelMyOrder(orderId: string): Promise<void> {
 }
 
 export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
-    const { data, error } = await supabase.rpc('checkout_order_safe', {
+    const baseArgs = {
         p_customer_name: input.customerName,
         p_phone: input.phone,
         p_shipping_address: input.shippingAddress,
@@ -127,9 +129,13 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
         p_state: input.state,
         p_payment_method: input.paymentMethod,
         p_items: input.items,
-        p_coupon_code: input.couponCode?.trim() || undefined,
+        p_coupon_code: input.couponCode?.trim() || null,
+        p_points_to_redeem: 0,
         p_idempotency_key: input.idempotencyKey,
-    });
+    };
+    const hasPin = input.customerLat != null && input.customerLng != null;
+    const args = hasPin ? { ...baseArgs, p_customer_lat: input.customerLat, p_customer_lng: input.customerLng } : baseArgs;
+    const { data, error } = await supabase.rpc('checkout_order_safe' as never, args as never);
     if (error) throw error;
     const row = (data as { order_id: string; order_number: string; total: number; shipping_fee: number }[] | null)?.[0];
     if (!row) throw new Error('Checkout returned no order');
@@ -159,14 +165,24 @@ export async function previewCoupon(code: string, items: CheckoutItem[]): Promis
 // real order wouldn't also charge. Unlike checkout_order, it never raises when no warehouse can
 // fulfil the cart — it falls back to the flat zone fee, since a preview shouldn't block on a
 // problem the real submission will surface properly.
-export async function previewDeliveryQuote(zoneName: string, state: string, items: CheckoutItem[]): Promise<DeliveryQuote> {
+export async function previewDeliveryQuote(
+    zoneName: string,
+    state: string,
+    items: CheckoutItem[],
+    customerLat?: number | null,
+    customerLng?: number | null,
+): Promise<DeliveryQuote> {
     // GPS-04: preview_delivery_quote is ahead of generated database.types.ts until the owner
     // applies GPS-01/02's migrations and types are regenerated; resolves on its own after that.
-    const { data, error } = await supabase.rpc('preview_delivery_quote' as never, { p_city: zoneName, p_state: state, p_items: items } as never);
+    const hasPin = customerLat != null && customerLng != null;
+    const args = hasPin
+        ? { p_city: zoneName, p_state: state, p_items: items, p_customer_lat: customerLat, p_customer_lng: customerLng }
+        : { p_city: zoneName, p_state: state, p_items: items };
+    const { data, error } = await supabase.rpc('preview_delivery_quote' as never, args as never);
     if (error) throw error;
     const row = (data as { fee: number; eta_minutes: number | null; source: DeliveryQuote['source'] }[] | null)?.[0];
     if (!row) throw new Error('Delivery quote preview returned nothing');
-    return { fee: Number(row.fee), etaMinutes: row.eta_minutes, source: row.source };
+    return { fee: Number(row.fee), etaMinutes: row.eta_minutes, source: row.source, customerPinUsed: hasPin && row.source === 'dynamic' };
 }
 
 type OrderReturnRow = {
