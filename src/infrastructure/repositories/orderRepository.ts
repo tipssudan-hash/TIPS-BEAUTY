@@ -1,5 +1,5 @@
 import { supabase } from '../supabase/client';
-import type { CouponPreview, Order, OrderItem, OrderStatusEntry } from '../../domain/entities';
+import type { CouponPreview, DeliveryQuote, Order, OrderItem, OrderStatusEntry } from '../../domain/entities';
 
 export interface CheckoutInput {
     customerName: string;
@@ -151,6 +151,22 @@ export async function previewCoupon(code: string, items: CheckoutItem[]): Promis
         baseSubtotal: Number(row.base_subtotal ?? 0),
         lineReductions: Number(row.line_reductions ?? 0),
     };
+}
+
+// A side-effect-free preview of what checkout_order will freeze into the Order's shipping_fee —
+// mirrors its warehouse-selection + delivery_zones lookup, then defers the actual pricing math to
+// the same calculate_delivery_quote RPC checkout_order calls, so this can never show a number the
+// real order wouldn't also charge. Unlike checkout_order, it never raises when no warehouse can
+// fulfil the cart — it falls back to the flat zone fee, since a preview shouldn't block on a
+// problem the real submission will surface properly.
+export async function previewDeliveryQuote(zoneName: string, state: string, items: CheckoutItem[]): Promise<DeliveryQuote> {
+    // GPS-04: preview_delivery_quote is ahead of generated database.types.ts until the owner
+    // applies GPS-01/02's migrations and types are regenerated; resolves on its own after that.
+    const { data, error } = await supabase.rpc('preview_delivery_quote' as never, { p_city: zoneName, p_state: state, p_items: items } as never);
+    if (error) throw error;
+    const row = (data as { fee: number; eta_minutes: number | null; source: DeliveryQuote['source'] }[] | null)?.[0];
+    if (!row) throw new Error('Delivery quote preview returned nothing');
+    return { fee: Number(row.fee), etaMinutes: row.eta_minutes, source: row.source };
 }
 
 // Customers may only INSERT into payment-proofs, so every attempt gets its own object name.

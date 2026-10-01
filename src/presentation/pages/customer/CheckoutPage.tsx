@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 import { useAuth } from '../../context/AuthContext';
-import { CouponPreview, DeliveryZone, PaymentMethod } from '@domain/entities';
-import { checkout, previewCoupon, uploadPaymentProof, submitPaymentProof, fetchPaymentMethods, fetchDeliveryZones } from '@infrastructure/repositories';
+import { CouponPreview, DeliveryQuote, DeliveryZone, PaymentMethod } from '@domain/entities';
+import { checkout, previewCoupon, previewDeliveryQuote, uploadPaymentProof, submitPaymentProof, fetchPaymentMethods, fetchDeliveryZones } from '@infrastructure/repositories';
 import { isValidSudanPhone, normalizeSudanPhone } from '@infrastructure/auth/phone';
 import { couponRefusalMessage, errorMessage } from '@application/errors';
 import { cartLineKey, cartLineUnavailable, cartUnitPrice } from '@domain/valueObjects';
@@ -59,6 +59,12 @@ export const CheckoutPage: React.FC = () => {
     const [couponError, setCouponError] = useState<string | null>(null);
     const [couponChecking, setCouponChecking] = useState(false);
 
+    // GPS-04: a live preview of what checkout_order will actually charge for delivery — only
+    // ever a number different from the zone's flat fee once staff enable dynamic pricing for
+    // this State (app_settings.dynamic_pricing_states). Null while loading or on error, in which
+    // case the flat zone fee is shown instead — never blocks placing the order either way.
+    const [deliveryQuote, setDeliveryQuote] = useState<DeliveryQuote | null>(null);
+
     useEffect(() => {
         if (user) {
             setFormData(prev => ({
@@ -101,14 +107,28 @@ export const CheckoutPage: React.FC = () => {
 
     const selectedZone = zones.find(z => z.id === formData.zoneId) ?? null;
     const selectedMethod = methods.find(m => m.code === formData.paymentMethod) ?? null;
+    const cartItems = cart.map(i => ({ id: i.productId, variant_id: i.variantId, quantity: i.quantity }));
+    const cartSignature = cart.map(i => `${cartLineKey(i)}:${i.quantity}`).join(',');
+
+    // Re-preview whenever the chosen Locality or the Cart's contents change — the preview is a
+    // read-only call, side-effect-free to repeat, and checkout_order recomputes/freezes the real
+    // charge independently at placement regardless of what this shows.
+    useEffect(() => {
+        if (!selectedZone) { setDeliveryQuote(null); return; }
+        let cancelled = false;
+        previewDeliveryQuote(selectedZone.name, formData.state, cartItems)
+            .then(q => { if (!cancelled) setDeliveryQuote(q); })
+            .catch(err => { console.error('Delivery quote preview failed', err); if (!cancelled) setDeliveryQuote(null); });
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- cartSignature stands in for cartItems/cart
+    }, [selectedZone?.id, formData.state, cartSignature]);
 
     const lineSubtotal = cart.reduce((sum, item) => sum + cartUnitPrice(item, live.get(item.productId)) * item.quantity, 0);
     // An accepted Coupon replaces the line rules: the Order is priced from the base subtotal minus the Coupon.
     const couponApplied = coupon?.ok ? coupon : null;
     const subtotal = couponApplied ? couponApplied.baseSubtotal : lineSubtotal;
-    const shipping = selectedZone?.fee ?? 0;
+    const shipping = deliveryQuote?.fee ?? selectedZone?.fee ?? 0;
     const total = Math.max(subtotal - (couponApplied?.reduction ?? 0), 0) + shipping;
-    const cartItems = cart.map(i => ({ id: i.productId, variant_id: i.variantId, quantity: i.quantity }));
     // A line whose Variant is gone would be refused by checkout_order: block the Order until it is removed.
     const hasUnavailableLine = cart.some(i => cartLineUnavailable(i, live.get(i.productId)));
 
@@ -134,7 +154,6 @@ export const CheckoutPage: React.FC = () => {
     };
     const removeCoupon = () => { setCoupon(null); setCouponError(null); setCouponInput(''); };
     // A preview is only good for the Cart it was computed on: drop it when the lines change.
-    const cartSignature = cart.map(i => `${cartLineKey(i)}:${i.quantity}`).join(',');
     useEffect(() => { setCoupon(null); }, [cartSignature]);
 
     if (cartCount === 0 && !submitting) return <Navigate to="/cart" replace />;
@@ -365,6 +384,12 @@ export const CheckoutPage: React.FC = () => {
                             <span>التوصيل{selectedZone ? ` (${zoneLabel(selectedZone)})` : ''}</span>
                             <span>{selectedZone ? formatSDG(shipping) : '—'}</span>
                         </div>
+                        {deliveryQuote?.etaMinutes != null && (
+                            <p className="text-xs text-gray-500">
+                                الوصول خلال حوالي {deliveryQuote.etaMinutes < 60 ? `${deliveryQuote.etaMinutes} دقيقة` : `${Math.round(deliveryQuote.etaMinutes / 60)} ساعة`} —
+                                {' '}تنبيه: وقت التوصيل المعروض تقديري وقد يختلف حسب حالة الطريق والظروف الجوية.
+                            </p>
+                        )}
                         <div className="flex justify-between font-bold text-lg text-gray-800 pt-2">
                             <span>الإجمالي</span>
                             <span className="text-brand-blue">{formatSDG(total)}</span>
