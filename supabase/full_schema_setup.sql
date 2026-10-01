@@ -8731,6 +8731,8 @@ DROP FUNCTION IF EXISTS public.admin_save_coupon(
 -- by the time an AFTER trigger fires). The fix is simply trigger *timing*, not the trigger
 -- function itself: delete needs to audit-log BEFORE the row disappears, not after.
 DROP TRIGGER IF EXISTS delivery_pricing_config_audit ON public.delivery_pricing_config;
+DROP TRIGGER IF EXISTS delivery_pricing_config_audit_write ON public.delivery_pricing_config;
+DROP TRIGGER IF EXISTS delivery_pricing_config_audit_delete ON public.delivery_pricing_config;
 
 CREATE TRIGGER delivery_pricing_config_audit_write
   AFTER INSERT OR UPDATE ON public.delivery_pricing_config

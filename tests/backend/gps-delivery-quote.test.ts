@@ -8,7 +8,7 @@ import { creds, haveCreds, rpc, signedInClient, TEST_TAG, type Client } from './
 const TEST_STATE = `${TEST_TAG}-STATE`;
 
 const KRT = { lat: 15.5007, lon: 32.5599 };
-const NEAR = { lat: 15.6, lon: 32.6 }; // ~14km from KRT by haversine
+const NEAR = { lat: 15.6, lon: 32.6 }; // ~11.85km from KRT by haversine
 const FAR = { lat: 19.6158, lon: 37.2164 }; // ~660km from KRT by haversine (Port Sudan-ish)
 
 type Quote = { fee: number; eta_minutes: number | null; source: string };
