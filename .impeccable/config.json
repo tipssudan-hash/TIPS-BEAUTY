@@ -20,6 +20,21 @@
         ],
         "createdAt": "2026-09-21T18:43:07.840Z",
         "reason": "model: the expired pill reuses the admin portal's existing StatusPill inactive palette (components/ui.tsx: bg-slate-100 text-slate-500); muted inactive pills are the portal's convention"
+      },
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-10-01T13:39:56.109Z",
+        "reason": "User confirmed Inter is DESIGN.md's deliberate Admin Portal typeface (Weight-Over-Ornament Rule)"
+      },
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "admin-portal/src/pages/CouponsPage.tsx"
+        ],
+        "createdAt": "2026-10-01T13:40:05.976Z",
+        "reason": "Agent: text-slate-400 only pairs with the colored bg via a hover: variant (hover:bg-blue-50 hover:text-brand-blue) \\u2014 the two never render simultaneously, same verified false-positive shape as DriversPage/ReviewsPage/ProductListPage"
       }
     ]
   }
