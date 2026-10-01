@@ -45,6 +45,10 @@ export interface Warehouse {
     address: string | null;
     phone: string | null;
     is_active: boolean;
+    // GPS-01: used by calculate_delivery_quote's haversine distance; null until staff set it.
+    latitude: number | null;
+    longitude: number | null;
+    base_dispatch_minutes: number;
 }
 
 export interface DeliveryZone {
@@ -54,6 +58,32 @@ export interface DeliveryZone {
     is_active: boolean;
     state: string | null;
     warehouse_id: string | null;
+    // GPS-02: the zone's reference point for haversine distance; null until staff set it.
+    latitude: number | null;
+    longitude: number | null;
+}
+
+// GPS-01/03: dynamic delivery pricing formula coefficients. warehouse_id/delivery_zone_id/state
+// null together = the one global default row; see docs/specs/gps-delivery-pricing.md.
+export interface DeliveryPricingConfig {
+    id: string;
+    warehouse_id: string | null;
+    delivery_zone_id: string | null;
+    state: string | null;
+    base_fee: number;
+    per_km_rate: number;
+    weight_multiplier: number;
+    road_multiplier: number;
+    min_fee: number;
+    max_fee: number | null;
+    avg_speed_kmh: number;
+    is_active: boolean;
+}
+
+export interface DeliveryQuote {
+    fee: number;
+    eta_minutes: number | null;
+    source: 'dynamic' | 'flat_fee' | 'flat_fee_missing_coordinates' | 'flat_fee_missing_config';
 }
 
 export type DriverStatus = 'active' | 'busy' | 'offline';
