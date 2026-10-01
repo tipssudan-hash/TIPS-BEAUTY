@@ -1,6 +1,11 @@
 import { supabase } from './supabase';
-import type { AdminReview, Banner, Collection, Coupon, CouponInput, CollectionInput, CollectionRuleConfig, CollectionRuleType, DeliveryZone, Driver, InventoryRow, Product, ProductInput, ProductVariant, Promotion, PromotionInput, Warehouse } from '../types';
+import type { AdminReview, Banner, Collection, Coupon, CouponInput, CollectionInput, CollectionRuleConfig, CollectionRuleType, DeliveryPricingConfig, DeliveryQuote, DeliveryZone, Driver, InventoryRow, Product, ProductInput, ProductVariant, Promotion, PromotionInput, Warehouse } from '../types';
 import type { Json } from './database.types';
+
+// latitude/longitude/base_dispatch_minutes (warehouses), latitude/longitude (delivery_zones):
+// added by GPS-01/GPS-02, ahead of generated types until those migrations are applied and
+// `supabase gen types` is re-run — same `as any` pattern already used elsewhere in this file
+// for RPCs ahead of their types (e.g. admin_get_coupons below).
 
 // Admin data access for catalogue, logistics and settings over the generated database types.
 
@@ -150,15 +155,15 @@ export async function uploadPublicImage(folder: string, file: File): Promise<str
 // Warehouses / inventory --------------------------------------------------------------
 
 export async function fetchWarehouses(): Promise<Warehouse[]> {
-    const { data, error } = await supabase.from('warehouses').select('id,name,code,state,city,address,phone,is_active').order('created_at');
+    const { data, error } = await supabase.from('warehouses').select('id,name,code,state,city,address,phone,is_active,latitude,longitude,base_dispatch_minutes' as any).order('created_at');
     if (error) throw error;
-    return data ?? [];
+    return (data ?? []) as unknown as Warehouse[];
 }
 
 export type WarehouseInput = Omit<Warehouse, 'id'>;
 
 export async function saveWarehouse(id: string | null, input: WarehouseInput): Promise<void> {
-    const query = id ? supabase.from('warehouses').update(input).eq('id', id) : supabase.from('warehouses').insert(input);
+    const query = id ? supabase.from('warehouses').update(input as never).eq('id', id) : supabase.from('warehouses').insert(input as never);
     const { error } = await query;
     if (error) throw error;
 }
@@ -202,15 +207,15 @@ export async function transferInventory(fromId: string, toId: string, productId:
 // Delivery zones ---------------------------------------------------------------------
 
 export async function fetchDeliveryZones(): Promise<DeliveryZone[]> {
-    const { data, error } = await supabase.from('delivery_zones').select('id,name,fee,is_active,state,warehouse_id').order('state').order('name');
+    const { data, error } = await supabase.from('delivery_zones').select('id,name,fee,is_active,state,warehouse_id,latitude,longitude' as any).order('state').order('name');
     if (error) throw error;
-    return (data ?? []).map((z) => ({ ...z, fee: Number(z.fee) }));
+    return ((data ?? []) as unknown as DeliveryZone[]).map((z) => ({ ...z, fee: Number(z.fee) }));
 }
 
 export type DeliveryZoneInput = Omit<DeliveryZone, 'id'>;
 
 export async function saveDeliveryZone(id: string | null, input: DeliveryZoneInput): Promise<void> {
-    const query = id ? supabase.from('delivery_zones').update(input).eq('id', id) : supabase.from('delivery_zones').insert(input);
+    const query = id ? supabase.from('delivery_zones').update(input as never).eq('id', id) : supabase.from('delivery_zones').insert(input as never);
     const { error } = await query;
     if (error) throw error;
 }
@@ -218,6 +223,56 @@ export async function saveDeliveryZone(id: string | null, input: DeliveryZoneInp
 export async function deleteDeliveryZone(id: string): Promise<void> {
     const { error } = await supabase.from('delivery_zones').delete().eq('id', id);
     if (error) throw error;
+}
+
+// GPS-03: dynamic delivery pricing config -------------------------------------------
+
+export async function fetchPricingConfigs(): Promise<DeliveryPricingConfig[]> {
+    const { data, error } = await supabase
+        .from('delivery_pricing_config' as any)
+        .select('id,warehouse_id,delivery_zone_id,state,base_fee,per_km_rate,weight_multiplier,road_multiplier,min_fee,max_fee,avg_speed_kmh,is_active')
+        .order('warehouse_id', { nullsFirst: true })
+        .order('delivery_zone_id', { nullsFirst: true });
+    if (error) throw error;
+    return (data ?? []) as unknown as DeliveryPricingConfig[];
+}
+
+export type PricingConfigInput = Omit<DeliveryPricingConfig, 'id'>;
+
+export async function savePricingConfig(id: string | null, input: PricingConfigInput): Promise<void> {
+    const query = id
+        ? supabase.from('delivery_pricing_config' as any).update(input as never).eq('id', id)
+        : supabase.from('delivery_pricing_config' as any).insert(input as never);
+    const { error } = await query;
+    if (error) throw error;
+}
+
+export async function deletePricingConfig(id: string): Promise<void> {
+    const { error } = await supabase.from('delivery_pricing_config' as any).delete().eq('id', id);
+    if (error) throw error;
+}
+
+export async function fetchPricingConfigAudit(configId: string): Promise<{ id: number; action: string; changed_at: string; old_values: Json | null; new_values: Json | null }[]> {
+    const { data, error } = await supabase
+        .from('delivery_pricing_config_audit' as any)
+        .select('id,action,changed_at,old_values,new_values')
+        .eq('config_id', configId)
+        .order('changed_at', { ascending: false })
+        .limit(20);
+    if (error) throw error;
+    return (data ?? []) as unknown as { id: number; action: string; changed_at: string; old_values: Json | null; new_values: Json | null }[];
+}
+
+// Calls the same RPC checkout_order freezes into the Order — never a client-side
+// reimplementation of the formula (GPS-03 acceptance criterion).
+export async function simulateDeliveryQuote(warehouseId: string, deliveryZoneId: string, orderWeight = 0): Promise<DeliveryQuote> {
+    const { data, error } = await supabase.rpc('calculate_delivery_quote' as any, {
+        p_warehouse_id: warehouseId,
+        p_delivery_zone_id: deliveryZoneId,
+        p_order_weight: orderWeight,
+    } as any);
+    if (error) throw error;
+    return (data as unknown as DeliveryQuote[])[0];
 }
 
 // Drivers ----------------------------------------------------------------------------

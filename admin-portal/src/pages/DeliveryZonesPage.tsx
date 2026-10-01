@@ -7,7 +7,14 @@ import { errorMessage } from '../lib/errors';
 import { formatSDG } from '../lib/format';
 import { Card, Field, Notice, PageHeader, Spinner, StatusPill, Table, inputClass, primaryButtonClass, secondaryButtonClass, smallButtonClass } from '../components/ui';
 
-const emptyZone: DeliveryZoneInput = { name: '', fee: 0, is_active: true, state: 'الخرطوم', warehouse_id: null };
+const emptyZone: DeliveryZoneInput = { name: '', fee: 0, is_active: true, state: 'الخرطوم', warehouse_id: null, latitude: null, longitude: null };
+
+const numberOrNull = (value: string): number | null => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? n : null;
+};
 
 export const DeliveryZonesPage: React.FC = () => {
     const [zones, setZones] = useState<DeliveryZone[]>([]);
@@ -100,6 +107,8 @@ export const DeliveryZonesPage: React.FC = () => {
                                     {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
                                 </select>
                             </Field>
+                            <Field label="خط العرض (Latitude)" hint="لتفعيل التسعير الديناميكي (GPS)"><input type="number" step="any" value={editing.data.latitude ?? ''} onChange={(e) => setEditing({ ...editing, data: { ...editing.data, latitude: numberOrNull(e.target.value) } })} className={inputClass} dir="ltr" /></Field>
+                            <Field label="خط الطول (Longitude)" hint="لتفعيل التسعير الديناميكي (GPS)"><input type="number" step="any" value={editing.data.longitude ?? ''} onChange={(e) => setEditing({ ...editing, data: { ...editing.data, longitude: numberOrNull(e.target.value) } })} className={inputClass} dir="ltr" /></Field>
                         </div>
                         <div className="flex items-center justify-between flex-wrap gap-3">
                             <label className="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer">
@@ -132,7 +141,7 @@ export const DeliveryZonesPage: React.FC = () => {
                             <td className="px-6 py-4"><StatusPill tone={zone.is_active ? 'success' : 'neutral'}>{zone.is_active ? 'نشط' : 'متوقف'}</StatusPill></td>
                             <td className="px-6 py-4">
                                 <div className="flex gap-2">
-                                    <button type="button" onClick={() => setEditing({ id: zone.id, data: { name: zone.name, fee: zone.fee, is_active: zone.is_active, state: zone.state, warehouse_id: zone.warehouse_id } })} className={`${smallButtonClass} bg-blue-50 text-brand-blue flex items-center gap-1`}><Edit className="w-3.5 h-3.5" /> تعديل</button>
+                                    <button type="button" onClick={() => setEditing({ id: zone.id, data: { name: zone.name, fee: zone.fee, is_active: zone.is_active, state: zone.state, warehouse_id: zone.warehouse_id, latitude: zone.latitude, longitude: zone.longitude } })} className={`${smallButtonClass} bg-blue-50 text-brand-blue flex items-center gap-1`}><Edit className="w-3.5 h-3.5" /> تعديل</button>
                                     <button type="button" onClick={() => void remove(zone)} className={`${smallButtonClass} bg-red-50 text-red-600 flex items-center gap-1`}><Trash2 className="w-3.5 h-3.5" /> حذف</button>
                                 </div>
                             </td>

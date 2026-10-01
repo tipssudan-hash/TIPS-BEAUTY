@@ -20,6 +20,7 @@ import { ReviewsPage } from './pages/ReviewsPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { DeliveryHealthPage } from './pages/DeliveryHealthPage';
+import { DeliveryPricingPage } from './pages/DeliveryPricingPage';
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="warehouses" element={<WarehousesPage />} />
         <Route path="delivery-zones" element={<DeliveryZonesPage />} />
+        <Route path="delivery-pricing" element={<DeliveryPricingPage />} />
         <Route path="drivers" element={<DriversPage />} />
         <Route path="banners" element={<BannersPage />} />
         <Route path="collections" element={<CollectionsPage />} />

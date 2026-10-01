@@ -6,7 +6,14 @@ import { fetchWarehouses, saveWarehouse, type WarehouseInput } from '../lib/cata
 import { errorMessage } from '../lib/errors';
 import { Card, Field, Notice, PageHeader, Spinner, StatusPill, Table, inputClass, primaryButtonClass, secondaryButtonClass, smallButtonClass } from '../components/ui';
 
-const emptyWarehouse: WarehouseInput = { name: '', code: '', state: 'الخرطوم', city: '', address: null, phone: null, is_active: true };
+const emptyWarehouse: WarehouseInput = { name: '', code: '', state: 'الخرطوم', city: '', address: null, phone: null, is_active: true, latitude: null, longitude: null, base_dispatch_minutes: 30 };
+
+const numberOrNull = (value: string): number | null => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? n : null;
+};
 
 export const WarehousesPage: React.FC = () => {
     const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -87,6 +94,9 @@ export const WarehousesPage: React.FC = () => {
                             <Field label="المحلية" required><input value={editing.data.city} onChange={(e) => update({ city: e.target.value })} className={inputClass} required /></Field>
                             <Field label="العنوان"><input value={editing.data.address ?? ''} onChange={(e) => update({ address: e.target.value })} className={inputClass} /></Field>
                             <Field label="الهاتف"><input value={editing.data.phone ?? ''} onChange={(e) => update({ phone: e.target.value })} className={inputClass} dir="ltr" /></Field>
+                            <Field label="خط العرض (Latitude)" hint="لتفعيل التسعير الديناميكي (GPS)"><input type="number" step="any" value={editing.data.latitude ?? ''} onChange={(e) => update({ latitude: numberOrNull(e.target.value) })} className={inputClass} dir="ltr" /></Field>
+                            <Field label="خط الطول (Longitude)" hint="لتفعيل التسعير الديناميكي (GPS)"><input type="number" step="any" value={editing.data.longitude ?? ''} onChange={(e) => update({ longitude: numberOrNull(e.target.value) })} className={inputClass} dir="ltr" /></Field>
+                            <Field label="مدة التجهيز قبل الانطلاق (دقيقة)"><input type="number" min={0} step="1" value={editing.data.base_dispatch_minutes} onChange={(e) => update({ base_dispatch_minutes: Number(e.target.value) || 0 })} className={inputClass} dir="ltr" /></Field>
                         </div>
                         <div className="flex items-center justify-between flex-wrap gap-3">
                             <label className="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer">
@@ -107,11 +117,14 @@ export const WarehousesPage: React.FC = () => {
                         <tr key={w.id} className="hover:bg-slate-50/50">
                             <td className="px-6 py-4 text-sm font-black text-slate-900">{w.name}</td>
                             <td className="px-6 py-4 text-sm font-bold text-slate-600" dir="ltr">{w.code}</td>
-                            <td className="px-6 py-4 text-sm font-bold text-slate-600">{w.state} · {w.city}{w.address ? ` · ${w.address}` : ''}</td>
+                            <td className="px-6 py-4 text-sm font-bold text-slate-600">
+                                {w.state} · {w.city}{w.address ? ` · ${w.address}` : ''}
+                                {w.latitude == null && <span className="block text-[10px] font-black text-amber-600 mt-0.5">بدون إحداثيات GPS — التسعير الديناميكي معطل لهذا المخزن</span>}
+                            </td>
                             <td className="px-6 py-4 text-sm font-bold text-slate-600" dir="ltr">{w.phone ?? '—'}</td>
                             <td className="px-6 py-4"><StatusPill tone={w.is_active ? 'success' : 'neutral'}>{w.is_active ? 'نشط' : 'متوقف'}</StatusPill></td>
                             <td className="px-6 py-4">
-                                <button type="button" onClick={() => setEditing({ id: w.id, data: { name: w.name, code: w.code, state: w.state, city: w.city, address: w.address, phone: w.phone, is_active: w.is_active } })} className={`${smallButtonClass} bg-blue-50 text-brand-blue flex items-center gap-1`}><Edit className="w-3.5 h-3.5" /> تعديل</button>
+                                <button type="button" onClick={() => setEditing({ id: w.id, data: { name: w.name, code: w.code, state: w.state, city: w.city, address: w.address, phone: w.phone, is_active: w.is_active, latitude: w.latitude, longitude: w.longitude, base_dispatch_minutes: w.base_dispatch_minutes } })} className={`${smallButtonClass} bg-blue-50 text-brand-blue flex items-center gap-1`}><Edit className="w-3.5 h-3.5" /> تعديل</button>
                             </td>
                         </tr>
                     ))}
