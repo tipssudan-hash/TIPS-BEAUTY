@@ -229,6 +229,15 @@ export async function fetchActiveWarehouses(): Promise<WarehouseOption[]> {
     return data ?? [];
 }
 
+// GPS-06: assign or remove a warehouse supervisor. Pass null warehouseId to demote back to customer.
+export async function setWarehouseSupervisor(userId: string, warehouseId: string | null): Promise<void> {
+    const { error } = await supabase.rpc('admin_set_warehouse_supervisor' as never, {
+        p_user_id: userId,
+        p_warehouse_id: warehouseId,
+    } as never);
+    if (error) throw error;
+}
+
 export interface BusinessReport {
     revenue: number;
     paid_revenue: number;

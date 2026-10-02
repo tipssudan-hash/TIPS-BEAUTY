@@ -369,6 +369,7 @@ export interface CustomerProfile {
     referral_code: string | null;
     orders_count?: number;
     total_spent?: number;
+    assigned_warehouse_id?: string | null;
 }
 
 export interface SupervisorProfile {

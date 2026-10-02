@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, Search, Sparkles, Award, ShoppingBag, ExternalLink, X, Loader2 } from 'lucide-react';
-import type { CustomerProfile } from '../types';
+import { Users, Search, Sparkles, Award, ShoppingBag, ExternalLink, X, Loader2, Warehouse } from 'lucide-react';
+import type { CustomerProfile, WarehouseOption } from '../types';
 import {
     adjustCustomerPoints,
     fetchCustomerDetail,
     fetchCustomers,
+    fetchActiveWarehouses,
+    setWarehouseSupervisor,
     type CustomerDetailData,
     type CustomerFilters,
 } from '../lib/adminApi';
@@ -61,6 +63,11 @@ export const CustomersPage: React.FC = () => {
     const [adjusting, setAdjusting] = useState(false);
     const [pointsSuccess, setPointsSuccess] = useState<string | null>(null);
 
+    // Warehouse Supervisor Assignment State
+    const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
+    const [supervisorWarehouseId, setSupervisorWarehouseId] = useState<string>('');
+    const [assigningSupervisor, setAssigningSupervisor] = useState(false);
+
     const loadCustomers = useCallback(async () => {
         setLoading(true);
         setError(null);
@@ -93,9 +100,11 @@ export const CustomersPage: React.FC = () => {
         setPointsSuccess(null);
         setPointsDelta(0);
         setPointsNote('');
+        setSupervisorWarehouseId(cust.assigned_warehouse_id ?? '');
         try {
-            const data = await fetchCustomerDetail(cust.id);
+            const [data, wh] = await Promise.all([fetchCustomerDetail(cust.id), fetchActiveWarehouses()]);
             setCustomerDetail(data);
+            setWarehouses(wh);
         } catch (err) {
             setDetailError(errorMessage(err, 'تعذر تحميل بيانات العميل.'));
         } finally {
@@ -133,6 +142,33 @@ export const CustomersPage: React.FC = () => {
             setDetailError(errorMessage(err));
         } finally {
             setAdjusting(false);
+        }
+    };
+
+    const handleAssignSupervisor = async () => {
+        if (!selectedCustomer) return;
+        setAssigningSupervisor(true);
+        setDetailError(null);
+        setPointsSuccess(null);
+        try {
+            const warehouseId = supervisorWarehouseId || null;
+            await setWarehouseSupervisor(selectedCustomer.id, warehouseId);
+            const label = warehouseId
+                ? `تم تعيين ${selectedCustomer.full_name ?? 'المستخدم'} مشرفاً للمستودع بنجاح.`
+                : `تم إلغاء تعيين المشرف وإعادة الحساب لدور عميل.`;
+            setPointsSuccess(label);
+            // Refresh customer row so the role badge updates immediately.
+            void loadCustomers();
+            const refreshed = await fetchCustomerDetail(selectedCustomer.id);
+            setCustomerDetail(refreshed);
+            setSelectedCustomer(prev => prev
+                ? { ...prev, role: warehouseId ? 'warehouse_supervisor' : 'customer', assigned_warehouse_id: warehouseId }
+                : prev
+            );
+        } catch (err) {
+            setDetailError(errorMessage(err));
+        } finally {
+            setAssigningSupervisor(false);
         }
     };
 
@@ -228,7 +264,7 @@ export const CustomersPage: React.FC = () => {
                                         {cust.email ? <p className="text-slate-500" dir="ltr">{cust.email}</p> : null}
                                     </td>
                                     <td>
-                                        <span className={`px-2 py-0.5 text-xs font-black rounded-lg ${cust.role === 'admin' ? 'bg-purple-100 text-purple-700' : cust.role === 'driver' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                                        <span className={`px-2 py-0.5 text-xs font-black rounded-lg ${cust.role === 'admin' ? 'bg-purple-100 text-purple-700' : cust.role === 'driver' ? 'bg-amber-100 text-amber-700' : cust.role === 'warehouse_supervisor' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-600'}`}>
                                             {ROLE_LABELS[cust.role] ?? cust.role}
                                         </span>
                                     </td>
@@ -383,6 +419,49 @@ export const CustomersPage: React.FC = () => {
                                         </div>
                                     </form>
                                 </Card>
+
+                                {/* Warehouse Supervisor Assignment — only for customer/warehouse_supervisor accounts */}
+                                {(selectedCustomer.role === 'customer' || selectedCustomer.role === 'warehouse_supervisor') && (
+                                    <Card className="p-5 border-sky-200 bg-sky-50/40">
+                                        <h4 className="font-black text-slate-900 text-sm mb-3 flex items-center gap-2">
+                                            <Warehouse className="w-4 h-4 text-sky-600" /> تعيين مشرف مستودع
+                                        </h4>
+                                        <div className="flex flex-col md:flex-row gap-3 items-end">
+                                            <div className="flex-1">
+                                                <label className="block text-xs font-bold text-slate-600 mb-1">المستودع المُعيَّن</label>
+                                                <select
+                                                    value={supervisorWarehouseId}
+                                                    onChange={(e) => setSupervisorWarehouseId(e.target.value)}
+                                                    className={inputClass}
+                                                >
+                                                    <option value="">— بدون تعيين (إلغاء دور المشرف) —</option>
+                                                    {warehouses.map((w) => (
+                                                        <option key={w.id} value={w.id}>
+                                                            {w.name} — {w.city}، {w.state}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                disabled={assigningSupervisor}
+                                                onClick={() => void handleAssignSupervisor()}
+                                                className={`${primaryButtonClass} shrink-0`}
+                                            >
+                                                {assigningSupervisor ? <Loader2 className="w-4 h-4 animate-spin" /> : 'حفظ التعيين'}
+                                            </button>
+                                        </div>
+                                        {selectedCustomer.role === 'warehouse_supervisor' && (
+                                            <p className="text-xs text-sky-700 font-bold mt-2 flex items-center gap-1">
+                                                <Warehouse className="w-3 h-3" />
+                                                حالياً مشرف مستودع
+                                                {selectedCustomer.assigned_warehouse_id
+                                                    ? ` — ${warehouses.find(w => w.id === selectedCustomer.assigned_warehouse_id)?.name ?? selectedCustomer.assigned_warehouse_id}`
+                                                    : ' (بدون مستودع مُعيَّن)'}
+                                            </p>
+                                        )}
+                                    </Card>
+                                )}
 
                                 {/* Customer Orders History */}
                                 <div className="space-y-3">
