@@ -1,18 +1,20 @@
-﻿import React from 'react';
+import React from 'react';
 import { Heart, Share2, ShoppingCart } from 'lucide-react';
 import { Product } from '@domain/entities';
 import clsx from 'clsx';
 import { Link, useNavigate } from 'react-router-dom';
 import { formatSDG } from '@application/services/format';
+import { imgUrl, imgSrcSet } from '@infrastructure/repositories';
 
 interface ProductCardProps {
     product: Product;
     isInWishlist: boolean;
     onToggleWishlist: (id: string) => void;
     onAddToCart: (product: Product) => void;
+    priority?: boolean; // true for first ~8 cards visible on load
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product, isInWishlist, onToggleWishlist, onAddToCart }) => {
+export const ProductCard: React.FC<ProductCardProps> = ({ product, isInWishlist, onToggleWishlist, onAddToCart, priority = false }) => {
     const navigate = useNavigate();
     const finalPrice = product.effectivePrice;
     const hasDiscount = finalPrice < product.price;
@@ -64,8 +66,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, isInWishlist,
 
             <div className="relative aspect-[4/5] overflow-hidden shrink-0 bg-gray-50">
                 <img
-                    src={product.image}
-                    loading="lazy"
+                    src={imgUrl(product.image, 400)}
+                    srcSet={imgSrcSet(product.image, 400)}
+                    sizes="(max-width: 640px) 45vw, (max-width: 1024px) 30vw, 210px"
+                    loading={priority ? 'eager' : 'lazy'}
+                    fetchPriority={priority ? 'high' : 'auto'}
+                    decoding="async"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     alt={product.name_ar}
                 />

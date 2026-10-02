@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, Percent, ChevronLeft } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
@@ -12,6 +12,8 @@ import { Banner, Collection, Offer } from '@domain/entities';
 import { collectionIcon } from '@presentation/utils/collectionIcons';
 import { ALL_BRANDS, ALL_CATEGORIES, ProductSortBy, availableBrands, availableCategories, filterAndSortProducts } from '@application/services/productSearch';
 
+const PAGE_SIZE = 20;
+
 export const HomePage: React.FC = () => {
     const { products, productsLoading, productsError, reloadProducts, wishlist, addToCart, toggleWishlist } = useStore();
     const [searchQuery, setSearchQuery] = useState('');
@@ -21,6 +23,7 @@ export const HomePage: React.FC = () => {
     const [collections, setCollections] = useState<Collection[]>([]);
     const [banners, setBanners] = useState<Banner[]>([]);
     const [offers, setOffers] = useState<Offer[]>([]);
+    const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -80,6 +83,11 @@ export const HomePage: React.FC = () => {
         () => filterAndSortProducts(products, { query: searchQuery, category: activeCategory, brand: activeBrand, sortBy }),
         [searchQuery, activeCategory, activeBrand, products, sortBy]
     );
+
+    const visibleProducts = sortedAndFilteredProducts.slice(0, visibleCount);
+
+    // Back to the first page whenever the filter or sort changes.
+    useEffect(() => { setVisibleCount(PAGE_SIZE); }, [searchQuery, activeCategory, activeBrand, sortBy]);
 
     return (
         <div className="animate-fadeIn pb-20">
@@ -215,15 +223,28 @@ export const HomePage: React.FC = () => {
 
                 {!productsLoading && !productsError && (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-5">
-                        {sortedAndFilteredProducts.map(p => (
+                        {visibleProducts.map((p, index) => (
                             <ProductCard
                                 key={p.id}
                                 product={p}
                                 isInWishlist={wishlist.includes(p.id)}
                                 onToggleWishlist={toggleWishlist}
                                 onAddToCart={addToCart}
+                                priority={index < 8}
                             />
                         ))}
+                    </div>
+                )}
+
+                {!productsLoading && !productsError && visibleCount < sortedAndFilteredProducts.length && (
+                    <div className="mt-8 flex justify-center">
+                        <button
+                            type="button"
+                            onClick={() => setVisibleCount(prev => prev + PAGE_SIZE)}
+                            className="px-8 py-3 rounded-xl bg-brand-blue text-white font-bold text-sm hover:bg-sky-700 transition-colors"
+                        >
+                            تحميل المزيد ({sortedAndFilteredProducts.length - visibleCount} منتج)
+                        </button>
                     </div>
                 )}
 

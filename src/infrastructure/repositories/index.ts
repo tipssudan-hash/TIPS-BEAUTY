@@ -1,5 +1,5 @@
 // Repositories barrel — centralizes all data-access exports.
-export { fetchProducts, fetchProduct, mapProduct } from './productRepository';
+export { fetchProducts, fetchProduct, mapProduct, imgUrl, imgSrcSet } from './productRepository';
 export { fetchOffers, fetchBanners, fetchCollections, fetchPaymentMethods, fetchDeliveryZones } from './catalogRepository';
 export { fetchMyOrders, fetchMyOrder, fetchOrderHistory, subscribeToOrder, cancelMyOrder, checkout, previewCoupon, previewDeliveryQuote, uploadPaymentProof, submitPaymentProof, fetchMyDelivery, fetchOrderReturns, requestReturn } from './orderRepository';
 export type { CheckoutInput, CheckoutItem, CheckoutResult, DeliveryView, ReturnRequestInput } from './orderRepository';
