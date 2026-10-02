@@ -848,6 +848,7 @@ export type Database = {
           fulfillment_warehouse_id: string | null
           id: string
           items: Json | null
+          needs_fulfillment_review: boolean
           notes: string | null
           order_number: string | null
           payment_method: string | null
@@ -881,6 +882,7 @@ export type Database = {
           fulfillment_warehouse_id?: string | null
           id?: string
           items?: Json | null
+          needs_fulfillment_review?: boolean
           notes?: string | null
           order_number?: string | null
           payment_method?: string | null
@@ -914,6 +916,7 @@ export type Database = {
           fulfillment_warehouse_id?: string | null
           id?: string
           items?: Json | null
+          needs_fulfillment_review?: boolean
           notes?: string | null
           order_number?: string | null
           payment_method?: string | null
@@ -1735,6 +1738,14 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      admin_get_fulfillment_review_orders: {
+        Args: never
+        Returns: Database["public"]["Tables"]["orders"]["Row"][]
+      }
+      admin_resolve_fulfillment_review: {
+        Args: { p_order_id: string }
+        Returns: undefined
       }
       admin_get_drivers: {
         Args: never

@@ -55,6 +55,10 @@ function mapProduct(row: ProductRow): Product {
         average_rating: Number(row.average_rating ?? 0),
         variants: mapVariants(row.variants),
         is_active: row.is_active ?? true,
+        weight_grams: row.weight_grams ?? null,
+        length_cm: row.length_cm != null ? Number(row.length_cm) : null,
+        width_cm: row.width_cm != null ? Number(row.width_cm) : null,
+        height_cm: row.height_cm != null ? Number(row.height_cm) : null,
         created_at: row.created_at,
     };
 }
@@ -93,6 +97,10 @@ function toRow(input: ProductInput) {
         skin_type: input.skin_type,
         variants: variantRows(input.variants),
         is_active: input.is_active,
+        weight_grams: input.weight_grams ?? null,
+        length_cm: input.length_cm ?? null,
+        width_cm: input.width_cm ?? null,
+        height_cm: input.height_cm ?? null,
     };
 }
 
