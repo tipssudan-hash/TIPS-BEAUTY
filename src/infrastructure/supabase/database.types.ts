@@ -1201,6 +1201,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          assigned_warehouse_id: string | null
           beauty_points: number | null
           created_at: string
           deleted_at: string | null
@@ -1217,6 +1218,7 @@ export type Database = {
           role: string | null
         }
         Insert: {
+          assigned_warehouse_id?: string | null
           beauty_points?: number | null
           created_at?: string
           deleted_at?: string | null
@@ -1233,6 +1235,7 @@ export type Database = {
           role?: string | null
         }
         Update: {
+          assigned_warehouse_id?: string | null
           beauty_points?: number | null
           created_at?: string
           deleted_at?: string | null
@@ -1249,6 +1252,13 @@ export type Database = {
           role?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_assigned_warehouse_id_fkey"
+            columns: ["assigned_warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_loyalty_tier_fkey"
             columns: ["loyalty_tier"]

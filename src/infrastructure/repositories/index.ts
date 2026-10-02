@@ -8,3 +8,5 @@ export { fetchProductReviews, fetchReviewableItems, submitReview } from './revie
 export { askBeautyAdvice } from './aiRepository';
 export { fetchMyDeliveries, fetchMyDelivery as fetchDriverDelivery, fetchMyDriverProfile, setMyAvailability, updateMyDeliveryStatus, shareMyLocation, clearMyLocation, subscribeToMyDeliveries } from './driverRepository';
 export type { Delivery, DeliveryItem, DeliveryStatus, DriverProfile } from './driverRepository';
+export { fetchSupervisorProfile, fetchSupervisorOrders, fetchSupervisorInventory } from './supervisorRepository';
+export type { SupervisorProfile, SupervisorOrder, SupervisorInventoryRow } from './supervisorRepository';

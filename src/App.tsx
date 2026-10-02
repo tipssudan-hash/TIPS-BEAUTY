@@ -35,6 +35,8 @@ const PrivacyPolicyPage = lazy(() => import('@presentation/pages/PrivacyPolicyPa
 const DriverLayout = lazy(() => import('@presentation/pages/driver/DriverLayout').then((m) => ({ default: m.DriverLayout })));
 const DriverHomePage = lazy(() => import('@presentation/pages/driver/DriverHomePage').then((m) => ({ default: m.DriverHomePage })));
 const DriverOrderPage = lazy(() => import('@presentation/pages/driver/DriverOrderPage').then((m) => ({ default: m.DriverOrderPage })));
+const SupervisorLayout = lazy(() => import('@presentation/pages/supervisor/SupervisorLayout').then((m) => ({ default: m.SupervisorLayout })));
+const SupervisorHomePage = lazy(() => import('@presentation/pages/supervisor/SupervisorHomePage').then((m) => ({ default: m.SupervisorHomePage })));
 const NotFoundPage = lazy(() => import('@presentation/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -50,6 +52,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 function App() {
   const { cartCount } = useStore();
   const isDriverSurface = useLocation().pathname.startsWith('/driver');
+  const isSupervisorSurface = useLocation().pathname.startsWith('/supervisor');
 
   // The driver surface is its own shell (no shop header or tab bar); see DriverLayout.
   if (isDriverSurface) {
@@ -64,6 +67,23 @@ function App() {
               <Route path="orders/:id" element={<DriverOrderPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/driver" replace />} />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
+
+  if (isSupervisorSurface) {
+    return (
+      <ErrorBoundary>
+        <NativeBridge />
+        <OfflineBanner />
+        <Suspense fallback={<Spinner />}>
+          <Routes>
+            <Route path="/supervisor" element={<SupervisorLayout />}>
+              <Route index element={<SupervisorHomePage />} />
+            </Route>
+            <Route path="*" element={<Navigate to="/supervisor" replace />} />
           </Routes>
         </Suspense>
       </ErrorBoundary>
