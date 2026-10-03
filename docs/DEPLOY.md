@@ -7,7 +7,7 @@ Every push to `main` runs `.github/workflows/deploy.yml`:
 | Storefront | `dist/` | `deploy/beauty` | `beauty.tips-sd.com` |
 | Admin Portal | `admin-portal/dist/` | `deploy/admin` | `admin.tips-sd.com` |
 
-`scripts/publish-build.sh` force-pushes each build as a single commit to its deploy branch. Hostinger Git auto-deployment pulls that branch into the site's document root on every push. `.htaccess` (in each app's `public/`) rewrites unknown paths to `index.html` for client-side routing.
+`scripts/publish-build.sh` force-pushes each build as a single commit to its deploy branch. Hostinger Git auto-deployment pulls that branch into the site's document root on every push. The existing `.htaccess` in each app's `public/` ships with the build and handles SPA routing.
 
 ## One-time setup
 
