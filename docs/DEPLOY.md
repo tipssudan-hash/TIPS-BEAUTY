@@ -17,7 +17,7 @@ Every push to `main` runs `.github/workflows/deploy.yml`:
 2. Hostinger accepts one GitHub account, and it is `Tariqdma` (it also deploys `crm.tips-sd.com`). So the builds are mirrored to `Tariqdma/tips-beauty-deploy`:
    - create that empty repo and make sure the Hostinger GitHub app on `Tariqdma` can access it;
    - create a fine-grained token on `Tariqdma` limited to that repo with Contents read/write;
-   - in this repo add secret `DEPLOY_TOKEN` (the token) and variable `DEPLOY_REPO` = `Tariqdma/tips-beauty-deploy`.
+   - in this repo add secret `DEPLOY_TOKEN` (the token) and `DEPLOY_REPO` = `Tariqdma/tips-beauty-deploy` (variable or secret).
    Without these two values the builds are pushed to this repo's own `deploy/*` branches.
 3. hPanel → Websites → each subdomain → Advanced → Git: repository `Tariqdma/tips-beauty-deploy`, branch `deploy/beauty` or `deploy/admin`, directory empty (document root), auto-deployment on.
 

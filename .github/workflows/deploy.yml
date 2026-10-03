@@ -32,7 +32,7 @@ jobs:
           ANDROID_CERT_SHA256: ${{ secrets.ANDROID_CERT_SHA256 }}
       - run: scripts/publish-build.sh dist deploy/beauty
         env:
-          DEPLOY_REPO: ${{ vars.DEPLOY_REPO }}
+          DEPLOY_REPO: ${{ vars.DEPLOY_REPO || secrets.DEPLOY_REPO }}
           DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
 
   admin:
@@ -56,5 +56,5 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       - run: scripts/publish-build.sh admin-portal/dist deploy/admin
         env:
-          DEPLOY_REPO: ${{ vars.DEPLOY_REPO }}
+          DEPLOY_REPO: ${{ vars.DEPLOY_REPO || secrets.DEPLOY_REPO }}
           DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
