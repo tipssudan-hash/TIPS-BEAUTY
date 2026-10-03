@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Users, Search, Sparkles, Award, ShoppingBag, ExternalLink, X, Loader2, Warehouse } from 'lucide-react';
-import type { CustomerProfile, WarehouseOption } from '../types';
+import type { CustomerProfile } from '../types';
+import type { WarehouseOption } from '../lib/adminApi';
 import {
     adjustCustomerPoints,
     fetchCustomerDetail,
