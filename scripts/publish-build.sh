@@ -7,6 +7,11 @@ remote_url="$(git config --get remote.origin.url)"
 sha="$(git rev-parse --short HEAD)"
 auth_header="$(git config --get http.https://github.com/.extraheader || true)"
 
+if [[ -n "${DEPLOY_REPO:-}" && -n "${DEPLOY_TOKEN:-}" ]]; then
+  remote_url="https://x-access-token:${DEPLOY_TOKEN}@github.com/${DEPLOY_REPO}.git"
+  auth_header=""
+fi
+
 test -f "$src_dir/index.html" || { echo "No index.html in $src_dir" >&2; exit 1; }
 
 work="$(mktemp -d)"
