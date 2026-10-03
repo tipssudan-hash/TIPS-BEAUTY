@@ -43,16 +43,18 @@ export interface AdminOrder {
     fulfillment_warehouse_id: string | null;
     created_at: string;
     viewed_at: string | null;
+    needs_fulfillment_review?: boolean;
 }
 
-export const ORDER_LIST_COLUMNS = 'id,order_number,customer_name,phone,total,status,payment_method,payment_status,created_at,viewed_at';
+export const ORDER_LIST_COLUMNS = 'id,order_number,customer_name,phone,total,status,payment_method,payment_status,created_at,viewed_at,needs_fulfillment_review';
 const ORDER_DETAIL_COLUMNS = `${ORDER_LIST_COLUMNS},customer_id,items,shipping_fee,coupon_code,discount_amount,points_discount,payment_reference,shipping_address,city,state,notes,driver_id,fulfillment_warehouse_id`;
 
-export type OrderListRow = Pick<AdminOrder, 'id' | 'order_number' | 'customer_name' | 'phone' | 'total' | 'status' | 'payment_method' | 'payment_status' | 'created_at' | 'viewed_at'>;
+export type OrderListRow = Pick<AdminOrder, 'id' | 'order_number' | 'customer_name' | 'phone' | 'total' | 'status' | 'payment_method' | 'payment_status' | 'created_at' | 'viewed_at' | 'needs_fulfillment_review'>;
 
 export interface OrderListFilters {
     status?: string;
     paymentStatus?: string;
+    needsFulfillmentReview?: boolean;
     search?: string;
     page: number;
     pageSize: number;
@@ -63,6 +65,7 @@ export async function fetchOrders(filters: OrderListFilters): Promise<{ rows: Or
     let query = supabase.from('orders').select(ORDER_LIST_COLUMNS, { count: 'exact' }).order('created_at', { ascending: false }).range(from, from + filters.pageSize - 1);
     if (filters.status) query = query.eq('status', filters.status);
     if (filters.paymentStatus) query = query.eq('payment_status', filters.paymentStatus);
+    if (filters.needsFulfillmentReview) query = query.eq('needs_fulfillment_review', true);
     const search = filters.search?.trim();
     if (search) {
         const escaped = search.replace(/[%,()]/g, ' ');
@@ -80,11 +83,14 @@ export async function countUnseenOrders(): Promise<number> {
     return count ?? 0;
 }
 
-export async function fetchOrder(id: string): Promise<AdminOrder | null> {
-    const { data, error } = await supabase.from('orders').select(ORDER_DETAIL_COLUMNS).eq('id', id).maybeSingle();
+export async function countFulfillmentReviewOrders(): Promise<number> {
+    const { count, error } = await supabase.from('orders').select('id', { count: 'exact', head: true }).eq('needs_fulfillment_review', true);
     if (error) throw error;
-    if (!data) return null;
-    const row = data as unknown as AdminOrder & { items: unknown };
+    return count ?? 0;
+}
+
+function normalizeOrder(data: unknown): AdminOrder {
+    const row = data as AdminOrder & { items: unknown };
     return {
         ...row,
         items: Array.isArray(row.items) ? (row.items as OrderItem[]) : [],
@@ -94,6 +100,23 @@ export async function fetchOrder(id: string): Promise<AdminOrder | null> {
         discount_amount: Number(row.discount_amount ?? 0),
         points_discount: Number(row.points_discount ?? 0),
     };
+}
+
+export async function fetchOrder(id: string): Promise<AdminOrder | null> {
+    const { data, error } = await supabase.from('orders').select(ORDER_DETAIL_COLUMNS).eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data ? normalizeOrder(data) : null;
+}
+
+export async function fetchFulfillmentReviewOrders(): Promise<AdminOrder[]> {
+    const { data, error } = await supabase.rpc('admin_get_fulfillment_review_orders');
+    if (error) throw error;
+    return (data ?? []).map(normalizeOrder);
+}
+
+export async function resolveOrderFulfillmentReview(orderId: string): Promise<void> {
+    const { error } = await supabase.rpc('admin_resolve_fulfillment_review', { p_order_id: orderId });
+    if (error) throw error;
 }
 
 export async function markOrderViewed(orderId: string): Promise<void> {
@@ -204,6 +227,15 @@ export async function fetchActiveWarehouses(): Promise<WarehouseOption[]> {
     const { data, error } = await supabase.from('warehouses').select('id,name,code,state,city,is_active').eq('is_active', true).order('name');
     if (error) throw error;
     return data ?? [];
+}
+
+// GPS-06: assign or remove a warehouse supervisor. Pass null warehouseId to demote back to customer.
+export async function setWarehouseSupervisor(userId: string, warehouseId: string | null): Promise<void> {
+    const { error } = await supabase.rpc('admin_set_warehouse_supervisor' as never, {
+        p_user_id: userId,
+        p_warehouse_id: warehouseId,
+    } as never);
+    if (error) throw error;
 }
 
 export interface BusinessReport {

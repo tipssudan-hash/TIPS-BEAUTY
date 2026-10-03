@@ -2,6 +2,27 @@ import { supabase } from '../supabase/client';
 import { MOCK_PRODUCTS } from '../mockData';
 import type { PricingRule, Product, ProductVariant } from '../../domain/entities';
 
+// Returns a resized Supabase Storage URL using the built-in image transform API.
+// Falls back to the original URL for non-Storage URLs (external CDN, mock data, etc.).
+export function imgUrl(
+    raw: string | null | undefined,
+    width: number,
+    quality = 75,
+): string {
+    if (!raw) return '';
+    // Only transform Supabase Storage URLs (contain /storage/v1/object/).
+    if (!raw.includes('/storage/v1/object/')) return raw;
+    // Already has transform params — don't double-add.
+    if (raw.includes('?')) return raw;
+    return `${raw}?width=${width}&quality=${quality}&format=webp`;
+}
+
+// Returns a srcSet string for 1x and 2x display widths.
+export function imgSrcSet(raw: string | null | undefined, width: number, quality = 75): string {
+    if (!raw || !raw.includes('/storage/v1/object/') || raw.includes('?')) return '';
+    return `${imgUrl(raw, width, quality)} 1x, ${imgUrl(raw, width * 2, quality)} 2x`;
+}
+
 // Thin typed wrappers over the backend RPCs. All pricing, stock and permission rules live in
 // the database; this file only maps rows to app types.
 

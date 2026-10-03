@@ -1,7 +1,7 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Product } from '@domain/entities';
-import { fetchProduct } from '@infrastructure/repositories';
+import { fetchProduct, imgUrl, imgSrcSet } from '@infrastructure/repositories';
 import { formatSDG } from '@application/services/format';
 import { Heart, Share2, ShoppingCart, Check } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
@@ -106,8 +106,13 @@ export const ProductDetailsPage: React.FC = () => {
                     {/* Image Gallery */}
                     <div className="lg:col-span-5 relative aspect-square md:aspect-auto md:min-h-[420px] bg-gray-50 flex flex-col items-center justify-center p-4">
                         <img
-                            src={images[activeImageIndex]}
+                            src={imgUrl(images[activeImageIndex], 800, 85)}
+                            srcSet={imgSrcSet(images[activeImageIndex], 800, 85)}
+                            sizes="(max-width: 768px) 100vw, 50vw"
                             alt={product.name_ar}
+                            loading="eager"
+                            fetchPriority="high"
+                            decoding="async"
                             className="w-full h-full max-h-[500px] object-contain"
                         />
                         {images.length > 1 && (

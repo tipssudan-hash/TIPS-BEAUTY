@@ -4,7 +4,7 @@ import { ArrowRight, Loader2, CheckCircle2, XCircle, Truck, MapPin, CreditCard, 
 import {
     fetchActiveWarehouses, fetchDrivers, fetchOrder, fetchOrderHistory, fetchPaymentProof, markOrderViewed,
     reviewPaymentProof, signedProofUrl, updateOrderOperation, checkDuplicatePaymentReference, verifyAndAdvanceOrder,
-    confirmCodPayment, checkCreditCustomer,
+    confirmCodPayment, checkCreditCustomer, resolveOrderFulfillmentReview,
     type AdminOrder, type DriverOption, type OrderHistoryEntry, type PaymentProof, type WarehouseOption, type DuplicateProofWarning,
 } from '../../lib/adminApi';
 import { ALLOWED_TRANSITIONS, formatDateTime, formatSDG, orderStatusDot, orderStatusLabel, orderStatusStyle, paymentMethodLabel, paymentStatusLabel, paymentStatusStyle, type OrderStatus } from '../../lib/format';
@@ -182,6 +182,28 @@ export const OrderDetailPage: React.FC = () => {
             </div>
 
             {error && <Notice kind="error">{error}</Notice>}
+
+            {order.needs_fulfillment_review && (
+                <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 text-sm">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                    <span className="flex-1">هذا الطلب يحتاج مراجعة التوصيل — لا يوجد مستودع واحد يغطي الكمية المطلوبة. يرجى ترتيب التحويل يدوياً ثم الضغط على "تم الحل".</span>
+                    <button
+                        type="button"
+                        disabled={busy}
+                        onClick={async () => {
+                            setBusy(true);
+                            setError(null);
+                            try { await resolveOrderFulfillmentReview(order.id); await load(); }
+                            catch (err) { setError(errorMessage(err)); }
+                            finally { setBusy(false); }
+                        }}
+                        className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 disabled:opacity-50"
+                    >
+                        {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                        تم الحل
+                    </button>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-8">

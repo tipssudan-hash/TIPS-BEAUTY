@@ -39,7 +39,7 @@ describe.skipIf(!haveCreds)('Affiliate & Coupon End-to-End Workflow', () => {
         // 3. Admin fetches affiliates list and verifies initial zero balance
         const { data: affiliatesList, error: listErr } = await rpc(admin, 'admin_get_affiliates');
         expect(listErr).toBeNull();
-        const createdMarketer = (affiliatesList as any[])?.find((a) => a.id === affiliateId);
+        const createdMarketer = (affiliatesList as Array<{ id: string; total_commission_earned: number; total_payouts_paid: number; pending_balance: number }>)?.find((a) => a.id === affiliateId);
         expect(createdMarketer).toBeTruthy();
         expect(Number(createdMarketer.total_commission_earned)).toBe(0);
         expect(Number(createdMarketer.total_payouts_paid)).toBe(0);
@@ -62,10 +62,15 @@ describe.skipIf(!haveCreds)('Affiliate & Coupon End-to-End Workflow', () => {
             p_affiliate_id: affiliateId,
         });
         expect(detErr).toBeNull();
-        const detailsObj = details as any;
+        const detailsObj = details as {
+            profile: { code: string };
+            coupons: Array<{ code: string }>;
+            payouts: Array<{ id: string }>;
+            stats: { total_payouts_paid: number };
+        };
         expect(detailsObj.profile.code).toMatch(/^AFF-[A-F0-9]{8}$/);
-        expect(detailsObj.coupons.some((c: any) => c.code === testCouponCode)).toBe(true);
-        expect(detailsObj.payouts.some((p: any) => p.id === payoutId)).toBe(true);
+        expect(detailsObj.coupons.some((c) => c.code === testCouponCode)).toBe(true);
+        expect(detailsObj.payouts.some((p) => p.id === payoutId)).toBe(true);
         expect(Number(detailsObj.stats.total_payouts_paid)).toBe(payoutAmount);
 
         // Cleanup: delete the test coupon, then the test marketer profile (no admin_delete_affiliate

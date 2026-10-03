@@ -13,6 +13,7 @@ const emptyProduct: ProductInput = {
     name_ar: '', name_en: '', description: '', price: 0, cost_price: 0, discount_percentage: 0,
     brand: '', category: '', image: '', images: [], origin: 'السودان', expiry: '',
     ingredients: [], benefits: [], usage: '', skin_type: [], is_imported: true, variants: [], is_active: true,
+    weight_grams: null, length_cm: null, width_cm: null, height_cm: null,
 };
 
 const numberValue = (value: string) => {
@@ -251,6 +252,34 @@ export const ProductFormPage: React.FC = () => {
                             <button type="button" onClick={() => set('variants', form.variants.filter((_, i) => i !== idx))} className="p-3 text-red-500 hover:bg-red-50 rounded-2xl justify-self-start" aria-label="حذف الخيار"><Trash2 className="w-5 h-5" /></button>
                         </div>
                     ))}
+                </Card>
+
+                <Card className="p-8 space-y-6">
+                    <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                        بيانات الشحن <span className="text-xs text-slate-400 font-bold">(اختياري — تُستخدم لحساب سعر التوصيل)</span>
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                        <Field label="الوزن (غرام)">
+                            <input type="number" min="1" step="1" value={form.weight_grams ?? ''}
+                                onChange={(e) => set('weight_grams', e.target.value ? Math.round(numberValue(e.target.value)) : null)}
+                                className={inputClass} dir="ltr" placeholder="مثال: 250" />
+                        </Field>
+                        <Field label="الطول (سم)">
+                            <input type="number" min="0.1" step="0.1" value={form.length_cm ?? ''}
+                                onChange={(e) => set('length_cm', e.target.value ? numberValue(e.target.value) : null)}
+                                className={inputClass} dir="ltr" placeholder="سم" />
+                        </Field>
+                        <Field label="العرض (سم)">
+                            <input type="number" min="0.1" step="0.1" value={form.width_cm ?? ''}
+                                onChange={(e) => set('width_cm', e.target.value ? numberValue(e.target.value) : null)}
+                                className={inputClass} dir="ltr" placeholder="سم" />
+                        </Field>
+                        <Field label="الارتفاع (سم)">
+                            <input type="number" min="0.1" step="0.1" value={form.height_cm ?? ''}
+                                onChange={(e) => set('height_cm', e.target.value ? numberValue(e.target.value) : null)}
+                                className={inputClass} dir="ltr" placeholder="سم" />
+                        </Field>
+                    </div>
                 </Card>
             </form>
         </div>

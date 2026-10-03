@@ -31,6 +31,10 @@ export interface Product {
     average_rating: number;
     variants: ProductVariant[];
     is_active: boolean;
+    weight_grams: number | null;
+    length_cm: number | null;
+    width_cm: number | null;
+    height_cm: number | null;
     created_at: string;
 }
 
@@ -365,6 +369,15 @@ export interface CustomerProfile {
     referral_code: string | null;
     orders_count?: number;
     total_spent?: number;
+    assigned_warehouse_id?: string | null;
+}
+
+export interface SupervisorProfile {
+    id: string;
+    email: string | null;
+    role: 'warehouse_supervisor';
+    assigned_warehouse_id: string | null;
+    created_at: string;
 }
 
 export interface LoyaltyLedgerEntry {

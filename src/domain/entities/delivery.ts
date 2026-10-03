@@ -13,4 +13,5 @@ export interface DeliveryQuote {
   fee: number;
   etaMinutes: number | null;
   source: 'dynamic' | 'flat_fee' | 'flat_fee_missing_coordinates' | 'flat_fee_missing_config';
+  customerPinUsed?: boolean;
 }

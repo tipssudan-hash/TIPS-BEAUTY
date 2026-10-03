@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search, ShoppingBag, Loader2, ArrowLeft } from 'lucide-react';
-import { fetchOrders, subscribeToOrders, updateOrderOperation, type OrderListRow } from '../../lib/adminApi';
+import { Search, ShoppingBag, Loader2, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { fetchOrders, subscribeToOrders, updateOrderOperation, countFulfillmentReviewOrders, type OrderListRow } from '../../lib/adminApi';
 import {
     ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, formatDateTime, formatSDG, orderStatusLabel, orderStatusStyle,
     paymentMethodLabel, paymentStatusLabel, paymentStatusStyle, primaryForwardTransition, type OrderStatus,
@@ -17,6 +17,7 @@ export const OrderListPage: React.FC = () => {
     const paymentStatus = searchParams.get('payment') ?? '';
     const page = Math.max(0, Number(searchParams.get('page') ?? '0') || 0);
 
+    const fulfillmentReview = searchParams.get('fulfillment_review') === '1';
     const [searchInput, setSearchInput] = useState(searchParams.get('q') ?? '');
     const [search, setSearch] = useState(searchInput);
     const [orders, setOrders] = useState<OrderListRow[]>([]);
@@ -24,6 +25,7 @@ export const OrderListPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [advancingId, setAdvancingId] = useState<string | null>(null);
+    const [reviewCount, setReviewCount] = useState(0);
 
     useEffect(() => {
         const timer = setTimeout(() => setSearch(searchInput.trim()), 350);
@@ -45,15 +47,19 @@ export const OrderListPage: React.FC = () => {
         if (!silent) setLoading(true);
         setError(null);
         try {
-            const result = await fetchOrders({ status, paymentStatus, search, page, pageSize: PAGE_SIZE });
+            const [result, rc] = await Promise.all([
+                fetchOrders({ status, paymentStatus, needsFulfillmentReview: fulfillmentReview || undefined, search, page, pageSize: PAGE_SIZE }),
+                countFulfillmentReviewOrders(),
+            ]);
             setOrders(result.rows);
             setTotal(result.total);
+            setReviewCount(rc);
         } catch (err) {
             setError(errorMessage(err, 'تعذر تحميل الطلبات.'));
         } finally {
             setLoading(false);
         }
-    }, [status, paymentStatus, search, page]);
+    }, [status, paymentStatus, fulfillmentReview, search, page]);
 
     useEffect(() => { void load(); }, [load]);
     useEffect(() => subscribeToOrders(() => { void load(true); }), [load]);
@@ -84,6 +90,17 @@ export const OrderListPage: React.FC = () => {
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight">إدارة الطلبات</h1>
                     <p className="text-slate-500 font-medium mt-1">متابعة الطلبات، الدفع، والتوصيل</p>
                 </div>
+                {reviewCount > 0 && (
+                    <button
+                        type="button"
+                        onClick={() => updateParams({ fulfillment_review: fulfillmentReview ? '' : '1', page: '' })}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-bold transition-colors ${fulfillmentReview ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100'}`}
+                    >
+                        <AlertTriangle className="w-4 h-4" />
+                        {reviewCount} {reviewCount === 1 ? 'طلب يحتاج' : 'طلبات تحتاج'} مراجعة التوصيل
+                        {fulfillmentReview && <span className="text-xs opacity-70">(إلغاء الفلتر)</span>}
+                    </button>
+                )}
             </div>
 
             <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-wrap gap-3">
@@ -146,12 +163,13 @@ export const OrderListPage: React.FC = () => {
                                 const nextStatus = primaryForwardTransition(order.status as OrderStatus);
                                 const busy = advancingId === order.id;
                                 return (
-                                    <tr key={order.id} className={`hover:bg-slate-50/50 transition-colors ${unseen ? 'bg-blue-50/40' : ''}`}>
+                                    <tr key={order.id} className={`hover:bg-slate-50/50 transition-colors ${unseen ? 'bg-blue-50/40' : order.needs_fulfillment_review ? 'bg-amber-50/40' : ''}`}>
                                         <td className="px-6 py-5">
                                             <Link to={`/orders/${order.id}`} className="flex items-center gap-3 group">
                                                 <span className="relative w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600">
                                                     <ShoppingBag className="w-4 h-4" />
                                                     {unseen && <span aria-label="طلب لم يُطّلع عليه" className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-brand-blue ring-2 ring-white" />}
+                                                    {order.needs_fulfillment_review && <span aria-label="يحتاج مراجعة التوصيل" className="absolute -top-1 -left-1 w-3 h-3 rounded-full bg-amber-400 ring-2 ring-white" />}
                                                 </span>
                                                 <span>
                                                     <p className="font-bold text-slate-900 text-sm group-hover:text-brand-blue">{order.order_number ?? order.id.slice(0, 8)}</p>

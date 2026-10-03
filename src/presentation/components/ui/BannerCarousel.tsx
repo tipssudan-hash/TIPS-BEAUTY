@@ -1,5 +1,6 @@
-﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Banner } from '@domain/entities';
+import { imgUrl } from '@infrastructure/repositories';
 
 // Home-page banner carousel: one scroll-snap track (RTL-aware through the browser's own scroll
 // direction), dots, and an auto-advance that stops the moment the customer touches it or asks for
@@ -74,7 +75,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners, onSelec
                                 className="relative block w-full overflow-hidden rounded-2xl bg-brand-blue-soft text-right shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue disabled:cursor-default aspect-[16/8] sm:aspect-[20/8] md:aspect-[24/8]"
                             >
                                 <img
-                                    src={banner.imageUrl}
+                                    src={imgUrl(banner.imageUrl, 1200, 80)}
                                     alt=""
                                     loading={index === 0 ? 'eager' : 'lazy'}
                                     fetchPriority={index === 0 ? 'high' : 'auto'}
