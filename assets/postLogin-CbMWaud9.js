@@ -1,0 +1,1 @@
+import{a0 as o}from"./index-DHAxhuzV.js";async function t(a,r="/"){const{data:e}=await o.from("profiles").select("role").eq("id",a).maybeSingle();return(e==null?void 0:e.role)==="driver"&&r==="/"?"/driver":r}export{t as r};
