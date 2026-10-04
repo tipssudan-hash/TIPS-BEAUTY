@@ -48,7 +48,7 @@ export const Footer: React.FC = () => {
                     {/* Brand Info */}
                     <div className="space-y-4 md:col-span-1 text-center md:text-right">
                         <Link to="/" className="inline-block">
-                            <img src="/logo.PNG" alt="تيبس بيوتي" className="h-11 w-auto object-contain mx-auto md:mx-0" />
+                            <img src="/logo.PNG" alt="تيبس بيوتي" loading="lazy" decoding="async" className="h-11 w-auto object-contain mx-auto md:mx-0" />
                         </Link>
                         <p className="text-sm text-gray-600 leading-relaxed">
                             وجهتكم الموثوقة الأولى لمستحضرات التجميل الأصلية ومنتجات العناية بالبشرة في السودان.

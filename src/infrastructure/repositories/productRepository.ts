@@ -1,26 +1,54 @@
 import { supabase } from '../supabase/client';
 import { MOCK_PRODUCTS } from '../mockData';
 import type { PricingRule, Product, ProductVariant } from '../../domain/entities';
+import { cachedFetch } from '../cache';
 
-// Returns a resized Supabase Storage URL using the built-in image transform API.
-// Falls back to the original URL for non-Storage URLs (external CDN, mock data, etc.).
+// Returns a resized and optimized image URL (Unsplash, Supabase Storage, etc.).
 export function imgUrl(
     raw: string | null | undefined,
     width: number,
     quality = 75,
 ): string {
     if (!raw) return '';
-    // Only transform Supabase Storage URLs (contain /storage/v1/object/).
-    if (!raw.includes('/storage/v1/object/')) return raw;
-    // Already has transform params — don't double-add.
-    if (raw.includes('?')) return raw;
-    return `${raw}?width=${width}&quality=${quality}&format=webp`;
+    
+    // Handle Unsplash images: optimize dimension, quality and format
+    if (raw.includes('images.unsplash.com')) {
+        try {
+            const url = new URL(raw);
+            url.searchParams.set('w', width.toString());
+            url.searchParams.set('q', quality.toString());
+            url.searchParams.set('auto', 'format');
+            url.searchParams.set('fit', 'crop');
+            return url.toString();
+        } catch {
+            return raw;
+        }
+    }
+
+    // Handle Supabase Storage URLs
+    if (raw.includes('/storage/v1/object/public/')) {
+        try {
+            // Check if transformation endpoint is available or add query params
+            const url = new URL(raw);
+            url.searchParams.set('width', width.toString());
+            url.searchParams.set('quality', quality.toString());
+            url.searchParams.set('format', 'webp');
+            return url.toString();
+        } catch {
+            return raw;
+        }
+    }
+
+    return raw;
 }
 
 // Returns a srcSet string for 1x and 2x display widths.
 export function imgSrcSet(raw: string | null | undefined, width: number, quality = 75): string {
-    if (!raw || !raw.includes('/storage/v1/object/') || raw.includes('?')) return '';
-    return `${imgUrl(raw, width, quality)} 1x, ${imgUrl(raw, width * 2, quality)} 2x`;
+    if (!raw) return '';
+    if (raw.includes('images.unsplash.com') || raw.includes('/storage/v1/object/public/')) {
+        return `${imgUrl(raw, width, quality)} 1x, ${imgUrl(raw, Math.min(width * 2, 800), quality)} 2x`;
+    }
+    return '';
 }
 
 // Thin typed wrappers over the backend RPCs. All pricing, stock and permission rules live in
@@ -85,7 +113,7 @@ export function mapProduct(row: ProductRow): Product {
     };
 }
 
-export async function fetchProducts(): Promise<Product[]> {
+async function _fetchProducts(): Promise<Product[]> {
     try {
         const { data, error } = await supabase.rpc('get_public_products');
         if (!error && Array.isArray(data) && data.length > 0) {
@@ -105,7 +133,11 @@ export async function fetchProducts(): Promise<Product[]> {
     return MOCK_PRODUCTS;
 }
 
-export async function fetchProduct(id: string): Promise<Product | null> {
+export function fetchProducts(): Promise<Product[]> {
+    return cachedFetch('products:all', _fetchProducts);
+}
+
+async function _fetchProduct(id: string): Promise<Product | null> {
     try {
         const { data, error } = await supabase.rpc('get_public_product', { p_product_id: id });
         if (!error && data && (data as ProductRow[]).length > 0) {
@@ -125,3 +157,8 @@ export async function fetchProduct(id: string): Promise<Product | null> {
     }
     return MOCK_PRODUCTS.find((p) => p.id === id) ?? null;
 }
+
+export function fetchProduct(id: string): Promise<Product | null> {
+    return cachedFetch(`product:${id}`, () => _fetchProduct(id));
+}
+

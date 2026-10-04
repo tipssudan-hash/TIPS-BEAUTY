@@ -133,6 +133,8 @@ export const ProfileEditorCard: React.FC = () => {
                             <img
                                 src={avatarUrl}
                                 alt={fullName || 'Avatar'}
+                                loading="lazy"
+                                decoding="async"
                                 className="w-full h-full object-cover"
                             />
                         ) : (

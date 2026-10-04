@@ -29,13 +29,13 @@ export function errorMessage(error: unknown, fallback = 'حدث خطأ غير م
 
 export function loginErrorMessage(message: string): string {
     if (/email not confirmed/i.test(message)) return 'يرجى تأكيد البريد الإلكتروني أولاً';
-    if (/invalid login credentials/i.test(message)) return 'البريد الإلكتروني أو كلمة المرور غير صحيحة';
-    return 'فشل تسجيل الدخول. يرجى التحقق من البيانات.';
+    if (/invalid login credentials/i.test(message)) return 'رقم الهاتف/البريد أو كلمة المرور غير صحيحة';
+    return 'فشل تسجيل الدخول. يرجى التحقق من صحة البيانات.';
 }
 
 export function signupErrorMessage(message: string): string {
-    if (/already registered|already exists/i.test(message)) return 'هذا البريد الإلكتروني مسجل بالفعل';
-    if (/password/i.test(message)) return 'كلمة المرور يجب أن تكون 6 أحرف على الأقل';
+    if (/already registered|already exists|user already exists/i.test(message)) return 'رقم الهاتف أو البريد الإلكتروني مسجل بالفعل';
+    if (/password/i.test(message)) return 'كلمة المرور يجب أن تكون 6 أحرف أو أرقام على الأقل';
     if (/rate limit/i.test(message)) return 'تم تجاوز عدد المحاولات، حاولي لاحقاً';
     return 'فشل إنشاء الحساب، حاولي مرة أخرى.';
 }

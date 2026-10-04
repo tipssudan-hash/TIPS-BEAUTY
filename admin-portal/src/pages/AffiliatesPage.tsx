@@ -1,15 +1,36 @@
 import React, { useEffect, useState } from 'react';
 import {
     Megaphone, Plus, Edit, X, Loader2, DollarSign, TrendingUp,
-    CheckCircle2, Eye,
-    Receipt, Wallet, Phone, Mail, Ticket, ArrowUpRight
+    CheckCircle2, Eye, Trash2, Building2, CreditCard,
+    Receipt, Wallet, Phone, Mail, Ticket, ArrowUpRight, Star,
+    Banknote, ArrowRightLeft, Copy, Check, Info
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import type { Affiliate, AffiliateInput, AffiliateDetails } from '../types';
+import type { Affiliate, AffiliateInput, AffiliateDetails, AffiliateAccount } from '../types';
+import { parseAffiliateAccounts, serializeAffiliateAccounts } from '../types';
 import { fetchAffiliates, fetchAffiliateDetails, saveAffiliate, recordAffiliatePayout } from '../lib/catalogApi';
 import { errorMessage } from '../lib/errors';
 import { formatDateTime, formatNumber, formatSDG } from '../lib/format';
 import { Card, Field, Notice, PageHeader, Spinner, StatusPill, Table, inputClass, primaryButtonClass, secondaryButtonClass, smallButtonClass } from '../components/ui';
+
+const BANK_PRESETS = [
+    'بنك الخرطوم (تطبيق بنكك)',
+    'بنك فيصل الإسلامي (تطبيق فوري)',
+    'بنك أمدرمان الوطني (تطبيق أوكاش)',
+    'بنك النيل',
+    'بنك المال المتحد',
+    'بنك البركة',
+    'محفظة كاش إلكترونية',
+    'استلام نقدي (يدوي)',
+];
+
+const emptyAccount = (id: string, isDefault = false): AffiliateAccount => ({
+    id,
+    bank_name: 'بنك الخرطوم (تطبيق بنكك)',
+    account_number: '',
+    account_holder: '',
+    is_default: isDefault,
+});
 
 const emptyAffiliate = (): AffiliateInput => ({
     display_name: '',
@@ -17,11 +38,29 @@ const emptyAffiliate = (): AffiliateInput => ({
     email: '',
     commission_rate: 5,
     minimum_payout: 0,
-    payout_method: 'بنكك (بنك الخرطوم)',
-    payout_details: '',
+    payout_method: 'بنك الخرطوم (تطبيق بنكك)',
+    payout_details: JSON.stringify([emptyAccount('acc_1', true)]),
     admin_note: '',
     status: 'active',
 });
+
+type PayoutChannel = 'transfer' | 'cash';
+
+interface PayoutModalState {
+    affiliate: Affiliate;
+    channel: PayoutChannel;
+    amount: number;
+    // For bank/transfer
+    selectedAccountIndex: number | 'custom';
+    customBankName: string;
+    customAccountNumber: string;
+    customAccountHolder: string;
+    // For cash
+    receivedBy: string;
+    // Common
+    reference: string;
+    notes: string;
+}
 
 export const AffiliatesPage: React.FC = () => {
     const [affiliates, setAffiliates] = useState<Affiliate[]>([]);
@@ -31,6 +70,7 @@ export const AffiliatesPage: React.FC = () => {
 
     // Editing / Creation state
     const [editing, setEditing] = useState<{ id: string | null; data: AffiliateInput } | null>(null);
+    const [formAccounts, setFormAccounts] = useState<AffiliateAccount[]>([]);
     const [saving, setSaving] = useState(false);
 
     // Profile Details View state
@@ -38,10 +78,10 @@ export const AffiliatesPage: React.FC = () => {
     const [details, setDetails] = useState<AffiliateDetails | null>(null);
     const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'coupons' | 'payouts'>('overview');
 
-    // Payout modal state
-    const [payoutModal, setPayoutModal] = useState<{ affiliate: Affiliate; amount: number; method: string; reference: string; notes: string } | null>(null);
+    // Professional Payout modal state
+    const [payoutModal, setPayoutModal] = useState<PayoutModalState | null>(null);
     const [recordingPayout, setRecordingPayout] = useState(false);
-
+    const [copiedAccNumber, setCopiedAccNumber] = useState<string | null>(null);
 
     const load = async () => {
         setLoading(true);
@@ -49,7 +89,7 @@ export const AffiliatesPage: React.FC = () => {
         try {
             setAffiliates(await fetchAffiliates());
         } catch (err) {
-            setError(errorMessage(err, 'تعذر تحميل قائمة المسوقين.'));
+            setError(errorMessage(err, 'تعذر تحميل قائمة المسوقين من قاعدة البيانات.'));
         } finally {
             setLoading(false);
         }
@@ -59,13 +99,49 @@ export const AffiliatesPage: React.FC = () => {
         void load();
     }, []);
 
+    const openEditForm = (id: string | null, data: AffiliateInput) => {
+        const parsed = parseAffiliateAccounts(data.payout_details, data.payout_method);
+        setFormAccounts(parsed.length > 0 ? parsed : [emptyAccount('acc_1', true)]);
+        setEditing({ id, data });
+    };
+
+    const addAccountRow = () => {
+        const newId = `acc_${Date.now()}`;
+        setFormAccounts(prev => [
+            ...prev,
+            emptyAccount(newId, prev.length === 0)
+        ]);
+    };
+
+    const removeAccountRow = (index: number) => {
+        setFormAccounts(prev => {
+            const next = prev.filter((_, i) => i !== index);
+            if (next.length > 0 && !next.some(a => a.is_default)) {
+                next[0].is_default = true;
+            }
+            return next;
+        });
+    };
+
+    const updateAccountRow = (index: number, patch: Partial<AffiliateAccount>) => {
+        setFormAccounts(prev => prev.map((item, i) => {
+            if (i === index) {
+                return { ...item, ...patch };
+            }
+            if (patch.is_default) {
+                return { ...item, is_default: false };
+            }
+            return item;
+        }));
+    };
+
     const loadDetails = async (id: string) => {
         setSelectedAffiliateId(id);
         try {
             const data = await fetchAffiliateDetails(id);
             setDetails(data);
         } catch (err) {
-            setError(errorMessage(err, 'تعذر تحميل بيانات المسوق.'));
+            setError(errorMessage(err, 'تعذر تحميل بيانات المسوق من الخادم.'));
             setSelectedAffiliateId(null);
         }
     };
@@ -79,19 +155,59 @@ export const AffiliatesPage: React.FC = () => {
         if (!data.display_name.trim()) { setError('اسم المسوق مطلوب.'); return; }
         if (data.commission_rate < 0 || data.commission_rate > 100) { setError('نسبة العمولة يجب أن تكون بين 0 و 100%.'); return; }
 
+        const { payout_method, payout_details } = serializeAffiliateAccounts(formAccounts);
+        const payload: AffiliateInput = {
+            ...data,
+            payout_method,
+            payout_details,
+        };
+
         setSaving(true);
         setError(null);
         try {
-            await saveAffiliate(editing.id, data);
+            await saveAffiliate(editing.id, payload);
             setEditing(null);
-            setSuccessMessage(editing.id ? 'تم تحديث بيانات المسوق بنجاح.' : 'تم إضافة المسوق بنجاح.');
+            setSuccessMessage(editing.id ? 'تم تحديث بيانات المسوق وحساباته في سوبابيز بنجاح.' : 'تم إضافة المسوق وحساباته بنجاح.');
             setTimeout(() => setSuccessMessage(null), 4000);
             await load();
+            if (selectedAffiliateId && editing.id === selectedAffiliateId) {
+                await loadDetails(selectedAffiliateId);
+            }
         } catch (err) {
             setError(errorMessage(err));
         } finally {
             setSaving(false);
         }
+    };
+
+    const openPayoutModal = (affiliate: Affiliate, customAmount?: number) => {
+        const accounts = parseAffiliateAccounts(affiliate.payout_details, affiliate.payout_method);
+        const defaultIndex = accounts.findIndex(a => a.is_default);
+        const selectedIndex = defaultIndex >= 0 ? defaultIndex : (accounts.length > 0 ? 0 : 'custom');
+
+        const initialAmount = customAmount !== undefined
+            ? Math.max(0, customAmount)
+            : (affiliate.pending_balance > 0 ? affiliate.pending_balance : 0);
+
+        setPayoutModal({
+            affiliate,
+            channel: 'transfer',
+            amount: initialAmount,
+            selectedAccountIndex: selectedIndex,
+            customBankName: 'بنك الخرطوم (تطبيق بنكك)',
+            customAccountNumber: '',
+            customAccountHolder: affiliate.display_name,
+            receivedBy: affiliate.display_name,
+            reference: '',
+            notes: '',
+        });
+    };
+
+    const copyToClipboard = (text: string) => {
+        if (!text) return;
+        void navigator.clipboard.writeText(text);
+        setCopiedAccNumber(text);
+        setTimeout(() => setCopiedAccNumber(null), 2500);
     };
 
     const submitPayout = async (e: React.FormEvent) => {
@@ -101,19 +217,51 @@ export const AffiliatesPage: React.FC = () => {
             setError('مبلغ الصرف يجب أن يكون أكبر من صفر.');
             return;
         }
+
+        const accounts = parseAffiliateAccounts(payoutModal.affiliate.payout_details, payoutModal.affiliate.payout_method);
+
+        let resolvedMethod = '';
+        let generatedNotes = payoutModal.notes.trim();
+
+        if (payoutModal.channel === 'transfer') {
+            if (payoutModal.selectedAccountIndex === 'custom') {
+                const bName = payoutModal.customBankName.trim() || 'تحويل بنكي';
+                const accNum = payoutModal.customAccountNumber.trim();
+                const accHolder = payoutModal.customAccountHolder.trim();
+                resolvedMethod = `${bName}${accNum ? ` - ${accNum}` : ''}`;
+                const detailStr = `تحويل إلى ${bName} حساب: ${accNum || 'غير محدد'}${accHolder ? ` باسم: ${accHolder}` : ''}`;
+                generatedNotes = generatedNotes ? `${detailStr} | ${generatedNotes}` : detailStr;
+            } else {
+                const targetAcc = accounts[payoutModal.selectedAccountIndex];
+                if (targetAcc) {
+                    resolvedMethod = `${targetAcc.bank_name}${targetAcc.account_number ? ` (${targetAcc.account_number})` : ''}`;
+                    const detailStr = `تحويل إلى ${targetAcc.bank_name} - حساب: ${targetAcc.account_number || '-'}${targetAcc.account_holder ? ` (صاحب الحساب: ${targetAcc.account_holder})` : ''}`;
+                    generatedNotes = generatedNotes ? `${detailStr} | ${generatedNotes}` : detailStr;
+                } else {
+                    resolvedMethod = 'تحويل بنكي';
+                }
+            }
+        } else {
+            // Cash
+            resolvedMethod = 'تسليم نقدي (كاش)';
+            const cashStr = `تسليم نقدي كاش${payoutModal.receivedBy ? ` للمستلم: ${payoutModal.receivedBy}` : ''}`;
+            generatedNotes = generatedNotes ? `${cashStr} | ${generatedNotes}` : cashStr;
+        }
+
         setRecordingPayout(true);
         setError(null);
         try {
             await recordAffiliatePayout({
                 affiliate_id: payoutModal.affiliate.id,
                 amount: payoutModal.amount,
-                payout_method: payoutModal.method,
-                reference_number: payoutModal.reference,
-                notes: payoutModal.notes,
+                payout_method: resolvedMethod,
+                reference_number: payoutModal.reference.trim() || undefined,
+                notes: generatedNotes || undefined,
             });
+            const recordedAmount = payoutModal.amount;
             setPayoutModal(null);
-            setSuccessMessage(`تم تسجيل صرف مبلغ ${formatSDG(payoutModal.amount)} للمسوق بنجاح.`);
-            setTimeout(() => setSuccessMessage(null), 4000);
+            setSuccessMessage(`تم تسجيل صرف مبلغ ${formatSDG(recordedAmount)} للمسوق بنجاح وحفظ العملية في سوبابيز.`);
+            setTimeout(() => setSuccessMessage(null), 5000);
             await load();
             if (selectedAffiliateId === payoutModal.affiliate.id) {
                 await loadDetails(selectedAffiliateId);
@@ -124,7 +272,6 @@ export const AffiliatesPage: React.FC = () => {
             setRecordingPayout(false);
         }
     };
-
 
     // Calculate aggregated totals
     const totalSalesAll = affiliates.reduce((acc, a) => acc + a.total_sales, 0);
@@ -138,8 +285,8 @@ export const AffiliatesPage: React.FC = () => {
     return (
         <div className="space-y-8">
             <PageHeader
-                title="المسوقون والناشرون (نظام العمولات)"
-                subtitle="إدارة المسوقين والناشرين ومتابعة مبيعاتهم المحققة من أكواد الخصم، حساب نسب الأرباح وصرف المستحقات."
+                title="المسوقون ونظام العمولات"
+                subtitle="إدارة المسوقين ومتابعة مبيعاتهم المحققة من أكواد الخصم، حساب نسب الأرباح وصرف المستحقات."
                 icon={<Megaphone className="w-8 h-8 text-brand-blue" />}
                 actions={
                     <div className="flex gap-2">
@@ -149,7 +296,7 @@ export const AffiliatesPage: React.FC = () => {
                         </Link>
                         <button
                             type="button"
-                            onClick={() => setEditing({ id: null, data: emptyAffiliate() })}
+                            onClick={() => openEditForm(null, emptyAffiliate())}
                             className={primaryButtonClass}
                         >
                             <Plus className="w-5 h-5" /> إضافة مسوق جديد
@@ -212,22 +359,24 @@ export const AffiliatesPage: React.FC = () => {
             {/* Add / Edit Marketer Form */}
             {editing && (
                 <Card className="p-6">
-                    <form onSubmit={submitAffiliate} className="space-y-4">
+                    <form onSubmit={submitAffiliate} className="space-y-6">
                         <div className="flex items-center justify-between border-b pb-3">
                             <h3 className="font-black text-slate-900 text-lg">
-                                {editing.id ? 'تعديل بيانات المسوق / الناشر' : 'إضافة مسوق / ناشر جديد'}
+                                {editing.id ? 'تعديل بيانات المسوق' : 'إضافة مسوق جديد'}
                             </h3>
                             <button type="button" onClick={() => setEditing(null)} className="p-2 text-slate-400 hover:text-slate-600">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
+
+                        {/* Basic Info */}
                         <div className="grid md:grid-cols-3 gap-4">
-                            <Field label="الاسم التسويقي / الناشر" required>
+                            <Field label="اسم المسوق" required>
                                 <input
                                     value={editing.data.display_name}
                                     onChange={(e) => updateEditing({ display_name: e.target.value })}
                                     className={inputClass}
-                                    placeholder="مثال: سارة فاشن / المؤثر أحمد"
+                                    placeholder="مثال: سارة فاشن أو أحمد للتسويق"
                                     required
                                 />
                             </Field>
@@ -245,24 +394,7 @@ export const AffiliatesPage: React.FC = () => {
                                     required
                                 />
                             </Field>
-                            <Field label="رقم الهاتف" hint="للتواصل وتحويل الأرباح">
-                                <input
-                                    value={editing.data.phone ?? ''}
-                                    onChange={(e) => updateEditing({ phone: e.target.value })}
-                                    className={inputClass}
-                                    dir="ltr"
-                                    placeholder="09xxxxxxxx"
-                                />
-                            </Field>
-                            <Field label="البريد الإلكتروني" hint="اختياري">
-                                <input
-                                    type="email"
-                                    value={editing.data.email ?? ''}
-                                    onChange={(e) => updateEditing({ email: e.target.value })}
-                                    className={inputClass}
-                                    dir="ltr"
-                                />
-                            </Field>
+
                             <Field label="حالة الحساب" required>
                                 <select
                                     value={editing.data.status}
@@ -275,34 +407,164 @@ export const AffiliatesPage: React.FC = () => {
                                     <option value="rejected">مرفوض</option>
                                 </select>
                             </Field>
-                            <Field label="طريقة استلام الأرباح" hint="مثال: بنكك / فوري / نقداً">
+
+                            <Field label="رقم الهاتف" hint="للتواصل وتسليم الأرباح">
                                 <input
-                                    value={editing.data.payout_method ?? ''}
-                                    onChange={(e) => updateEditing({ payout_method: e.target.value })}
+                                    value={editing.data.phone ?? ''}
+                                    onChange={(e) => updateEditing({ phone: e.target.value })}
                                     className={inputClass}
-                                    placeholder="بنكك - بنك الخرطوم"
+                                    dir="ltr"
+                                    placeholder="09xxxxxxxx"
                                 />
                             </Field>
-                            <Field label="تفاصيل الحساب البنكي / التحويل" hint="رقم الحساب / الآيبان / الاسم">
+
+                            <Field label="البريد الإلكتروني" hint="اختياري">
                                 <input
-                                    value={editing.data.payout_details ?? ''}
-                                    onChange={(e) => updateEditing({ payout_details: e.target.value })}
+                                    type="email"
+                                    value={editing.data.email ?? ''}
+                                    onChange={(e) => updateEditing({ email: e.target.value })}
                                     className={inputClass}
-                                    placeholder="حساب بنكك: 1234567 باسم ..."
+                                    dir="ltr"
+                                    placeholder="affiliate@example.com"
                                 />
                             </Field>
+
                             <Field label="ملاحظات الإدارة" hint="داخلية">
                                 <input
                                     value={editing.data.admin_note ?? ''}
                                     onChange={(e) => updateEditing({ admin_note: e.target.value })}
                                     className={inputClass}
+                                    placeholder="ملاحظات سرية لفريق الإدارة"
                                 />
                             </Field>
                         </div>
-                        <div className="flex justify-end gap-2 pt-2 border-t">
+
+                        {/* Dynamic Payout Accounts Section */}
+                        <div className="border-t pt-5">
+                            <div className="flex items-center justify-between mb-3">
+                                <div>
+                                    <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                        <Building2 className="w-4 h-4 text-brand-blue" />
+                                        حسابات استلام الأرباح المسجلة في النظام
+                                    </h4>
+                                    <p className="text-xs text-slate-500 mt-0.5">
+                                        يتم حفظ هذه الحسابات في سوبابيز واسترجاعها تلقائياً عند إجراء أي تحويل أو صرف مالي للمسوق.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={addAccountRow}
+                                    className={`${secondaryButtonClass} text-xs flex items-center gap-1.5 py-1.5 px-3`}
+                                >
+                                    <Plus className="w-3.5 h-3.5" /> إضافة حساب استلام إضافي
+                                </button>
+                            </div>
+
+                            <div className="space-y-3">
+                                {formAccounts.map((account, index) => (
+                                    <div
+                                        key={account.id}
+                                        className={`p-4 rounded-xl border transition-all ${account.is_default ? 'bg-blue-50/40 border-blue-300 shadow-sm' : 'bg-slate-50/70 border-slate-200'}`}
+                                    >
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-black text-slate-700 bg-white px-2 py-0.5 rounded border shadow-sm">
+                                                    حساب #{index + 1}
+                                                </span>
+                                                {account.is_default ? (
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-blue bg-blue-100 px-2.5 py-0.5 rounded-full">
+                                                        <Star className="w-3 h-3 fill-brand-blue text-brand-blue" /> الحساب الأساسي للتحويل
+                                                    </span>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => updateAccountRow(index, { is_default: true })}
+                                                        className="text-[11px] font-bold text-slate-500 hover:text-brand-blue underline"
+                                                    >
+                                                        تعيين كحساب أساسي
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {formAccounts.length > 1 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeAccountRow(index)}
+                                                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                    title="حذف هذا الحساب"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        <div className="grid md:grid-cols-3 gap-3">
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-700 mb-1">
+                                                    جهة الاستلام / البنك
+                                                </label>
+                                                <div className="space-y-1.5">
+                                                    <select
+                                                        value={BANK_PRESETS.includes(account.bank_name) ? account.bank_name : '__CUSTOM__'}
+                                                        onChange={(e) => {
+                                                            if (e.target.value === '__CUSTOM__') {
+                                                                updateAccountRow(index, { bank_name: '' });
+                                                            } else {
+                                                                updateAccountRow(index, { bank_name: e.target.value });
+                                                            }
+                                                        }}
+                                                        className={inputClass}
+                                                    >
+                                                        {BANK_PRESETS.map((bank) => (
+                                                            <option key={bank} value={bank}>{bank}</option>
+                                                        ))}
+                                                        <option value="__CUSTOM__">جهة أخرى (كتابة يدوية)...</option>
+                                                    </select>
+                                                    {!BANK_PRESETS.includes(account.bank_name) && (
+                                                        <input
+                                                            value={account.bank_name}
+                                                            onChange={(e) => updateAccountRow(index, { bank_name: e.target.value })}
+                                                            placeholder="اسم البنك أو المحفظة..."
+                                                            className={inputClass}
+                                                        />
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-700 mb-1">
+                                                    رقم الحساب / الآيبان
+                                                </label>
+                                                <input
+                                                    value={account.account_number}
+                                                    onChange={(e) => updateAccountRow(index, { account_number: e.target.value })}
+                                                    className={inputClass}
+                                                    dir="ltr"
+                                                    placeholder="مثال: 1234567"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-700 mb-1">
+                                                    اسم صاحب الحساب
+                                                </label>
+                                                <input
+                                                    value={account.account_holder}
+                                                    onChange={(e) => updateAccountRow(index, { account_holder: e.target.value })}
+                                                    className={inputClass}
+                                                    placeholder="الاسم الرباعي أو اسم الحساب"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-3 border-t">
                             <button type="button" onClick={() => setEditing(null)} className={secondaryButtonClass}>إلغاء</button>
                             <button type="submit" disabled={saving} className={primaryButtonClass}>
-                                {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : null} حفظ المسوق
+                                {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : null} حفظ المسوق في سوبابيز
                             </button>
                         </div>
                     </form>
@@ -315,6 +577,7 @@ export const AffiliatesPage: React.FC = () => {
                     headers={[
                         'المسوق والكود',
                         'بيانات التواصل',
+                        'حسابات الاستلام المسجلة',
                         'نسبة العمولة',
                         'الطلبات والمبيعات',
                         'العمولة المكتسبة',
@@ -326,67 +589,92 @@ export const AffiliatesPage: React.FC = () => {
                     empty={affiliates.length === 0}
                     emptyText="لا يوجد مسوقون مسجلون بعد"
                 >
-                    {affiliates.map((a) => (
-                        <tr key={a.id} className="hover:bg-slate-50/50">
-                            <td className="px-6 py-4">
-                                <div>
-                                    <p className="text-sm font-black text-slate-900">{a.display_name}</p>
-                                    <p className="text-[10px] text-slate-400 font-bold mt-0.5">
-                                        {a.coupons_count > 0 ? `${a.coupons_count} كود خصم مخصص` : 'لا توجد أكواد مخصصة'}
-                                    </p>
-                                </div>
-                            </td>
-                            <td className="px-6 py-4 text-xs font-bold text-slate-600">
-                                {a.phone && <p className="flex items-center gap-1"><Phone className="w-3 h-3 text-slate-400" /> <span dir="ltr">{a.phone}</span></p>}
-                                {a.email && <p className="flex items-center gap-1 mt-0.5 text-slate-400"><Mail className="w-3 h-3" /> <span dir="ltr">{a.email}</span></p>}
-                                {!a.phone && !a.email && <span className="text-slate-400">-</span>}
-                            </td>
-                            <td className="px-6 py-4 text-sm font-black text-indigo-700">
-                                {formatNumber(a.commission_rate)}%
-                            </td>
-                            <td className="px-6 py-4">
-                                <p className="text-sm font-black text-slate-900">{formatSDG(a.total_sales)}</p>
-                                <p className="text-[10px] text-slate-400 font-bold">{formatNumber(a.total_orders)} طلب مكتمل</p>
-                            </td>
-                            <td className="px-6 py-4 text-sm font-black text-emerald-700">
-                                {formatSDG(a.total_commission_earned)}
-                            </td>
-                            <td className="px-6 py-4 text-sm font-bold text-blue-700">
-                                {formatSDG(a.total_payouts_paid)}
-                            </td>
-                            <td className="px-6 py-4">
-                                <span className={`text-sm font-black ${a.pending_balance > 0 ? 'text-amber-700 bg-amber-50 px-2 py-1 rounded-md' : 'text-slate-400'}`}>
-                                    {formatSDG(a.pending_balance)}
-                                </span>
-                            </td>
-                            <td className="px-6 py-4">
-                                <StatusPill tone={a.status === 'active' ? 'success' : a.status === 'pending' ? 'attention' : 'neutral'}>
-                                    {a.status === 'active' ? 'نشط' : a.status === 'pending' ? 'مراجعة' : a.status === 'suspended' ? 'موقوف' : 'مرفوض'}
-                                </StatusPill>
-                            </td>
-                            <td className="px-6 py-4">
-                                <div className="flex items-center gap-1.5">
-                                    <button
-                                        type="button"
-                                        onClick={() => void loadDetails(a.id)}
-                                        title="عرض ملف المسوق والمبيعات بالتفصيل"
-                                        className={`${smallButtonClass} bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1`}
-                                    >
-                                        <Eye className="w-3.5 h-3.5" /> الملف
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setPayoutModal({ affiliate: a, amount: a.pending_balance > 0 ? a.pending_balance : 0, method: a.payout_method || 'بنكك (بنك الخرطوم)', reference: '', notes: '' })}
-                                        title="صرف وتسليم الأرباح"
-                                        className={`${smallButtonClass} bg-emerald-50 text-emerald-700 hover:bg-emerald-100 flex items-center gap-1`}
-                                    >
-                                        <Wallet className="w-3.5 h-3.5" /> صرف
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setEditing({
-                                            id: a.id,
-                                            data: {
+                    {affiliates.map((a) => {
+                        const marketerAccounts = parseAffiliateAccounts(a.payout_details, a.payout_method);
+                        const defaultAcc = marketerAccounts.find(acc => acc.is_default) || marketerAccounts[0];
+
+                        return (
+                            <tr key={a.id} className="hover:bg-slate-50/50">
+                                <td className="px-6 py-4">
+                                    <div>
+                                        <p className="text-sm font-black text-slate-900">{a.display_name}</p>
+                                        <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                                            {a.coupons_count > 0 ? `${a.coupons_count} كود خصم مخصص` : 'لا توجد أكواد مخصصة'}
+                                        </p>
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4 text-xs font-bold text-slate-600">
+                                    {a.phone && <p className="flex items-center gap-1"><Phone className="w-3 h-3 text-slate-400" /> <span dir="ltr">{a.phone}</span></p>}
+                                    {a.email && <p className="flex items-center gap-1 mt-0.5 text-slate-400"><Mail className="w-3 h-3" /> <span dir="ltr">{a.email}</span></p>}
+                                    {!a.phone && !a.email && <span className="text-slate-400">-</span>}
+                                </td>
+                                <td className="px-6 py-4">
+                                    {marketerAccounts.length > 0 && (defaultAcc?.account_number || defaultAcc?.bank_name) ? (
+                                        <div className="space-y-0.5">
+                                            <p className="text-xs font-bold text-slate-800 flex items-center gap-1">
+                                                <CreditCard className="w-3.5 h-3.5 text-brand-blue" />
+                                                {defaultAcc.bank_name}
+                                            </p>
+                                            {defaultAcc.account_number && (
+                                                <p className="text-[11px] font-mono text-slate-500" dir="ltr">
+                                                    {defaultAcc.account_number}
+                                                    {defaultAcc.account_holder ? ` (${defaultAcc.account_holder})` : ''}
+                                                </p>
+                                            )}
+                                            {marketerAccounts.length > 1 && (
+                                                <span className="inline-block text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.2 rounded">
+                                                    +{marketerAccounts.length - 1} حساب إضافي
+                                                </span>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <span className="text-xs text-slate-400">غير مسجل</span>
+                                    )}
+                                </td>
+                                <td className="px-6 py-4 text-sm font-black text-indigo-700">
+                                    {formatNumber(a.commission_rate)}%
+                                </td>
+                                <td className="px-6 py-4">
+                                    <p className="text-sm font-black text-slate-900">{formatSDG(a.total_sales)}</p>
+                                    <p className="text-[10px] text-slate-400 font-bold">{formatNumber(a.total_orders)} طلب مكتمل</p>
+                                </td>
+                                <td className="px-6 py-4 text-sm font-black text-emerald-700">
+                                    {formatSDG(a.total_commission_earned)}
+                                </td>
+                                <td className="px-6 py-4 text-sm font-bold text-blue-700">
+                                    {formatSDG(a.total_payouts_paid)}
+                                </td>
+                                <td className="px-6 py-4">
+                                    <span className={`text-sm font-black ${a.pending_balance > 0 ? 'text-amber-700 bg-amber-50 px-2 py-1 rounded-md' : 'text-slate-400'}`}>
+                                        {formatSDG(a.pending_balance)}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <StatusPill tone={a.status === 'active' ? 'success' : a.status === 'pending' ? 'attention' : 'neutral'}>
+                                        {a.status === 'active' ? 'نشط' : a.status === 'pending' ? 'مراجعة' : a.status === 'suspended' ? 'موقوف' : 'مرفوض'}
+                                    </StatusPill>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => void loadDetails(a.id)}
+                                            title="عرض ملف المسوق والمبيعات بالتفصيل"
+                                            className={`${smallButtonClass} bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1`}
+                                        >
+                                            <Eye className="w-3.5 h-3.5" /> الملف
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => openPayoutModal(a)}
+                                            title="صرف وتسليم الأرباح"
+                                            className={`${smallButtonClass} bg-emerald-50 text-emerald-700 hover:bg-emerald-100 flex items-center gap-1 font-black`}
+                                        >
+                                            <Wallet className="w-3.5 h-3.5" /> صرف
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => openEditForm(a.id, {
                                                 display_name: a.display_name,
                                                 phone: a.phone,
                                                 email: a.email,
@@ -396,17 +684,17 @@ export const AffiliatesPage: React.FC = () => {
                                                 payout_details: a.payout_details,
                                                 admin_note: a.admin_note,
                                                 status: a.status,
-                                            }
-                                        })}
-                                        title="تعديل بيانات المسوق"
-                                        className={`${smallButtonClass} bg-blue-50 text-brand-blue flex items-center gap-1`}
-                                    >
-                                        <Edit className="w-3.5 h-3.5" />
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    ))}
+                                            })}
+                                            title="تعديل بيانات المسوق"
+                                            className={`${smallButtonClass} bg-blue-50 text-brand-blue flex items-center gap-1`}
+                                        >
+                                            <Edit className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        );
+                    })}
                 </Table>
             </Card>
 
@@ -419,13 +707,20 @@ export const AffiliatesPage: React.FC = () => {
                             <div>
                                 <div className="flex items-center gap-2">
                                     <h2 className="text-xl font-black">{details.profile.display_name}</h2>
-                                    <span className="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">
+                                    <span className="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-bold">
                                         عمولة {details.profile.commission_rate}%
                                     </span>
                                 </div>
-                                <p className="text-xs text-slate-300 mt-1">
-                                    {details.profile.payout_method || 'طريقة الصرف: غير محددة'} • {details.profile.payout_details || 'لا توجد بيانات بنكية'}
-                                </p>
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300 mt-2">
+                                    {parseAffiliateAccounts(details.profile.payout_details, details.profile.payout_method).map((acc, i) => (
+                                        <span key={acc.id || i} className="bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700 flex items-center gap-1">
+                                            <Building2 className="w-3 h-3 text-emerald-400" />
+                                            <strong className="text-white">{acc.bank_name}:</strong>
+                                            <span dir="ltr">{acc.account_number || '-'}</span>
+                                            {acc.account_holder ? ` (${acc.account_holder})` : ''}
+                                        </span>
+                                    ))}
+                                </div>
                             </div>
                             <div className="flex items-center gap-2">
                                 <button
@@ -433,16 +728,10 @@ export const AffiliatesPage: React.FC = () => {
                                     onClick={() => {
                                         const found = affiliates.find(x => x.id === details.profile.id);
                                         if (found) {
-                                            setPayoutModal({
-                                                affiliate: found,
-                                                amount: details.stats.pending_balance,
-                                                method: details.profile.payout_method || 'بنكك',
-                                                reference: '',
-                                                notes: ''
-                                            });
+                                            openPayoutModal(found, details.stats.pending_balance);
                                         }
                                     }}
-                                    className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors"
+                                    className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-colors shadow-sm"
                                 >
                                     <Wallet className="w-4 h-4" /> صرف المستحقات ({formatSDG(details.stats.pending_balance)})
                                 </button>
@@ -582,7 +871,7 @@ export const AffiliatesPage: React.FC = () => {
                             {activeTab === 'payouts' && (
                                 <div>
                                     <h4 className="text-sm font-black text-slate-900 mb-3">سجل المبالغ المحولة والمصروفة</h4>
-                                    <Table headers={['المبلغ المحول', 'طريقة الصرف', 'الرقم المرجعي / الإشعار', 'ملاحظات', 'تاريخ الصرف']} empty={details.payouts.length === 0} emptyText="لم يتم تسجيل دفعات بعد">
+                                    <Table headers={['المبلغ المحول', 'طريقة الصرف', 'الرقم المرجعي للإشعار', 'ملاحظات', 'تاريخ الصرف']} empty={details.payouts.length === 0} emptyText="لم يتم تسجيل دفعات بعد">
                                         {details.payouts.map((p) => (
                                             <tr key={p.id}>
                                                 <td className="px-4 py-3 text-sm font-black text-emerald-700">{formatSDG(p.amount)}</td>
@@ -600,36 +889,225 @@ export const AffiliatesPage: React.FC = () => {
                 </div>
             )}
 
-            {/* Record Payout Modal ("Give him his money") */}
+            {/* Professional Record Payout Settlement Modal */}
             {payoutModal && (
-                <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in">
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+                    <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden animate-in fade-in my-8 border">
+                        {/* Modal Header */}
                         <div className="p-5 bg-emerald-800 text-white flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Wallet className="w-5 h-5 text-emerald-200" />
-                                <h3 className="font-black text-lg">صرف وتسليم الأرباح للمسوق</h3>
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 bg-emerald-700/80 rounded-xl">
+                                    <Wallet className="w-5 h-5 text-emerald-100" />
+                                </div>
+                                <div>
+                                    <h3 className="font-black text-lg">صرف وتسليم أرباح المسوق</h3>
+                                    <p className="text-xs text-emerald-200">تسجيل وتوثيق المعاملة المالية في سوبابيز</p>
+                                </div>
                             </div>
-                            <button type="button" onClick={() => setPayoutModal(null)} className="text-white/80 hover:text-white">
+                            <button type="button" onClick={() => setPayoutModal(null)} className="p-1.5 text-white/80 hover:text-white hover:bg-emerald-700/50 rounded-lg">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
 
-                        <form onSubmit={submitPayout} className="p-6 space-y-4">
-                            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-                                <p className="text-xs text-emerald-800 font-bold">
-                                    المسوق: <span className="font-black text-slate-900">{payoutModal.affiliate.display_name}</span>
-                                </p>
-                                <p className="text-xs text-emerald-700 mt-1">
-                                    الرصيد المعلق المستحق: <span className="font-black">{formatSDG(payoutModal.affiliate.pending_balance)}</span>
-                                </p>
-                                {payoutModal.affiliate.payout_details && (
-                                    <p className="text-[11px] text-slate-600 mt-1">
-                                        بيانات الاستلام: {payoutModal.affiliate.payout_details}
-                                    </p>
-                                )}
+                        <form onSubmit={submitPayout} className="p-6 space-y-5">
+                            {/* Marketer Financial Summary Banner */}
+                            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-xs text-emerald-800 font-bold">المسوق المستفيد</p>
+                                        <p className="text-base font-black text-slate-900 mt-0.5">{payoutModal.affiliate.display_name}</p>
+                                    </div>
+                                    <div className="text-left">
+                                        <p className="text-xs text-emerald-800 font-bold">الرصيد المعلق المستحق</p>
+                                        <p className="text-base font-black text-emerald-700 mt-0.5">{formatSDG(payoutModal.affiliate.pending_balance)}</p>
+                                    </div>
+                                </div>
                             </div>
 
-                            <Field label="المبلغ المراد صرفه (ج.س)" required>
+                            {/* Payout Channel Selection (Transfer vs Cash) */}
+                            <div>
+                                <label className="block text-xs font-black text-slate-800 mb-2">
+                                    طريقة تسليم الأرباح
+                                </label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPayoutModal({ ...payoutModal, channel: 'transfer' })}
+                                        className={`p-3.5 rounded-xl border text-right flex items-center gap-3 transition-all ${payoutModal.channel === 'transfer' ? 'bg-brand-blue/5 border-brand-blue ring-2 ring-brand-blue/20' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}
+                                    >
+                                        <div className={`p-2 rounded-lg ${payoutModal.channel === 'transfer' ? 'bg-brand-blue text-white' : 'bg-slate-200 text-slate-600'}`}>
+                                            <ArrowRightLeft className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                            <p className={`text-xs font-black ${payoutModal.channel === 'transfer' ? 'text-brand-blue' : 'text-slate-800'}`}>
+                                                تحويل بنكي / إلكتروني
+                                            </p>
+                                            <p className="text-[10px] text-slate-500">تطبيق بنكك، فوري، أوكاش...</p>
+                                        </div>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setPayoutModal({ ...payoutModal, channel: 'cash' })}
+                                        className={`p-3.5 rounded-xl border text-right flex items-center gap-3 transition-all ${payoutModal.channel === 'cash' ? 'bg-emerald-50 border-emerald-600 ring-2 ring-emerald-600/20' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}
+                                    >
+                                        <div className={`p-2 rounded-lg ${payoutModal.channel === 'cash' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                                            <Banknote className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                            <p className={`text-xs font-black ${payoutModal.channel === 'cash' ? 'text-emerald-800' : 'text-slate-800'}`}>
+                                                تسليم نقدي (كاش)
+                                            </p>
+                                            <p className="text-[10px] text-slate-500">استلام يدوي بسند صرف</p>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Payout Channel Details */}
+                            {payoutModal.channel === 'transfer' ? (
+                                <div className="space-y-3 bg-slate-50/80 p-4 rounded-xl border border-slate-200">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                            <Building2 className="w-3.5 h-3.5 text-brand-blue" />
+                                            اختر حساب المسوق المسجل للتحويل إليه:
+                                        </label>
+                                        <span className="text-[10px] text-slate-400">مجلوب من ملف المسوق</span>
+                                    </div>
+
+                                    {(() => {
+                                        const marketerAccounts = parseAffiliateAccounts(payoutModal.affiliate.payout_details, payoutModal.affiliate.payout_method);
+                                        const validAccs = marketerAccounts.filter(a => a.bank_name || a.account_number);
+
+                                        return (
+                                            <div className="space-y-2">
+                                                {validAccs.map((acc, idx) => (
+                                                    <label
+                                                        key={acc.id || idx}
+                                                        className={`flex items-start justify-between p-3 rounded-xl border cursor-pointer transition-all ${payoutModal.selectedAccountIndex === idx ? 'bg-blue-50/80 border-brand-blue ring-1 ring-brand-blue shadow-sm' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+                                                    >
+                                                        <div className="flex items-start gap-2.5">
+                                                            <input
+                                                                type="radio"
+                                                                name="payout_account_choice"
+                                                                checked={payoutModal.selectedAccountIndex === idx}
+                                                                onChange={() => setPayoutModal({ ...payoutModal, selectedAccountIndex: idx })}
+                                                                className="mt-1 accent-brand-blue"
+                                                            />
+                                                            <div>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <p className="text-xs font-black text-slate-900">{acc.bank_name}</p>
+                                                                    {acc.is_default && (
+                                                                        <span className="text-[9px] bg-blue-100 text-brand-blue px-1.5 py-0.2 rounded font-bold">
+                                                                            افتراضي
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                {acc.account_number && (
+                                                                    <div className="flex items-center gap-1 mt-1">
+                                                                        <span className="text-xs font-mono font-bold text-slate-700" dir="ltr">{acc.account_number}</span>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={(ev) => {
+                                                                                ev.stopPropagation();
+                                                                                copyToClipboard(acc.account_number);
+                                                                            }}
+                                                                            className="p-1 text-slate-400 hover:text-brand-blue"
+                                                                            title="نسخ رقم الحساب"
+                                                                        >
+                                                                            {copiedAccNumber === acc.account_number ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                                {acc.account_holder && (
+                                                                    <p className="text-[10px] text-slate-500 mt-0.5">صاحب الحساب: {acc.account_holder}</p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </label>
+                                                ))}
+
+                                                {/* Custom transfer option */}
+                                                <label
+                                                    className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${payoutModal.selectedAccountIndex === 'custom' ? 'bg-blue-50/80 border-brand-blue ring-1 ring-brand-blue shadow-sm' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+                                                >
+                                                    <input
+                                                        type="radio"
+                                                        name="payout_account_choice"
+                                                        checked={payoutModal.selectedAccountIndex === 'custom'}
+                                                        onChange={() => setPayoutModal({ ...payoutModal, selectedAccountIndex: 'custom' })}
+                                                        className="mt-1 accent-brand-blue"
+                                                    />
+                                                    <div className="w-full">
+                                                        <p className="text-xs font-black text-slate-900">حساب / بنك آخر جديد</p>
+                                                        {payoutModal.selectedAccountIndex === 'custom' && (
+                                                            <div className="grid md:grid-cols-3 gap-2 mt-2">
+                                                                <input
+                                                                    value={payoutModal.customBankName}
+                                                                    onChange={(e) => setPayoutModal({ ...payoutModal, customBankName: e.target.value })}
+                                                                    className={`${inputClass} text-xs py-1.5`}
+                                                                    placeholder="اسم البنك..."
+                                                                />
+                                                                <input
+                                                                    value={payoutModal.customAccountNumber}
+                                                                    onChange={(e) => setPayoutModal({ ...payoutModal, customAccountNumber: e.target.value })}
+                                                                    className={`${inputClass} text-xs py-1.5`}
+                                                                    dir="ltr"
+                                                                    placeholder="رقم الحساب..."
+                                                                />
+                                                                <input
+                                                                    value={payoutModal.customAccountHolder}
+                                                                    onChange={(e) => setPayoutModal({ ...payoutModal, customAccountHolder: e.target.value })}
+                                                                    className={`${inputClass} text-xs py-1.5`}
+                                                                    placeholder="اسم صاحب الحساب..."
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </label>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            ) : (
+                                <div className="space-y-3 bg-slate-50/80 p-4 rounded-xl border border-slate-200">
+                                    <Field label="اسم الشخص المستلم للنقدية" required>
+                                        <input
+                                            value={payoutModal.receivedBy}
+                                            onChange={(e) => setPayoutModal({ ...payoutModal, receivedBy: e.target.value })}
+                                            className={inputClass}
+                                            placeholder="اسم المستلم رباعياً أو المسوق نفسه"
+                                            required
+                                        />
+                                    </Field>
+                                </div>
+                            )}
+
+                            {/* Amount to payout with quick calculation chips */}
+                            <div>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="text-xs font-black text-slate-800">
+                                        المبلغ المراد صرفه (ج.س) <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => setPayoutModal({ ...payoutModal, amount: payoutModal.affiliate.pending_balance })}
+                                            className="text-[10px] font-black text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-2 py-0.5 rounded transition-colors"
+                                        >
+                                            صرف كامل المستحقات (100%)
+                                        </button>
+                                        {payoutModal.affiliate.pending_balance > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setPayoutModal({ ...payoutModal, amount: Math.round(payoutModal.affiliate.pending_balance / 2) })}
+                                                className="text-[10px] font-bold text-slate-600 bg-slate-200 hover:bg-slate-300 px-2 py-0.5 rounded transition-colors"
+                                            >
+                                                50%
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
                                 <input
                                     type="number"
                                     min={1}
@@ -640,48 +1118,64 @@ export const AffiliatesPage: React.FC = () => {
                                     dir="ltr"
                                     required
                                 />
-                            </Field>
+                                {payoutModal.amount > 0 && (
+                                    <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1 px-1">
+                                        <span>الرصيد المتبقي بعد هذا الصرف:</span>
+                                        <span className={`font-black ${payoutModal.affiliate.pending_balance - payoutModal.amount < 0 ? 'text-red-600' : 'text-slate-700'}`}>
+                                            {formatSDG(Math.max(0, payoutModal.affiliate.pending_balance - payoutModal.amount))}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
 
-                            <Field label="طريقة الصرف / التحويل" required>
-                                <input
-                                    value={payoutModal.method}
-                                    onChange={(e) => setPayoutModal({ ...payoutModal, method: e.target.value })}
-                                    className={inputClass}
-                                    placeholder="مثال: تطبيق بنكك / فوري / نقداً"
-                                    required
-                                />
-                            </Field>
+                            {/* Transaction Reference & Notes */}
+                            <div className="grid md:grid-cols-2 gap-3">
+                                <Field
+                                    label={payoutModal.channel === 'transfer' ? 'الرقم المرجعي للتحويل / رقم الإشعار' : 'رقم سند الصرف النقدي'}
+                                    hint="اختياري - للتوثيق المحاسبي"
+                                >
+                                    <input
+                                        value={payoutModal.reference}
+                                        onChange={(e) => setPayoutModal({ ...payoutModal, reference: e.target.value })}
+                                        className={inputClass}
+                                        dir="ltr"
+                                        placeholder={payoutModal.channel === 'transfer' ? 'مثال: REF-983210' : 'مثال: CASH-2026-01'}
+                                    />
+                                </Field>
 
-                            <Field label="الرقم المرجعي للتحويل / رقم الإشعار" hint="اختياري">
-                                <input
-                                    value={payoutModal.reference}
-                                    onChange={(e) => setPayoutModal({ ...payoutModal, reference: e.target.value })}
-                                    className={inputClass}
-                                    dir="ltr"
-                                    placeholder="مثال: REF-10938492"
-                                />
-                            </Field>
+                                <Field label="ملاحظات الصرف" hint="اختياري">
+                                    <input
+                                        value={payoutModal.notes}
+                                        onChange={(e) => setPayoutModal({ ...payoutModal, notes: e.target.value })}
+                                        className={inputClass}
+                                        placeholder="ملاحظات إضافية على الصرف..."
+                                    />
+                                </Field>
+                            </div>
 
-                            <Field label="ملاحظات الصرف" hint="اختياري">
-                                <input
-                                    value={payoutModal.notes}
-                                    onChange={(e) => setPayoutModal({ ...payoutModal, notes: e.target.value })}
-                                    className={inputClass}
-                                    placeholder="تسليم أرباح مبيعات شهر ..."
-                                />
-                            </Field>
+                            {/* Summary Box */}
+                            <div className="bg-slate-900 text-slate-200 rounded-xl p-3.5 text-xs flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Info className="w-4 h-4 text-emerald-400" />
+                                    <span>المبلغ الصافي للصرف: <strong className="text-white text-sm font-black">{formatSDG(payoutModal.amount)}</strong></span>
+                                </div>
+                                <span className="text-[11px] text-slate-400">
+                                    {payoutModal.channel === 'transfer' ? 'تحويل بنكي' : 'تسليم كاش'}
+                                </span>
+                            </div>
 
-                            <div className="flex justify-end gap-2 pt-3 border-t">
+                            {/* Actions */}
+                            <div className="flex justify-end gap-2 pt-2 border-t">
                                 <button type="button" onClick={() => setPayoutModal(null)} className={secondaryButtonClass}>
                                     إلغاء
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={recordingPayout || payoutModal.amount <= 0}
-                                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-5 py-2.5 rounded-xl flex items-center gap-2 transition-colors disabled:opacity-50"
+                                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-6 py-2.5 rounded-xl flex items-center gap-2 transition-colors disabled:opacity-50 shadow-sm"
                                 >
                                     {recordingPayout ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-                                    تأكيد الصرف وتسجيل الدفعة
+                                    تأكيد الصرف وحفظ المعاملة
                                 </button>
                             </div>
                         </form>

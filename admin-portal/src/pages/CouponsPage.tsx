@@ -102,7 +102,7 @@ export const CouponsPage: React.FC = () => {
         <div className="space-y-8">
             <PageHeader
                 title="أكواد الخصم والمسوقين"
-                subtitle="إنشاء وإدارة أكواد الخصم للعملاء وتخصيصها للمسوقين والناشرين لحساب نسب المبيعات والأرباح."
+                subtitle="إنشاء وإدارة أكواد الخصم للعملاء وتخصيصها للمسوقين لحساب نسب المبيعات والأرباح."
                 icon={<Ticket className="w-8 h-8 text-brand-blue" />}
                 actions={
                     <div className="flex gap-2">
@@ -146,7 +146,7 @@ export const CouponsPage: React.FC = () => {
                                 </div>
                             </Field>
                             <Field label="الاسم" required><input value={editing.data.name} onChange={(e) => update({ name: e.target.value })} className={inputClass} required /></Field>
-                            <Field label="المسوق / الناشر المرتبط" hint="اختياري - لحساب عمولات وأرباح المسوق">
+                            <Field label="المسوق المرتبط" hint="اختياري - لحساب عمولات وأرباح المسوق">
                                 <select value={editing.data.affiliate_id ?? ''} onChange={(e) => update({ affiliate_id: e.target.value || null })} className={inputClass}>
                                     <option value="">-- كود عام (بدون مسوق محدد) --</option>
                                     {affiliates.map((a) => (
@@ -206,7 +206,7 @@ export const CouponsPage: React.FC = () => {
                                         <button
                                             type="button"
                                             onClick={() => copyShareText(c)}
-                                            title="نسخ النص التسويقي لإرساله للناشر/المسوق"
+                                            title="نسخ النص التسويقي لإرساله للمسوق"
                                             className="p-1 rounded text-slate-400 hover:text-brand-blue hover:bg-blue-50 transition-colors"
                                         >
                                             {copiedCode === c.code ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Share2 className="w-3.5 h-3.5" />}

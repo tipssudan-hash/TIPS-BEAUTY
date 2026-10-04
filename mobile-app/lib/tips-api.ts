@@ -159,6 +159,30 @@ export async function signUp(email: string, password: string, fullName = "") {
   return { session, user: session.user };
 }
 
+export async function signInWithPhoneOtp(phone: string, fullName?: string) {
+  return request("/auth/v1/otp", {
+    method: "POST",
+    body: JSON.stringify({
+      phone,
+      data: fullName ? { full_name: fullName } : undefined,
+    }),
+  });
+}
+
+export async function verifyPhoneOtp(phone: string, token: string) {
+  const result = await request("/auth/v1/verify", {
+    method: "POST",
+    body: JSON.stringify({
+      type: "sms",
+      phone,
+      token,
+    }),
+  }) as AuthSession;
+
+  await saveSession(result);
+  return result;
+}
+
 export async function saveCustomerPreferences(session: AuthSession, prefs: CustomerPreferences) {
   const payload = JSON.stringify(prefs);
   await Promise.all([

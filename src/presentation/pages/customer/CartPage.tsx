@@ -1,4 +1,4 @@
-﻿import React, { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 import { Trash2, Plus, Minus, ShoppingBag } from 'lucide-react';
@@ -46,6 +46,8 @@ export const CartPage: React.FC = () => {
                             <img
                                 src={item.image}
                                 alt={item.name_ar}
+                                loading="lazy"
+                                decoding="async"
                                 className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-xl bg-gray-50 shrink-0"
                             />
                             <div className="flex-1 min-w-0">

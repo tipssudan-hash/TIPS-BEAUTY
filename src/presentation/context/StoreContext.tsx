@@ -1,7 +1,8 @@
-﻿import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Product, ProductVariant, CartItem } from '@domain/entities';
 import { fetchProducts } from '@infrastructure/repositories';
 import { cartLineKey } from '@domain/valueObjects';
+import { getCached, setCache, invalidateCache } from '@infrastructure/cache';
 
 interface StoreContextType {
     products: Product[];
@@ -42,18 +43,27 @@ const isStringArray = (value: unknown): value is string[] => Array.isArray(value
 const isProductArray = (value: unknown): value is Product[] => Array.isArray(value) && value.every((p) => p && typeof p.id === 'string' && typeof p.name_ar === 'string');
 
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [products, setProducts] = useState<Product[]>([]);
-    const [productsLoading, setProductsLoading] = useState(true);
+    const [products, setProducts] = useState<Product[]>(() => getCached<Product[]>('products:all') ?? []);
+    const [productsLoading, setProductsLoading] = useState(() => getCached<Product[]>('products:all') === null);
     const [productsError, setProductsError] = useState<string | null>(null);
 
-    const reloadProducts = React.useCallback(async () => {
-        setProductsLoading(true);
+    const reloadProducts = React.useCallback(async (force = false) => {
+        if (force) invalidateCache('products:all');
+        const cached = getCached<Product[]>('products:all');
+        if (cached) {
+            setProducts(cached);
+            setProductsLoading(false);
+        } else {
+            setProductsLoading(true);
+        }
         setProductsError(null);
         try {
-            setProducts(await fetchProducts());
+            const fresh = await fetchProducts();
+            setCache('products:all', fresh);
+            setProducts(fresh);
         } catch (error) {
             console.error('Failed to load products', error);
-            setProductsError('تعذر تحميل المنتجات، تحققي من الاتصال وحاولي مرة أخرى.');
+            if (!cached) setProductsError('تعذر تحميل المنتجات، تحققي من الاتصال وحاولي مرة أخرى.');
         } finally {
             setProductsLoading(false);
         }

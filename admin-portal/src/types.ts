@@ -198,6 +198,71 @@ export interface Affiliate {
     created_at: string;
 }
 
+export interface AffiliateAccount {
+    id: string;
+    bank_name: string;
+    account_number: string;
+    account_holder: string;
+    is_default?: boolean;
+}
+
+export function parseAffiliateAccounts(details: string | null | undefined, method?: string | null): AffiliateAccount[] {
+    if (details) {
+        try {
+            const parsed = JSON.parse(details);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                return parsed.map((acc, index) => ({
+                    id: String(acc.id || `acc_${index + 1}`),
+                    bank_name: String(acc.bank_name || method || 'بنكك (بنك الخرطوم)'),
+                    account_number: String(acc.account_number || ''),
+                    account_holder: String(acc.account_holder || ''),
+                    is_default: Boolean(acc.is_default || index === 0),
+                }));
+            }
+        } catch {
+            return [{
+                id: 'acc_1',
+                bank_name: method || 'بنكك (بنك الخرطوم)',
+                account_number: details,
+                account_holder: '',
+                is_default: true,
+            }];
+        }
+    }
+    if (method) {
+        return [{
+            id: 'acc_1',
+            bank_name: method,
+            account_number: '',
+            account_holder: '',
+            is_default: true,
+        }];
+    }
+    return [
+        {
+            id: 'acc_1',
+            bank_name: 'بنكك (بنك الخرطوم)',
+            account_number: '',
+            account_holder: '',
+            is_default: true,
+        }
+    ];
+}
+
+export function serializeAffiliateAccounts(accounts: AffiliateAccount[]): { payout_method: string; payout_details: string } {
+    const validAccounts = accounts.filter(a => a.bank_name.trim() || a.account_number.trim() || a.account_holder.trim());
+    if (validAccounts.length === 0) {
+        return { payout_method: '', payout_details: '' };
+    }
+    const defaultAcc = validAccounts.find(a => a.is_default) || validAccounts[0];
+    const methodsSummary = Array.from(new Set(validAccounts.map(a => a.bank_name.trim()).filter(Boolean))).join('، ');
+
+    return {
+        payout_method: methodsSummary || defaultAcc.bank_name,
+        payout_details: JSON.stringify(validAccounts),
+    };
+}
+
 export interface AffiliateInput {
     display_name: string;
     phone?: string | null;

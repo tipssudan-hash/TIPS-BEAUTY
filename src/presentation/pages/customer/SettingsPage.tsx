@@ -40,7 +40,7 @@ export const SettingsPage: React.FC = () => {
                         <div className="flex items-center gap-4">
                             <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-brand-blue-soft shadow-sm bg-gradient-to-tr from-brand-blue/10 to-brand-blue/20 flex items-center justify-center">
                                 {avatarUrl ? (
-                                    <img src={avatarUrl} alt={fullName} className="w-full h-full object-cover" />
+                                    <img src={avatarUrl} alt={fullName} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                                 ) : (
                                     <span className="text-2xl font-bold text-brand-blue">{initials}</span>
                                 )}

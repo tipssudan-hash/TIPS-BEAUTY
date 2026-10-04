@@ -363,7 +363,7 @@ export const CheckoutPage: React.FC = () => {
                     <div className="space-y-3 mb-6 max-h-60 overflow-y-auto pr-2">
                         {cart.map((item) => (
                             <div key={cartLineKey(item)} className="flex gap-3 text-sm">
-                                <img src={item.image} className="w-12 h-12 rounded-lg object-cover" alt="" />
+                                <img src={item.image} loading="lazy" decoding="async" className="w-12 h-12 rounded-lg object-cover" alt="" />
                                 <div className="flex-1">
                                     <p className="font-bold text-gray-800">{item.name_ar}</p>
                                     {item.variantName && <p className="text-xs text-gray-500">الخيار: {item.variantName}</p>}

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ShoppingCart, Search, User, LogOut, Menu, X } from 'lucide-react';
+import { ShoppingCart, Search, User, Menu, X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { NotificationBell } from './NotificationBell';
@@ -13,7 +13,7 @@ const MOBILE_NAV_ID = 'mobile-nav-panel';
 export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
     const location = useLocation();
     const currentPath = location.pathname;
-    const { user, signOut } = useAuth();
+    const { user } = useAuth();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuToggleRef = useRef<HTMLButtonElement>(null);
 
@@ -65,9 +65,7 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
                         <Link to="/search" aria-label="بحث وتصفح المنتجات" className={`hover:text-brand-blue transition-colors ${currentPath === '/search' ? 'text-brand-blue' : 'text-gray-600'}`}>
                             <Search className="w-4 h-4" />
                         </Link>
-                        <Link to="/ai-chat" className={`flex items-center gap-1 hover:text-brand-blue transition-colors ${currentPath === '/ai-chat' ? 'text-brand-blue font-bold' : 'text-gray-600'}`}>
-                            <span className="bg-brand-blue-soft text-brand-blue px-1.5 py-0.5 rounded text-[10px] font-bold animate-pulse">AI</span> مساعدي
-                        </Link>
+
                         {user && (
                             <Link to="/orders" className={`hover:text-brand-blue transition-colors ${currentPath.startsWith('/orders') ? 'text-brand-blue font-bold' : 'text-gray-600'}`}>طلباتي</Link>
                         )}
@@ -86,13 +84,6 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
                                     )}
                                     <span>حسابي</span>
                                 </Link>
-                                <button
-                                    onClick={signOut}
-                                    className="text-gray-500 hover:text-red-500 transition-colors"
-                                    title="تسجيل الخروج"
-                                >
-                                    <LogOut className="w-4 h-4" />
-                                </button>
                             </div>
                         ) : (
                             <div className="flex items-center gap-4 border-r border-gray-100 pr-4 mr-2">
@@ -120,9 +111,7 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
                         <Link to="/search" className={`p-2 rounded-lg flex items-center gap-2 ${currentPath === '/search' ? 'bg-brand-blue-soft text-brand-blue font-bold' : 'text-gray-600'}`} onClick={() => setIsMenuOpen(false)}>
                             <Search className="w-4 h-4" /> تصفح المنتجات
                         </Link>
-                        <Link to="/ai-chat" className={`p-2 rounded-lg flex items-center gap-2 ${currentPath === '/ai-chat' ? 'bg-brand-blue-soft text-brand-blue font-bold' : 'text-gray-600'}`} onClick={() => setIsMenuOpen(false)}>
-                            <span className="bg-brand-blue-soft text-brand-blue px-1.5 py-0.5 rounded text-[10px] font-bold">AI</span> مساعدي
-                        </Link>
+
                         {user && (
                             <Link to="/orders" className={`p-2 rounded-lg ${currentPath.startsWith('/orders') ? 'bg-brand-blue-soft text-brand-blue font-bold' : 'text-gray-600'}`} onClick={() => setIsMenuOpen(false)}>طلباتي</Link>
                         )}
@@ -143,9 +132,6 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
                                     )}
                                     حسابي
                                 </Link>
-                                <button onClick={() => { signOut(); setIsMenuOpen(false); }} className="p-2 rounded-lg flex items-center gap-2 text-red-500 hover:bg-red-50 w-full text-right">
-                                    <LogOut className="w-4 h-4" /> تسجيل الخروج
-                                </button>
                             </>
                         ) : (
                             <div className="grid grid-cols-2 gap-3 p-2">

@@ -14,12 +14,11 @@ interface ProductCardProps {
     priority?: boolean; // true for first ~8 cards visible on load
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product, isInWishlist, onToggleWishlist, onAddToCart, priority = false }) => {
+const ProductCardInner: React.FC<ProductCardProps> = ({ product, isInWishlist, onToggleWishlist, onAddToCart, priority = false }) => {
     const navigate = useNavigate();
     const finalPrice = product.effectivePrice;
     const hasDiscount = finalPrice < product.price;
     const outOfStock = product.stock <= 0;
-    // A Product with Variants is chosen on its page (shade/size), not from the card.
     const hasVariants = product.variants.length > 0;
     const productUrl = `${window.location.origin}/product/${product.id}`;
 
@@ -66,8 +65,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, isInWishlist,
 
             <div className="relative aspect-[4/5] overflow-hidden shrink-0 bg-gray-50">
                 <img
-                    src={imgUrl(product.image, 400)}
-                    srcSet={imgSrcSet(product.image, 400)}
+                    src={imgUrl(product.image, 280)}
+                    srcSet={imgSrcSet(product.image, 280)}
                     sizes="(max-width: 640px) 45vw, (max-width: 1024px) 30vw, 210px"
                     loading={priority ? 'eager' : 'lazy'}
                     fetchPriority={priority ? 'high' : 'auto'}
@@ -108,3 +107,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, isInWishlist,
         </Link>
     );
 };
+
+export const ProductCard = React.memo(ProductCardInner, (prev, next) =>
+    prev.product.id === next.product.id &&
+    prev.product.effectivePrice === next.product.effectivePrice &&
+    prev.product.stock === next.product.stock &&
+    prev.product.pricingRule?.label === next.product.pricingRule?.label &&
+    prev.isInWishlist === next.isInWishlist &&
+    prev.priority === next.priority,
+);

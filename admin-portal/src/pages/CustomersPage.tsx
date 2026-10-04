@@ -528,7 +528,7 @@ export const CustomersPage: React.FC = () => {
                                                         <th className="px-4 py-2">التاريخ</th>
                                                         <th className="px-4 py-2">النوع</th>
                                                         <th className="px-4 py-2">التغيير</th>
-                                                        <th className="px-4 py-2">البيان / الملاحظة</th>
+                                                        <th className="px-4 py-2">البيان</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-50">

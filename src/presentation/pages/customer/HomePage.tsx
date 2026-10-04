@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, Percent, ChevronLeft } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
@@ -11,6 +11,8 @@ import { offerEndsLabel, offerValueLabel } from '@application/services/offers';
 import { Banner, Collection, Offer } from '@domain/entities';
 import { collectionIcon } from '@presentation/utils/collectionIcons';
 import { ALL_BRANDS, ALL_CATEGORIES, ProductSortBy, availableBrands, availableCategories, filterAndSortProducts } from '@application/services/productSearch';
+import { useIntersectionLoader } from '@presentation/hooks/useIntersectionLoader';
+import { getCached } from '@infrastructure/cache';
 
 const PAGE_SIZE = 20;
 
@@ -20,9 +22,9 @@ export const HomePage: React.FC = () => {
     const [activeCategory, setActiveCategory] = useState(ALL_CATEGORIES);
     const [activeBrand, setActiveBrand] = useState(ALL_BRANDS);
     const [sortBy, setSortBy] = useState<ProductSortBy>('newest');
-    const [collections, setCollections] = useState<Collection[]>([]);
-    const [banners, setBanners] = useState<Banner[]>([]);
-    const [offers, setOffers] = useState<Offer[]>([]);
+    const [collections, setCollections] = useState<Collection[]>(() => getCached<Collection[]>('catalog:collections') ?? []);
+    const [banners, setBanners] = useState<Banner[]>(() => getCached<Banner[]>('catalog:banners') ?? []);
+    const [offers, setOffers] = useState<Offer[]>(() => getCached<Offer[]>('catalog:offers') ?? []);
     const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
     const navigate = useNavigate();
 
@@ -86,7 +88,10 @@ export const HomePage: React.FC = () => {
 
     const visibleProducts = sortedAndFilteredProducts.slice(0, visibleCount);
 
-    // Back to the first page whenever the filter or sort changes.
+    const loadMore = useCallback(() => setVisibleCount(prev => prev + PAGE_SIZE), []);
+    const hasMore = visibleCount < sortedAndFilteredProducts.length;
+    const loadMoreRef = useIntersectionLoader(loadMore, hasMore && !productsLoading);
+
     useEffect(() => { setVisibleCount(PAGE_SIZE); }, [searchQuery, activeCategory, activeBrand, sortBy]);
 
     return (
@@ -237,14 +242,8 @@ export const HomePage: React.FC = () => {
                 )}
 
                 {!productsLoading && !productsError && visibleCount < sortedAndFilteredProducts.length && (
-                    <div className="mt-8 flex justify-center">
-                        <button
-                            type="button"
-                            onClick={() => setVisibleCount(prev => prev + PAGE_SIZE)}
-                            className="px-8 py-3 rounded-xl bg-brand-blue text-white font-bold text-sm hover:bg-sky-700 transition-colors"
-                        >
-                            تحميل المزيد ({sortedAndFilteredProducts.length - visibleCount} منتج)
-                        </button>
+                    <div ref={loadMoreRef} className="mt-8 flex justify-center py-6" aria-hidden="true">
+                        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-blue border-t-transparent" />
                     </div>
                 )}
 
