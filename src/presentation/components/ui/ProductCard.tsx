@@ -1,5 +1,5 @@
-import React from 'react';
-import { Heart, Share2, ShoppingCart } from 'lucide-react';
+import React, { useState } from 'react';
+import { Heart, Share2, ShoppingCart, Sparkles, Package } from 'lucide-react';
 import { Product } from '@domain/entities';
 import clsx from 'clsx';
 import { Link, useNavigate } from 'react-router-dom';
@@ -16,6 +16,9 @@ interface ProductCardProps {
 
 const ProductCardInner: React.FC<ProductCardProps> = ({ product, isInWishlist, onToggleWishlist, onAddToCart, priority = false }) => {
     const navigate = useNavigate();
+    const [imgLoaded, setImgLoaded] = useState(false);
+    const [imgError, setImgError] = useState(false);
+
     const finalPrice = product.effectivePrice;
     const hasDiscount = finalPrice < product.price;
     const outOfStock = product.stock <= 0;
@@ -63,17 +66,38 @@ const ProductCardInner: React.FC<ProductCardProps> = ({ product, isInWishlist, o
                 </button>
             </div>
 
-            <div className="relative aspect-[4/5] overflow-hidden shrink-0 bg-gray-50">
-                <img
-                    src={imgUrl(product.image, 280)}
-                    srcSet={imgSrcSet(product.image, 280)}
-                    sizes="(max-width: 640px) 45vw, (max-width: 1024px) 30vw, 210px"
-                    loading={priority ? 'eager' : 'lazy'}
-                    fetchPriority={priority ? 'high' : 'auto'}
-                    decoding="async"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    alt={product.name_ar}
-                />
+            <div className="relative aspect-[4/5] overflow-hidden shrink-0 bg-gray-100 flex items-center justify-center">
+                {/* Shimmer Placeholder while downloading */}
+                {!imgLoaded && !imgError && (
+                    <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-200/60 to-gray-100 animate-pulse flex items-center justify-center">
+                        <Sparkles className="w-6 h-6 text-brand-blue/20" />
+                    </div>
+                )}
+
+                {/* Graceful Fallback if image fails */}
+                {imgError ? (
+                    <div className="flex flex-col items-center justify-center p-3 text-center text-gray-400">
+                        <Package className="w-8 h-8 mb-1 text-gray-300" />
+                        <span className="text-[10px] text-gray-400 font-medium line-clamp-1">{product.brand}</span>
+                    </div>
+                ) : (
+                    <img
+                        src={imgUrl(product.image, 280)}
+                        srcSet={imgSrcSet(product.image, 280)}
+                        sizes="(max-width: 640px) 45vw, (max-width: 1024px) 30vw, 210px"
+                        loading={priority ? 'eager' : 'lazy'}
+                        fetchPriority={priority ? 'high' : 'auto'}
+                        decoding="async"
+                        onLoad={() => setImgLoaded(true)}
+                        onError={() => setImgError(true)}
+                        className={clsx(
+                            'w-full h-full object-cover group-hover:scale-105 transition-all duration-300',
+                            imgLoaded ? 'opacity-100' : 'opacity-0',
+                        )}
+                        alt={product.name_ar}
+                    />
+                )}
+
                 {product.pricingRule && (
                     <span className="absolute bottom-2 right-2 bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black shadow-sm">
                         {product.pricingRule.label}
