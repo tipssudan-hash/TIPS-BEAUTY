@@ -11,8 +11,8 @@ export interface CheckoutInput {
     items: CheckoutItem[];
     couponCode?: string | null;
     idempotencyKey: string;
-    customerLat?: number | null;
-    customerLng?: number | null;
+    customerLat: number;
+    customerLng: number;
 }
 
 // A checkout line as the backend takes it: the Variant is optional and must belong to the Product.
@@ -23,6 +23,8 @@ export interface CheckoutResult {
     orderNumber: string;
     total: number;
     shippingFee: number;
+    warehousesCount: number;
+    distanceKm: number;
 }
 
 type OrderRow = {
@@ -121,7 +123,7 @@ export async function cancelMyOrder(orderId: string): Promise<void> {
 }
 
 export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
-    const baseArgs = {
+    const { data, error } = await supabase.rpc('checkout_order_safe' as never, {
         p_customer_name: input.customerName,
         p_phone: input.phone,
         p_shipping_address: input.shippingAddress,
@@ -129,17 +131,22 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
         p_state: input.state,
         p_payment_method: input.paymentMethod,
         p_items: input.items,
-        p_coupon_code: input.couponCode?.trim() || null,
-        p_points_to_redeem: 0,
+        p_customer_lat: input.customerLat,
+        p_customer_lng: input.customerLng,
+        p_coupon_code: input.couponCode?.trim() || undefined,
         p_idempotency_key: input.idempotencyKey,
-    };
-    const hasPin = input.customerLat != null && input.customerLng != null;
-    const args = hasPin ? { ...baseArgs, p_customer_lat: input.customerLat, p_customer_lng: input.customerLng } : baseArgs;
-    const { data, error } = await supabase.rpc('checkout_order_safe' as never, args as never);
+    } as never);
     if (error) throw error;
-    const row = (data as { order_id: string; order_number: string; total: number; shipping_fee: number }[] | null)?.[0];
+    const row = (data as { order_id: string; order_number: string; total: number; shipping_fee: number; warehouses_count: number | null; distance_km: number | null }[] | null)?.[0];
     if (!row) throw new Error('Checkout returned no order');
-    return { orderId: row.order_id, orderNumber: row.order_number, total: Number(row.total), shippingFee: Number(row.shipping_fee) };
+    return {
+        orderId: row.order_id,
+        orderNumber: row.order_number,
+        total: Number(row.total),
+        shippingFee: Number(row.shipping_fee),
+        warehousesCount: Number(row.warehouses_count ?? 1),
+        distanceKm: Number(row.distance_km ?? 0),
+    };
 }
 
 // Asks the backend what a Coupon would do to this Cart; a refusal comes back as a typed reason.
@@ -159,30 +166,29 @@ export async function previewCoupon(code: string, items: CheckoutItem[]): Promis
     };
 }
 
-// A side-effect-free preview of what checkout_order will freeze into the Order's shipping_fee —
-// mirrors its warehouse-selection + delivery_zones lookup, then defers the actual pricing math to
-// the same calculate_delivery_quote RPC checkout_order calls, so this can never show a number the
-// real order wouldn't also charge. Unlike checkout_order, it never raises when no warehouse can
-// fulfil the cart — it falls back to the flat zone fee, since a preview shouldn't block on a
-// problem the real submission will surface properly.
+// A side-effect-free preview of the delivery fee checkout_order_safe will freeze into the Order:
+// both resolve the fulfilling warehouses and call the same calculate_delivery_quote RPC, so the
+// preview can never show a number the real order wouldn't also charge. The customer's GPS pin is mandatory.
 export async function previewDeliveryQuote(
-    zoneName: string,
-    state: string,
     items: CheckoutItem[],
-    customerLat?: number | null,
-    customerLng?: number | null,
+    customerLat: number,
+    customerLng: number,
 ): Promise<DeliveryQuote> {
-    // GPS-04: preview_delivery_quote is ahead of generated database.types.ts until the owner
-    // applies GPS-01/02's migrations and types are regenerated; resolves on its own after that.
-    const hasPin = customerLat != null && customerLng != null;
-    const args = hasPin
-        ? { p_city: zoneName, p_state: state, p_items: items, p_customer_lat: customerLat, p_customer_lng: customerLng }
-        : { p_city: zoneName, p_state: state, p_items: items };
-    const { data, error } = await supabase.rpc('preview_delivery_quote' as never, args as never);
+    const { data, error } = await supabase.rpc('preview_delivery_quote' as never, {
+        p_items: items,
+        p_customer_lat: customerLat,
+        p_customer_lng: customerLng,
+    } as never);
     if (error) throw error;
-    const row = (data as { fee: number; eta_minutes: number | null; source: DeliveryQuote['source'] }[] | null)?.[0];
+    const row = (data as { fee: number; eta_minutes: number | null; source: string; warehouses_count: number | null; distance_km: number | null }[] | null)?.[0];
     if (!row) throw new Error('Delivery quote preview returned nothing');
-    return { fee: Number(row.fee), etaMinutes: row.eta_minutes, source: row.source, customerPinUsed: hasPin && row.source === 'dynamic' };
+    return {
+        fee: Number(row.fee),
+        etaMinutes: row.eta_minutes,
+        source: row.source,
+        warehousesCount: Number(row.warehouses_count ?? 1),
+        distanceKm: Number(row.distance_km ?? 0),
+    };
 }
 
 type OrderReturnRow = {

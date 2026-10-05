@@ -52,7 +52,8 @@ const GpsCapture: React.FC<{ gps: CustomerGpsState }> = ({ gps }) => {
     }
     const failure = GPS_FAILURE_MESSAGES[gps.status];
     return (
-        <div className="space-y-1">
+        <div className="space-y-2">
+            <Notice kind="error">الموقع الجغرافي مطلوب لحساب رسوم التوصيل وإتمام الطلب. اضغطي على "📍 حدد موقعي" وامنحي صلاحية الموقع.</Notice>
             <button type="button" onClick={gps.requestGps} className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50">📍 حدد موقعي</button>
             {failure && <p role="alert" className="text-xs text-gray-500">{failure}</p>}
         </div>
@@ -92,10 +93,9 @@ export const CheckoutPage: React.FC = () => {
     const [couponError, setCouponError] = useState<string | null>(null);
     const [couponChecking, setCouponChecking] = useState(false);
 
-    // GPS-04: a live preview of what checkout_order will actually charge for delivery — only
-    // ever a number different from the zone's flat fee once staff enable dynamic pricing for
-    // this State (app_settings.dynamic_pricing_states). Null while loading or on error, in which
-    // case the flat zone fee is shown instead — never blocks placing the order either way.
+    // A live preview of what checkout_order_safe will actually charge for delivery. Only computed once
+    // the customer has shared their GPS pin; null before that or on error, in which case the zone's
+    // listed fee is shown as a rough guide.
     const [deliveryQuote, setDeliveryQuote] = useState<DeliveryQuote | null>(null);
 
     useEffect(() => {
@@ -147,14 +147,17 @@ export const CheckoutPage: React.FC = () => {
     // read-only call, side-effect-free to repeat, and checkout_order recomputes/freezes the real
     // charge independently at placement regardless of what this shows.
     useEffect(() => {
-        if (!selectedZone) { setDeliveryQuote(null); return; }
+        if (!selectedZone || gps.status !== 'granted' || gps.latitude == null || gps.longitude == null) {
+            setDeliveryQuote(null);
+            return;
+        }
         let cancelled = false;
-        previewDeliveryQuote(selectedZone.name, formData.state, cartItems, gps.latitude, gps.longitude)
+        previewDeliveryQuote(cartItems, gps.latitude, gps.longitude)
             .then(q => { if (!cancelled) setDeliveryQuote(q); })
             .catch(err => { console.error('Delivery quote preview failed', err); if (!cancelled) setDeliveryQuote(null); });
         return () => { cancelled = true; };
         // eslint-disable-next-line react-hooks/exhaustive-deps -- cartSignature stands in for cartItems/cart
-    }, [selectedZone?.id, formData.state, cartSignature, gps.latitude, gps.longitude]);
+    }, [selectedZone?.id, cartSignature, gps.latitude, gps.longitude, gps.status]);
 
     const lineSubtotal = cart.reduce((sum, item) => sum + cartUnitPrice(item, live.get(item.productId)) * item.quantity, 0);
     // An accepted Coupon replaces the line rules: the Order is priced from the base subtotal minus the Coupon.
@@ -207,6 +210,10 @@ export const CheckoutPage: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setSubmitError(null);
+        if (gps.status !== 'granted' || gps.latitude == null || gps.longitude == null) {
+            setSubmitError('يجب تحديد موقعك الجغرافي لإكمال الطلب. اضغط على "📍 حدد موقعي" أعلاه.');
+            return;
+        }
         if (!user || !selectedZone || !selectedMethod) return;
 
         if (!isValidSudanPhone(formData.phone)) {
@@ -294,7 +301,7 @@ export const CheckoutPage: React.FC = () => {
                         <Field label="العنوان بالتفصيل" required>
                             <textarea required minLength={5} value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} className={inputClass} rows={3} />
                         </Field>
-                        {/* GPS-05: optional location pin */}
+                        {/* Customer location pin: mandatory for GPS-based delivery pricing */}
                         <GpsCapture gps={gps} />
                     </Card>
 
@@ -351,7 +358,7 @@ export const CheckoutPage: React.FC = () => {
 
                     <button
                         type="submit"
-                        disabled={submitting || loadingOptions || !selectedZone || !selectedMethod || hasUnavailableLine}
+                        disabled={submitting || loadingOptions || !selectedZone || !selectedMethod || hasUnavailableLine || gps.status !== 'granted'}
                         className={`w-full ${primaryButtonClass}`}
                     >
                         {submitting ? <><Loader2 className="w-5 h-5 animate-spin" /> جاري المعالجة...</> : `تأكيد الطلب (${formatSDG(total)})`}
@@ -421,11 +428,21 @@ export const CheckoutPage: React.FC = () => {
                             <span>التوصيل{selectedZone ? ` (${zoneLabel(selectedZone)})` : ''}</span>
                             <span>{selectedZone ? formatSDG(shipping) : '—'}</span>
                         </div>
-                        {deliveryQuote?.etaMinutes != null && (
-                            <p className="text-xs text-gray-500">
-                                الوصول خلال حوالي {deliveryQuote.etaMinutes < 60 ? `${deliveryQuote.etaMinutes} دقيقة` : `${Math.round(deliveryQuote.etaMinutes / 60)} ساعة`} —
-                                {' '}تنبيه: وقت التوصيل المعروض تقديري وقد يختلف حسب حالة الطريق والظروف الجوية.
-                            </p>
+                        {deliveryQuote && (
+                            <div className="text-xs text-gray-500 space-y-1">
+                                {deliveryQuote.distanceKm > 0 && (
+                                    <p>
+                                        المسافة التقديرية: {deliveryQuote.distanceKm.toFixed(1)} كم
+                                        {deliveryQuote.warehousesCount > 1 && ` (من ${deliveryQuote.warehousesCount} مستودعات)`}
+                                    </p>
+                                )}
+                                {deliveryQuote.etaMinutes != null && (
+                                    <p>
+                                        الوصول خلال حوالي {deliveryQuote.etaMinutes < 60 ? `${deliveryQuote.etaMinutes} دقيقة` : `${Math.round(deliveryQuote.etaMinutes / 60)} ساعة`} —
+                                        {' '}تنبيه: وقت التوصيل المعروض تقديري وقد يختلف حسب حالة الطريق والظروف الجوية.
+                                    </p>
+                                )}
+                            </div>
                         )}
                         <div className="flex justify-between font-bold text-lg text-gray-800 pt-2">
                             <span>الإجمالي</span>

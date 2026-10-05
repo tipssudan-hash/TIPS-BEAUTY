@@ -10,7 +10,7 @@ import { Card, Field, Notice, PageHeader, Spinner, StatusPill, Table, inputClass
 const emptyConfig: PricingConfigInput = {
     warehouse_id: null, delivery_zone_id: null, state: null,
     base_fee: 0, per_km_rate: 0, weight_multiplier: 0, road_multiplier: 1.25,
-    min_fee: 0, max_fee: null, avg_speed_kmh: 30, is_active: true,
+    min_fee: 0, max_fee: null, avg_speed_kmh: 30, per_kg_rate: 0, per_extra_warehouse_fee: 0, handling_fee: 0, is_active: true,
 };
 
 // A proposed-change warning threshold for the simulator — a UX nudge, not a charged coefficient,
@@ -212,6 +212,9 @@ export const DeliveryPricingPage: React.FC = () => {
                             <Field label="الحد الأدنى للرسوم (ج.س)" required><input type="number" min={0} step="1" value={editing.data.min_fee} onChange={(e) => setEditing({ ...editing, data: { ...editing.data, min_fee: Number(e.target.value) || 0 } })} className={inputClass} dir="ltr" required /></Field>
                             <Field label="الحد الأقصى للرسوم (ج.س)" hint="فارغ = بدون حد أقصى"><input type="number" min={0} step="1" value={editing.data.max_fee ?? ''} onChange={(e) => setEditing({ ...editing, data: { ...editing.data, max_fee: numberOrNull(e.target.value) } })} className={inputClass} dir="ltr" /></Field>
                             <Field label="متوسط السرعة (كم/ساعة)" required hint="لحساب وقت التوصيل التقديري"><input type="number" min={1} step="1" value={editing.data.avg_speed_kmh} onChange={(e) => setEditing({ ...editing, data: { ...editing.data, avg_speed_kmh: Number(e.target.value) || 30 } })} className={inputClass} dir="ltr" required /></Field>
+                            <Field label="سعر الكيلوغرام (ج.س/كجم)" hint="0 = لا يُحتسب الوزن"><input type="number" min={0} step="0.01" value={editing.data.per_kg_rate} onChange={(e) => setEditing({ ...editing, data: { ...editing.data, per_kg_rate: Number(e.target.value) || 0 } })} className={inputClass} dir="ltr" /></Field>
+                            <Field label="رسوم المستودع الإضافي (ج.س)" hint="لكل مستودع إضافي بعد الأول (تجميع الطلب)"><input type="number" min={0} step="1" value={editing.data.per_extra_warehouse_fee} onChange={(e) => setEditing({ ...editing, data: { ...editing.data, per_extra_warehouse_fee: Number(e.target.value) || 0 } })} className={inputClass} dir="ltr" /></Field>
+                            <Field label="رسوم التغليف والتجهيز (ج.س)" hint="رسم ثابت على كل طلب"><input type="number" min={0} step="1" value={editing.data.handling_fee} onChange={(e) => setEditing({ ...editing, data: { ...editing.data, handling_fee: Number(e.target.value) || 0 } })} className={inputClass} dir="ltr" /></Field>
                         </div>
                         <div className="flex items-center justify-between flex-wrap gap-3">
                             <label className="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer">
@@ -238,7 +241,7 @@ export const DeliveryPricingPage: React.FC = () => {
                             <td className="px-6 py-4"><StatusPill tone={c.is_active ? 'success' : 'neutral'}>{c.is_active ? 'نشط' : 'متوقف'}</StatusPill></td>
                             <td className="px-6 py-4">
                                 <div className="flex gap-2">
-                                    <button type="button" onClick={() => setEditing({ id: c.id, data: { warehouse_id: c.warehouse_id, delivery_zone_id: c.delivery_zone_id, state: c.state, base_fee: c.base_fee, per_km_rate: c.per_km_rate, weight_multiplier: c.weight_multiplier, road_multiplier: c.road_multiplier, min_fee: c.min_fee, max_fee: c.max_fee, avg_speed_kmh: c.avg_speed_kmh, is_active: c.is_active } })} className={`${smallButtonClass} bg-blue-50 text-brand-blue flex items-center gap-1`}><Edit className="w-3.5 h-3.5" /> تعديل</button>
+                                    <button type="button" onClick={() => setEditing({ id: c.id, data: { warehouse_id: c.warehouse_id, delivery_zone_id: c.delivery_zone_id, state: c.state, base_fee: c.base_fee, per_km_rate: c.per_km_rate, weight_multiplier: c.weight_multiplier, road_multiplier: c.road_multiplier, min_fee: c.min_fee, max_fee: c.max_fee, avg_speed_kmh: c.avg_speed_kmh, per_kg_rate: c.per_kg_rate, per_extra_warehouse_fee: c.per_extra_warehouse_fee, handling_fee: c.handling_fee, is_active: c.is_active } })} className={`${smallButtonClass} bg-blue-50 text-brand-blue flex items-center gap-1`}><Edit className="w-3.5 h-3.5" /> تعديل</button>
                                     <button type="button" onClick={() => void remove(c)} className={`${smallButtonClass} bg-red-50 text-red-600 flex items-center gap-1`}><Trash2 className="w-3.5 h-3.5" /> حذف</button>
                                 </div>
                             </td>

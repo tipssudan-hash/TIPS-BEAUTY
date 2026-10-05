@@ -53,7 +53,7 @@ export function invalidateCache(key: string): void {
     memoryStore.delete(key);
     try {
         localStorage.removeItem(STORAGE_PREFIX + key);
-    } catch {}
+    } catch { /* localStorage unavailable — memory cache still cleared above */ }
 }
 
 export function invalidateAll(): void {
@@ -61,7 +61,7 @@ export function invalidateAll(): void {
     try {
         const keys = Object.keys(localStorage).filter(k => k.startsWith(STORAGE_PREFIX));
         keys.forEach(k => localStorage.removeItem(k));
-    } catch {}
+    } catch { /* localStorage unavailable */ }
 }
 
 export async function cachedFetch<T>(

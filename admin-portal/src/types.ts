@@ -81,6 +81,9 @@ export interface DeliveryPricingConfig {
     min_fee: number;
     max_fee: number | null;
     avg_speed_kmh: number;
+    per_kg_rate: number;
+    per_extra_warehouse_fee: number;
+    handling_fee: number;
     is_active: boolean;
 }
 

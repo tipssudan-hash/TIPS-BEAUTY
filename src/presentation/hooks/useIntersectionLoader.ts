@@ -6,8 +6,11 @@ export function useIntersectionLoader(
 ): React.RefObject<HTMLDivElement | null> {
     const sentinelRef = useRef<HTMLDivElement | null>(null);
     const callbackRef = useRef(onIntersect);
-    callbackRef.current = onIntersect;
     const isTriggeringRef = useRef(false);
+
+    useEffect(() => {
+        callbackRef.current = onIntersect;
+    });
 
     useEffect(() => {
         if (!enabled) return;

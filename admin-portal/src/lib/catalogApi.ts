@@ -238,7 +238,7 @@ export async function deleteDeliveryZone(id: string): Promise<void> {
 export async function fetchPricingConfigs(): Promise<DeliveryPricingConfig[]> {
     const { data, error } = await supabase
         .from('delivery_pricing_config' as any)
-        .select('id,warehouse_id,delivery_zone_id,state,base_fee,per_km_rate,weight_multiplier,road_multiplier,min_fee,max_fee,avg_speed_kmh,is_active')
+        .select('id,warehouse_id,delivery_zone_id,state,base_fee,per_km_rate,weight_multiplier,road_multiplier,min_fee,max_fee,avg_speed_kmh,per_kg_rate,per_extra_warehouse_fee,handling_fee,is_active')
         .order('warehouse_id', { nullsFirst: true })
         .order('delivery_zone_id', { nullsFirst: true });
     if (error) throw error;

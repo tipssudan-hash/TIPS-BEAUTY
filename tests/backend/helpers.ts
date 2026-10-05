@@ -69,8 +69,12 @@ export async function pickZone(client: Client) {
     return data[0];
 }
 
+const TEST_CUSTOMER_PIN = { lat: 15.5007, lng: 32.5599 };
+
 export function checkoutArgs(zone: { name: string; state: string | null }, items: { id: string; quantity: number }[], key: string) {
     return {
+        p_customer_lat: TEST_CUSTOMER_PIN.lat,
+        p_customer_lng: TEST_CUSTOMER_PIN.lng,
         p_customer_name: TEST_TAG,
         p_phone: '0999999999',
         p_shipping_address: 'عنوان اختبار آلي — يرجى الحذف',

@@ -4,6 +4,8 @@
 const backendMessages: [RegExp, string][] = [
     [/Insufficient stock/i, 'الكمية المطلوبة غير متوفرة حالياً لأحد المنتجات.'],
     [/No active warehouse/i, 'عذراً، لا يمكن توصيل هذا الطلب كاملاً إلى منطقتك حالياً.'],
+    [/GPS coordinates/i, 'يجب تحديد موقعك الجغرافي لإكمال الطلب.'],
+    [/No delivery pricing configuration/i, 'تعذر حساب رسوم التوصيل حالياً، يرجى المحاولة لاحقاً.'],
     [/Inventory changed/i, 'تغيّر المخزون أثناء إتمام الطلب، يرجى المحاولة مرة أخرى.'],
     [/no longer available/i, 'أحد المنتجات لم يعد متاحاً.'],
     [/Unsupported payment method/i, 'طريقة الدفع غير مدعومة.'],
