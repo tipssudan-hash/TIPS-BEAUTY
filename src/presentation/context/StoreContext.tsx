@@ -41,6 +41,7 @@ const isCart = (value: unknown): value is CartItem[] =>
 const withVariantFields = (items: CartItem[]): CartItem[] => items.map((i) => ({ ...i, variantId: i.variantId ?? null, variantName: i.variantName ?? null }));
 const isStringArray = (value: unknown): value is string[] => Array.isArray(value) && value.every((v) => typeof v === 'string');
 const isProductArray = (value: unknown): value is Product[] => Array.isArray(value) && value.every((p) => p && typeof p.id === 'string' && typeof p.name_ar === 'string');
+const MAX_RECENTLY_VIEWED_ITEMS = 10;
 
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [products, setProducts] = useState<Product[]>(() => getCached<Product[]>('products:all') ?? []);
@@ -73,14 +74,16 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     const [cart, setCart] = useState<CartItem[]>(() => withVariantFields(readJson('sb_cart', isCart, [])));
     const [wishlist, setWishlist] = useState<string[]>(() => readJson('sb_wishlist', isStringArray, []));
-    const [recentlyViewed, setRecentlyViewed] = useState<Product[]>(() => readJson('sb_recently_viewed', isProductArray, []));
+    const [recentlyViewed, setRecentlyViewed] = useState<Product[]>(() =>
+        readJson('sb_recently_viewed', isProductArray, []).slice(0, MAX_RECENTLY_VIEWED_ITEMS)
+    );
 
     useEffect(() => localStorage.setItem('sb_cart', JSON.stringify(cart)), [cart]);
     useEffect(() => localStorage.setItem('sb_wishlist', JSON.stringify(wishlist)), [wishlist]);
     useEffect(() => localStorage.setItem('sb_recently_viewed', JSON.stringify(recentlyViewed)), [recentlyViewed]);
 
     const addToRecentlyViewed = React.useCallback((product: Product) => {
-        setRecentlyViewed(prev => [product, ...prev.filter(p => p.id !== product.id)].slice(0, 10));
+        setRecentlyViewed(prev => [product, ...prev.filter(p => p.id !== product.id)].slice(0, MAX_RECENTLY_VIEWED_ITEMS));
     }, []);
 
     const addToCart = React.useCallback((product: Product, variant: ProductVariant | null = null, quantity = 1) => {

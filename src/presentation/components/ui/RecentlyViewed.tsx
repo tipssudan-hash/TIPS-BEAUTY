@@ -1,22 +1,24 @@
-﻿import React from 'react';
+import React from 'react';
 import { useStore } from '../../context/StoreContext';
 import { ProductRow } from './ProductRow';
+import { Clock } from 'lucide-react';
 
-export const RecentlyViewed: React.FC = () => {
+export const RecentlyViewed: React.FC<{ className?: string }> = ({ className = '' }) => {
     const { recentlyViewed, addToCart, wishlist, toggleWishlist } = useStore();
 
     if (recentlyViewed.length === 0) return null;
 
     return (
-        <div className="mt-12 bg-gray-50 p-6 rounded-2xl">
-            <ProductRow
-                title="شاهدتِ مؤخراً"
-                icon={<span className="text-2xl">👀</span>}
-                products={recentlyViewed}
-                wishlist={wishlist}
-                onToggleWishlist={toggleWishlist}
-                onAddToCart={addToCart}
-            />
-        </div>
+        <ProductRow
+            id="recently-viewed"
+            title="شاهدتِ مؤخراً"
+            icon={<Clock className="w-5 h-5 text-brand-blue" />}
+            products={recentlyViewed}
+            wishlist={wishlist}
+            onToggleWishlist={toggleWishlist}
+            onAddToCart={addToCart}
+            className={className}
+        />
     );
 };
+

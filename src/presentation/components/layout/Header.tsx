@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ShoppingCart, Search, User, Menu, X } from 'lucide-react';
+import { ShoppingCart, User, Menu, X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { NotificationBell } from './NotificationBell';
@@ -44,34 +44,31 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
                         </div>
                     </Link>
 
-                    {/* Mobile: bell + menu (cart and the main destinations live in the bottom bar) */}
+                    {/* Mobile: bell + menu */}
                     <div className="md:hidden flex items-center gap-1">
-                    {user && <NotificationBell />}
-                    <button
-                        ref={menuToggleRef}
-                        onClick={() => setIsMenuOpen(!isMenuOpen)}
-                        aria-label={isMenuOpen ? 'إغلاق القائمة' : 'فتح القائمة'}
-                        aria-expanded={isMenuOpen}
-                        aria-controls={MOBILE_NAV_ID}
-                        className="md:hidden p-2.5 text-gray-600 hover:text-brand-blue transition-colors"
-                    >
-                        {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-                    </button>
+                        {user && <NotificationBell />}
+                        <button
+                            ref={menuToggleRef}
+                            onClick={() => setIsMenuOpen(!isMenuOpen)}
+                            aria-label={isMenuOpen ? 'إغلاق القائمة' : 'فتح القائمة'}
+                            aria-expanded={isMenuOpen}
+                            aria-controls={MOBILE_NAV_ID}
+                            className="p-2 text-gray-600 hover:text-brand-blue transition-colors"
+                        >
+                            {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                        </button>
                     </div>
 
                     {/* Desktop Navigation */}
-                    <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
+                    <nav className="hidden md:flex items-center gap-5 text-sm font-medium">
                         <Link to="/" className={`hover:text-brand-blue transition-colors ${currentPath === '/' ? 'text-brand-blue font-bold' : 'text-gray-600'}`}>الرئيسية</Link>
-                        <Link to="/search" aria-label="بحث وتصفح المنتجات" className={`hover:text-brand-blue transition-colors ${currentPath === '/search' ? 'text-brand-blue' : 'text-gray-600'}`}>
-                            <Search className="w-4 h-4" />
-                        </Link>
 
                         {user && (
                             <Link to="/orders" className={`hover:text-brand-blue transition-colors ${currentPath.startsWith('/orders') ? 'text-brand-blue font-bold' : 'text-gray-600'}`}>طلباتي</Link>
                         )}
 
                         {user ? (
-                            <div className="flex items-center gap-4 border-r border-gray-100 pr-4 mr-2">
+                            <div className="flex items-center gap-4 border-r border-gray-100 pr-4 mr-1">
                                 <Link to="/settings" className={`flex items-center gap-2 hover:text-brand-blue transition-colors ${currentPath === '/settings' ? 'text-brand-blue font-bold' : 'text-gray-600'}`}>
                                     {((user.user_metadata?.avatar_url || user.user_metadata?.picture) as string | undefined) ? (
                                         <img
@@ -86,7 +83,7 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
                                 </Link>
                             </div>
                         ) : (
-                            <div className="flex items-center gap-4 border-r border-gray-100 pr-4 mr-2">
+                            <div className="flex items-center gap-4 border-r border-gray-100 pr-4 mr-1">
                                 <Link to="/login" className="text-gray-600 hover:text-brand-blue font-medium transition-colors">دخول</Link>
                                 <Link to="/signup" className="bg-brand-blue text-white px-4 py-2 rounded-full text-xs font-bold hover:bg-sky-700 transition-all shadow-md shadow-brand-blue-soft hover:shadow-lg hover:shadow-brand-blue-soft">انضمي إلينا</Link>
                             </div>
@@ -108,9 +105,6 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
                 {isMenuOpen && (
                     <nav id={MOBILE_NAV_ID} className="md:hidden pt-4 pb-2 flex flex-col gap-3 text-sm border-t border-gray-100 mt-3 animate-in fade-in slide-in-from-top-2">
                         <Link to="/" className={`p-2 rounded-lg ${currentPath === '/' ? 'bg-brand-blue-soft text-brand-blue font-bold' : 'text-gray-600'}`} onClick={() => setIsMenuOpen(false)}>الرئيسية</Link>
-                        <Link to="/search" className={`p-2 rounded-lg flex items-center gap-2 ${currentPath === '/search' ? 'bg-brand-blue-soft text-brand-blue font-bold' : 'text-gray-600'}`} onClick={() => setIsMenuOpen(false)}>
-                            <Search className="w-4 h-4" /> تصفح المنتجات
-                        </Link>
 
                         {user && (
                             <Link to="/orders" className={`p-2 rounded-lg ${currentPath.startsWith('/orders') ? 'bg-brand-blue-soft text-brand-blue font-bold' : 'text-gray-600'}`} onClick={() => setIsMenuOpen(false)}>طلباتي</Link>

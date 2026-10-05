@@ -1,6 +1,7 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Percent, Ticket, Bell } from 'lucide-react';
+import { Ticket, Bell } from 'lucide-react';
+import { DiscountIcon } from '../../components/ui/DiscountIcon';
 import { useStore } from '../../context/StoreContext';
 import { useAuth } from '../../context/AuthContext';
 import { fetchBanners, fetchOffers } from '@infrastructure/repositories';
@@ -42,7 +43,7 @@ export const OffersPage: React.FC = () => {
     return (
         <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 animate-fadeIn">
             <div className="mb-6">
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2"><Percent className="w-6 h-6 text-brand-blue" /> العروض</h1>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2.5"><DiscountIcon className="w-7 h-7" /> العروض</h1>
                 <p className="text-xs sm:text-sm text-gray-500 mt-1">الأسعار المعروضة هي ما ستدفعينه عند إتمام الطلب — لا مفاجآت.</p>
             </div>
             <PageState
@@ -50,7 +51,7 @@ export const OffersPage: React.FC = () => {
                 error={error}
                 onRetry={() => void load()}
                 empty={offers.length === 0 && banners.length === 0}
-                emptyState={<EmptyState icon={<Percent className="w-7 h-7" />} title="لا توجد عروض حالياً" body="سنخبرك في الإشعارات فور بدء عرض جديد." action={user ? <Link to="/notifications" className="text-brand-blue font-bold text-sm hover:underline inline-flex items-center gap-1"><Bell className="w-4 h-4" /> الإشعارات</Link> : <Link to="/signup" className="text-brand-blue font-bold text-sm hover:underline">انضمي لتصلك العروض</Link>} />}
+                emptyState={<EmptyState icon={<DiscountIcon className="w-7 h-7" />} title="لا توجد عروض حالياً" body="سنخبرك في الإشعارات فور بدء عرض جديد." action={user ? <Link to="/notifications" className="text-brand-blue font-bold text-sm hover:underline inline-flex items-center gap-1"><Bell className="w-4 h-4" /> الإشعارات</Link> : <Link to="/signup" className="text-brand-blue font-bold text-sm hover:underline">انضمي لتصلك العروض</Link>} />}
             >
                 <div className="space-y-8">
                     {offers.map((offer) => {

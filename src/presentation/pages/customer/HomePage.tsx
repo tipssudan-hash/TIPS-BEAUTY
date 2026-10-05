@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Percent, ChevronLeft } from 'lucide-react';
+import { Search, ChevronLeft, Heart } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { ProductCard } from '../../components/ui/ProductCard';
 import { ProductRow } from '../../components/ui/ProductRow';
@@ -13,6 +13,7 @@ import { collectionIcon } from '@presentation/utils/collectionIcons';
 import { ALL_BRANDS, ALL_CATEGORIES, ProductSortBy, availableBrands, availableCategories, filterAndSortProducts } from '@application/services/productSearch';
 import { useIntersectionLoader } from '@presentation/hooks/useIntersectionLoader';
 import { getCached } from '@infrastructure/cache';
+import { DiscountIcon } from '@presentation/components/ui/DiscountIcon';
 
 const PAGE_SIZE = 20;
 
@@ -77,6 +78,10 @@ export const HomePage: React.FC = () => {
         () => collections.map(c => ({ collection: c, products: c.productIds.map(id => productsById.get(id)).filter((p): p is typeof products[number] => Boolean(p)) })),
         [collections, productsById]
     );
+    const wishlistProducts = useMemo(
+        () => wishlist.map(id => productsById.get(id)).filter((p): p is typeof products[number] => Boolean(p)),
+        [wishlist, productsById]
+    );
 
     const brands = useMemo(() => availableBrands(products), [products]);
     const categories = useMemo(() => availableCategories(products), [products]);
@@ -121,8 +126,8 @@ export const HomePage: React.FC = () => {
             )}
 
             <div id="products" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                {/* Search & Action Bar */}
-                <div className="mb-4 md:mb-6 flex flex-col md:flex-row md:items-center gap-3">
+                {/* Search Bar */}
+                <div className="mb-4 md:mb-6">
                     <div className="relative flex-1">
                         <input
                             type="text"
@@ -135,10 +140,6 @@ export const HomePage: React.FC = () => {
                             <Search className="w-4 h-4 text-white" />
                         </div>
                     </div>
-
-                    <Link to="/search" className="hidden sm:inline-flex items-center gap-1.5 px-4 py-3 rounded-2xl bg-white border border-brand-blue-soft text-brand-blue hover:bg-brand-blue-soft/50 font-bold text-xs whitespace-nowrap shadow-xs transition-colors">
-                        <Search className="w-3.5 h-3.5" /> تصفحي جميع المنتجات
-                    </Link>
                 </div>
 
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
@@ -177,14 +178,36 @@ export const HomePage: React.FC = () => {
 
                 {/* Offers strip: only when something is running (no empty section), only in the default state */}
                 {!isFiltered && offers.length > 0 && (
-                    <Link to="/offers" className="mb-8 flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50/60 p-4 hover:border-red-200 transition-colors">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600"><Percent className="w-5 h-5" /></span>
+                    <Link to="/offers" className="mb-8 flex items-center gap-3.5 rounded-2xl border border-red-100 bg-gradient-to-r from-red-50/80 to-rose-50/60 p-4 hover:border-red-200 transition-colors shadow-xs">
+                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white shadow-xs p-2">
+                            <DiscountIcon className="w-7 h-7" />
+                        </span>
                         <span className="min-w-0 flex-1">
                             <span className="block font-bold text-gray-800 text-sm sm:text-base">{offers.length === 1 ? offers[0].title : `${offers.length} عروض جارية الآن`}</span>
                             <span className="block text-xs text-gray-600">{offers.length === 1 ? `${offerValueLabel(offers[0])} · ${offerEndsLabel(offers[0])}` : offers.map((o) => offerValueLabel(o)).join(' · ')}</span>
                         </span>
                         <ChevronLeft className="w-5 h-5 shrink-0 text-red-400" />
                     </Link>
+                )}
+
+                {/* Favorites Section: displayed at top if user has favorites */}
+                {!isFiltered && wishlistProducts.length > 0 && (
+                    <ProductRow
+                        id="wishlist-products"
+                        title="منتجاتي المفضلة"
+                        icon={<Heart className="w-5 h-5 text-red-500 fill-red-500" />}
+                        subtitle="المنتجات التي اخترتِها في قائمتك المفضلة"
+                        products={wishlistProducts}
+                        wishlist={wishlist}
+                        onToggleWishlist={toggleWishlist}
+                        onAddToCart={addToCart}
+                        className="mb-8 md:mb-12"
+                    />
+                )}
+
+                {/* Recently Viewed: placed before collections */}
+                {!isFiltered && (
+                    <RecentlyViewed className="mb-8 md:mb-12" />
                 )}
 
                 {/* Collections: only in the unfiltered default state, so they never contradict an active search/filter */}
@@ -255,10 +278,6 @@ export const HomePage: React.FC = () => {
                         </button>
                     </div>
                 )}
-
-                <div className="mt-12">
-                    <RecentlyViewed />
-                </div>
             </div>
         </div>
     );

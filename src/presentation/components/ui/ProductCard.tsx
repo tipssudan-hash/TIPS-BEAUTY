@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import { Link, useNavigate } from 'react-router-dom';
 import { formatSDG } from '@application/services/format';
 import { imgUrl, imgSrcSet } from '@infrastructure/repositories';
+import { DiscountIcon } from './DiscountIcon';
 
 interface ProductCardProps {
     product: Product;
@@ -20,7 +21,8 @@ const ProductCardInner: React.FC<ProductCardProps> = ({ product, isInWishlist, o
     const [imgError, setImgError] = useState(false);
 
     const finalPrice = product.effectivePrice;
-    const hasDiscount = finalPrice < product.price;
+    const hasDiscount = finalPrice < product.price || Boolean(product.discountPercentage && product.discountPercentage > 0);
+    const discountPct = product.discountPercentage || Math.round(((product.price - finalPrice) / product.price) * 100);
     const outOfStock = product.stock <= 0;
     const hasVariants = product.variants.length > 0;
     const productUrl = `${window.location.origin}/product/${product.id}`;
@@ -51,7 +53,7 @@ const ProductCardInner: React.FC<ProductCardProps> = ({ product, isInWishlist, o
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleWishlist(product.id); }}
                     className="bg-white/90 backdrop-blur-xs w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full shadow-sm text-brand-blue hover:scale-110 active:scale-95 transition-transform"
                 >
-                    <Heart className={clsx('w-4 h-4', isInWishlist && 'fill-current')} />
+                    <Heart className={clsx('w-4 h-4', isInWishlist && 'fill-current text-red-500')} />
                 </button>
             </div>
 
@@ -98,9 +100,11 @@ const ProductCardInner: React.FC<ProductCardProps> = ({ product, isInWishlist, o
                     />
                 )}
 
-                {product.pricingRule && (
-                    <span className="absolute bottom-2 right-2 bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black shadow-sm">
-                        {product.pricingRule.label}
+                {/* High Visibility Discount Badge with custom tag icon */}
+                {hasDiscount && (
+                    <span className="absolute bottom-2 right-2 bg-gradient-to-r from-red-600 to-rose-500 text-white text-[10px] sm:text-[11px] px-2.5 py-1 rounded-full font-black shadow-md flex items-center gap-1.5 animate-in fade-in">
+                        <DiscountIcon className="w-4 h-4 drop-shadow-xs" />
+                        {product.pricingRule?.label || `خصم ${discountPct}%`}
                     </span>
                 )}
                 {outOfStock && (
@@ -117,7 +121,14 @@ const ProductCardInner: React.FC<ProductCardProps> = ({ product, isInWishlist, o
                 </h3>
                 <div className="flex items-center gap-1.5 mb-2.5 flex-wrap">
                     <p className="font-black text-xs sm:text-sm text-brand-blue">{formatSDG(finalPrice)}</p>
-                    {hasDiscount && <p className="text-[10px] text-gray-400 line-through">{formatSDG(product.price)}</p>}
+                    {hasDiscount && (
+                        <>
+                            <p className="text-[10px] text-gray-400 line-through">{formatSDG(product.price)}</p>
+                            <span className="text-[10px] font-extrabold text-red-600 bg-red-50 px-1.5 py-0.2 rounded">
+                                -{discountPct}%
+                            </span>
+                        </>
+                    )}
                 </div>
                 <button
                     type="button"

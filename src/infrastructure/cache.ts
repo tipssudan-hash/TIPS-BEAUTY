@@ -1,7 +1,7 @@
 type CacheEntry<T> = { data: T; ts: number };
 
 const memoryStore = new Map<string, CacheEntry<unknown>>();
-const DEFAULT_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const DEFAULT_TTL_MS = 50 * 60 * 1000; // 10 minutes
 const STORAGE_PREFIX = 'tips_cache_';
 
 function readLocalStorage<T>(key: string, ttlMs: number): T | null {
