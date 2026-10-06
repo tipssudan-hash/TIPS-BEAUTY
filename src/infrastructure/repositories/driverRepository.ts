@@ -70,11 +70,19 @@ export async function fetchMyDelivery(orderId: string): Promise<Delivery | null>
 
 export interface DriverProfile { id: string; name: string; status: 'active' | 'busy' | 'offline'; warehouseId: string | null }
 
-// The driver's own row (RLS: "Drivers view their profile").
 export async function fetchMyDriverProfile(): Promise<DriverProfile | null> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
     const { data, error } = await supabase.from('drivers').select('id,name,status,warehouse_id').maybeSingle();
     if (error) throw error;
-    return data ? { id: data.id, name: data.name, status: data.status as DriverProfile['status'], warehouseId: data.warehouse_id } : null;
+    if (data) {
+        return { id: data.id, name: data.name, status: data.status as DriverProfile['status'], warehouseId: data.warehouse_id };
+    }
+    const { data: prof } = await supabase.from('profiles').select('full_name, role').eq('id', user.id).maybeSingle();
+    if (prof?.role === 'driver') {
+        return { id: user.id, name: prof.full_name || 'المندوب', status: 'active', warehouseId: null };
+    }
+    return null;
 }
 
 export async function setMyAvailability(status: 'active' | 'offline'): Promise<void> {

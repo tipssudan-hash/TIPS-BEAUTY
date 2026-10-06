@@ -1,9 +1,5 @@
 # Implementation Plan & Master Prompt: GPS Delivery & Dynamic Pricing Engine
 
-## System Overview
-
-This specification provides an end-to-end implementation guide and master prompt for integrating mandatory customer GPS detection, Sudan administrative cascading selectors, intelligent multi-warehouse fulfillment logic, dynamic delivery pricing driven by portal indicators, and estimated time of arrival (ETA) calculations with staff overrides.
-
 ---
 
 ## Architecture & Requirements

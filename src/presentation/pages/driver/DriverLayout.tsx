@@ -1,10 +1,9 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { LogOut, Truck, MapPin, MapPinOff, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '@infrastructure/supabase';
 import { DriverProvider, useDriver } from './DriverContext';
-import { Spinner, EmptyState } from '../../components/ui';
+import { Spinner } from '../../components/ui';
 import { cn } from '@presentation/utils/cn';
 
 // "Field Console": the Storefront family (Cairo, sky blue) in Operate mode — high contrast, one job
@@ -12,26 +11,13 @@ import { cn } from '@presentation/utils/cn';
 // the Storefront's own header and bottom bar are not rendered under /driver.
 
 const DriverGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { user, loading } = useAuth();
+    const { user, role, loading } = useAuth();
     const location = useLocation();
-    const [role, setRole] = useState<string | null | undefined>(undefined);
 
-    useEffect(() => {
-        if (!user) { setRole(null); return; }
-        let cancelled = false;
-        supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
-            .then(({ data }) => { if (!cancelled) setRole(data?.role ?? null); });
-        return () => { cancelled = true; };
-    }, [user]);
-
-    if (loading || (user && role === undefined)) return <Spinner />;
+    if (loading) return <Spinner />;
     if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
     if (role !== 'driver') {
-        return (
-            <div className="max-w-md mx-auto p-6">
-                <EmptyState icon={<Truck className="w-7 h-7" />} title="هذه البوابة للمندوبين" body="حسابك ليس مرتبطاً بمندوب. إن كنت مندوباً، اطلبي من الإدارة ربط حسابك." action={<Link to="/" className="text-brand-blue font-bold text-sm hover:underline">العودة للمتجر</Link>} />
-            </div>
-        );
+        return <Navigate to="/" replace />;
     }
     return <>{children}</>;
 };

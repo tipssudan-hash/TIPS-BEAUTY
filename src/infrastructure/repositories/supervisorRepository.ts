@@ -43,14 +43,17 @@ export async function fetchSupervisorProfile(): Promise<SupervisorProfile | null
         .maybeSingle();
     if (profileError) throw profileError;
     if (!profile || profile.role !== 'warehouse_supervisor' || !profile.assigned_warehouse_id) return null;
-    const { data: wh, error: whError } = await supabase
+    const { data: wh } = await supabase
         .from('warehouses')
         .select('id, name, city, state')
         .eq('id', profile.assigned_warehouse_id)
         .maybeSingle();
-    if (whError) throw whError;
-    if (!wh) return null;
-    return { warehouseId: wh.id, warehouseName: wh.name, warehouseCity: wh.city, warehouseState: wh.state };
+    return {
+        warehouseId: profile.assigned_warehouse_id,
+        warehouseName: wh?.name ?? 'مستودع تيبس',
+        warehouseCity: wh?.city ?? 'الخرطوم',
+        warehouseState: wh?.state ?? 'الخرطوم',
+    };
 }
 
 export async function fetchSupervisorOrders(): Promise<SupervisorOrder[]> {
