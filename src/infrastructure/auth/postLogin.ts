@@ -5,6 +5,11 @@ import { supabase } from '../supabase/client';
 
 export async function resolvePostLoginPath(userId: string, from = '/'): Promise<string> {
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
-    // Drivers get their own shell; everyone else goes back where they came from.
-    return profile?.role === 'driver' && from === '/' ? '/driver' : from;
+    if (profile?.role === 'driver') {
+        if (!from || from === '/' || !from.startsWith('/driver')) return '/driver';
+    }
+    if (profile?.role === 'warehouse_supervisor') {
+        if (!from || from === '/' || !from.startsWith('/supervisor')) return '/supervisor';
+    }
+    return from || '/';
 }

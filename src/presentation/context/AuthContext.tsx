@@ -1,4 +1,4 @@
-﻿import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { supabase } from '@infrastructure/supabase';
 import { DEFAULT_AUTH_FLAGS, fetchAuthFlags, type AuthMethodFlags } from '@infrastructure/auth/settings';
 import { unregisterPush } from '@infrastructure/native/push';
@@ -7,6 +7,7 @@ import type { Session, User } from '@supabase/supabase-js';
 interface AuthContextType {
     session: Session | null;
     user: User | null;
+    role: string | null;
     loading: boolean;
     /** Which sign-in methods are switched on server-side (app_settings). */
     authFlags: AuthMethodFlags;
@@ -28,6 +29,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [session, setSession] = useState<Session | null>(null);
     const [user, setUser] = useState<User | null>(null);
+    const [role, setRole] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [authFlags, setAuthFlags] = useState<AuthMethodFlags>(DEFAULT_AUTH_FLAGS);
     const [authFlagsUnavailable, setAuthFlagsUnavailable] = useState(false);
@@ -53,6 +55,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, []);
 
     useEffect(() => {
+        if (!user) {
+            setRole(null);
+            return;
+        }
+        let cancelled = false;
+        supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+            .then(({ data }) => {
+                if (!cancelled) setRole(data?.role ?? null);
+            });
+        return () => { cancelled = true; };
+    }, [user]);
+
+    useEffect(() => {
         // Read at startup: the login screen needs these while signed out, and a flag flipped in the
         // Admin Portal reaches customers on their next app open without a new release.
         let cancelled = false;
@@ -75,7 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const hasVerifiedContact = Boolean(user && (user.email_confirmed_at || user.phone_confirmed_at));
 
     return (
-        <AuthContext.Provider value={{ session, user, loading, authFlags, authFlagsUnavailable, reloadAuthFlags, hasVerifiedContact, signOut }}>
+        <AuthContext.Provider value={{ session, user, role, loading, authFlags, authFlagsUnavailable, reloadAuthFlags, hasVerifiedContact, signOut }}>
             {children}
         </AuthContext.Provider>
     );

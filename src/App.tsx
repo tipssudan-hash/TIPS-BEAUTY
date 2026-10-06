@@ -51,8 +51,19 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 function App() {
   const { cartCount } = useStore();
-  const isDriverSurface = useLocation().pathname.startsWith('/driver');
-  const isSupervisorSurface = useLocation().pathname.startsWith('/supervisor');
+  const { user, role } = useAuth();
+  const location = useLocation();
+  const isDriverSurface = location.pathname.startsWith('/driver');
+  const isSupervisorSurface = location.pathname.startsWith('/supervisor');
+
+  // Strict role isolation: Drivers and Supervisors cannot access customer storefront pages
+  if (user && role === 'driver' && !isDriverSurface) {
+    return <Navigate to="/driver" replace />;
+  }
+
+  if (user && role === 'warehouse_supervisor' && !isSupervisorSurface) {
+    return <Navigate to="/supervisor" replace />;
+  }
 
   // The driver surface is its own shell (no shop header or tab bar); see DriverLayout.
   if (isDriverSurface) {
