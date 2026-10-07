@@ -849,6 +849,8 @@ export type Database = {
           id: string
           items: Json | null
           needs_fulfillment_review: boolean
+          customer_lat: number | null
+          customer_lng: number | null
           notes: string | null
           order_number: string | null
           payment_method: string | null
@@ -883,6 +885,8 @@ export type Database = {
           id?: string
           items?: Json | null
           needs_fulfillment_review?: boolean
+          customer_lat?: number | null
+          customer_lng?: number | null
           notes?: string | null
           order_number?: string | null
           payment_method?: string | null
@@ -917,6 +921,8 @@ export type Database = {
           id?: string
           items?: Json | null
           needs_fulfillment_review?: boolean
+          customer_lat?: number | null
+          customer_lng?: number | null
           notes?: string | null
           order_number?: string | null
           payment_method?: string | null
@@ -2127,6 +2133,8 @@ export type Database = {
           cod_amount: number
           created_at: string
           customer_name: string
+          customer_lat: number
+          customer_lng: number
           id: string
           item_count: number
           items: Json

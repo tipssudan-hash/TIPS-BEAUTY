@@ -332,6 +332,17 @@ export const OrderDetailPage: React.FC = () => {
                         <p className="font-bold text-slate-900">{order.customer_name}</p>
                         <p className="text-slate-600" dir="ltr">{order.phone}</p>
                         <p className="text-slate-600 mt-3">{[order.shipping_address, order.city, order.state].filter(Boolean).join('، ')}</p>
+                        {order.customer_lat != null && order.customer_lng != null && (
+                            <a
+                                href={`https://www.google.com/maps/dir/?api=1&destination=${order.customer_lat},${order.customer_lng}&travelmode=driving`}
+                                target="_blank"
+                                rel="noopener"
+                                className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-brand-blue hover:underline"
+                            >
+                                <MapPin className="w-3.5 h-3.5" />
+                                فتح موقع العميل على الخريطة
+                            </a>
+                        )}
                         {order.notes && <p className="mt-3 text-slate-500 text-xs bg-slate-50 rounded-xl p-3">{order.notes}</p>}
                     </Card>
 

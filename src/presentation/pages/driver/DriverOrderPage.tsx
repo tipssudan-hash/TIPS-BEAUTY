@@ -52,7 +52,10 @@ export const DriverOrderPage: React.FC = () => {
         }
     };
 
-    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([delivery.address, delivery.city, delivery.state].filter(Boolean).join('، '))}`;
+    const hasPin = delivery.customerLat != null && delivery.customerLng != null;
+    const mapsUrl = hasPin
+        ? `https://www.google.com/maps/dir/?api=1&destination=${delivery.customerLat},${delivery.customerLng}&travelmode=driving`
+        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([delivery.address, delivery.city, delivery.state].filter(Boolean).join('، '))}`;
     const canPickUp = delivery.status === 'confirmed' || delivery.status === 'preparing';
     const onTheRoad = delivery.status === 'shipped';
     const closed = delivery.status === 'delivered' || delivery.status === 'delivery_failed';
@@ -69,7 +72,7 @@ export const DriverOrderPage: React.FC = () => {
                 {delivery.notes && <p className="mt-2 flex items-start gap-2 text-sm text-gray-700"><StickyNote className="mt-0.5 w-4 h-4 shrink-0 text-brand-blue" /> <span>{delivery.notes}</span></p>}
                 <div className="mt-4 grid grid-cols-2 gap-2">
                     <a href={`tel:${delivery.phone}`} className={cn(bigButton, 'bg-brand-blue text-white')}><Phone className="w-5 h-5" /> اتصال بالعميل</a>
-                    <a href={mapsUrl} target="_blank" rel="noopener" className={cn(bigButton, 'border border-gray-300 bg-white text-gray-800')}><MapPin className="w-5 h-5" /> فتح الخريطة</a>
+                    <a href={mapsUrl} target="_blank" rel="noopener" className={cn(bigButton, 'border border-gray-300 bg-white text-gray-800')}><MapPin className="w-5 h-5" /> {hasPin ? 'ناڤيجيشن GPS' : 'فتح الخريطة'}</a>
                 </div>
             </section>
 

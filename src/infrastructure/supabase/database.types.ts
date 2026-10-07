@@ -2207,6 +2207,8 @@ export type Database = {
           cod_amount: number
           created_at: string
           customer_name: string
+          customer_lat: number
+          customer_lng: number
           id: string
           item_count: number
           items: Json

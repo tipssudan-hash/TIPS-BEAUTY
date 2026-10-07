@@ -26,12 +26,15 @@ export interface Delivery {
     // Cash to collect on the doorstep; null for paid or non-cash orders.
     codAmount: number | null;
     warehouseName: string | null;
+    customerLat: number | null;
+    customerLng: number | null;
 }
 
 type DeliveryRow = {
     id: string; order_number: string | null; status: string; created_at: string; status_changed_at: string | null;
     customer_name: string; phone: string; shipping_address: string; city: string | null; state: string | null; notes: string | null;
     items: unknown; item_count: number; payment_method: string; cod_amount: number | null; warehouse_name: string | null;
+    customer_lat: number | null; customer_lng: number | null;
 };
 
 function mapDelivery(row: DeliveryRow): Delivery {
@@ -52,6 +55,8 @@ function mapDelivery(row: DeliveryRow): Delivery {
         paymentMethod: row.payment_method,
         codAmount: row.cod_amount == null ? null : Number(row.cod_amount),
         warehouseName: row.warehouse_name,
+        customerLat: row.customer_lat == null ? null : Number(row.customer_lat),
+        customerLng: row.customer_lng == null ? null : Number(row.customer_lng),
     };
 }
 

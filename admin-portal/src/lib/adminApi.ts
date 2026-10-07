@@ -44,10 +44,12 @@ export interface AdminOrder {
     created_at: string;
     viewed_at: string | null;
     needs_fulfillment_review?: boolean;
+    customer_lat?: number | null;
+    customer_lng?: number | null;
 }
 
 export const ORDER_LIST_COLUMNS = 'id,order_number,customer_name,phone,total,status,payment_method,payment_status,created_at,viewed_at,needs_fulfillment_review';
-const ORDER_DETAIL_COLUMNS = `${ORDER_LIST_COLUMNS},customer_id,items,shipping_fee,coupon_code,discount_amount,points_discount,payment_reference,shipping_address,city,state,notes,driver_id,fulfillment_warehouse_id`;
+const ORDER_DETAIL_COLUMNS = `${ORDER_LIST_COLUMNS},customer_id,items,shipping_fee,coupon_code,discount_amount,points_discount,payment_reference,shipping_address,city,state,notes,driver_id,fulfillment_warehouse_id,customer_lat,customer_lng`;
 
 export type OrderListRow = Pick<AdminOrder, 'id' | 'order_number' | 'customer_name' | 'phone' | 'total' | 'status' | 'payment_method' | 'payment_status' | 'created_at' | 'viewed_at' | 'needs_fulfillment_review'>;
 
