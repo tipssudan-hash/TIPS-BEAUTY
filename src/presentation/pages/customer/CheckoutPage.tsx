@@ -15,6 +15,7 @@ import { useCustomerGps, type CustomerGpsState } from '../../hooks/useCustomerGp
 const IDEMPOTENCY_KEY = 'checkout_idempotency_key';
 const MAX_PROOF_BYTES = 5 * 1024 * 1024;
 const DEFAULT_SUFFIX = ' — افتراضي';
+const LOW_GPS_ACCURACY_METERS = 100;
 
 function getIdempotencyKey(): string {
     let key = sessionStorage.getItem(IDEMPOTENCY_KEY);
@@ -44,9 +45,14 @@ const GpsCapture: React.FC<{ gps: CustomerGpsState }> = ({ gps }) => {
     }
     if (gps.status === 'granted') {
         return (
-            <div className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-sm text-green-700" role="status">
-                <span>✓ تم تحديد موقعك{gps.accuracyMeters != null ? ` (دقة: ${Math.round(gps.accuracyMeters)} متر)` : ''}</span>
-                <button type="button" onClick={gps.clearGps} className="text-gray-400 hover:text-red-500 min-w-8 min-h-8 flex items-center justify-center" aria-label="إلغاء تحديد الموقع"><X className="w-4 h-4" /></button>
+            <div className="space-y-1">
+                <div className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-sm text-green-700" role="status">
+                    <span>✓ تم تحديد موقعك{gps.accuracyMeters != null ? ` (دقة: ${Math.round(gps.accuracyMeters)} متر)` : ''}</span>
+                    <button type="button" onClick={gps.clearGps} className="text-gray-400 hover:text-red-500 min-w-8 min-h-8 flex items-center justify-center" aria-label="إلغاء تحديد الموقع"><X className="w-4 h-4" /></button>
+                </div>
+                {gps.accuracyMeters != null && gps.accuracyMeters > LOW_GPS_ACCURACY_METERS && (
+                    <p className="text-xs text-amber-700">دقة الموقع منخفضة؛ جرّبي من الموبايل مع تفعيل الـ GPS أو من مكان مفتوح</p>
+                )}
             </div>
         );
     }
