@@ -1,36 +1,35 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-    PackageCheck,
     Truck,
+    PackageCheck,
     ClipboardList,
     ChevronLeft,
-    Banknote,
+    Search,
+    MapPin,
     Phone,
     MessageCircle,
-    MapPin,
-    Search,
-    Wallet,
     Package,
+    Wallet,
+    Banknote,
 } from 'lucide-react';
 import { useDriver } from './DriverContext';
-import type { Delivery } from '@infrastructure/repositories';
-import { EmptyState, PageState, StatusPill, type StatusTone, Card } from '../../components/ui';
+import type { Delivery, DeliveryStatus } from '@infrastructure/repositories';
 import { formatSDG } from '@application/services/format';
+import { EmptyState, PageState, StatusPill, type StatusTone } from '../../components/ui';
 import { useProductImageMap } from '../../hooks/useProductImageMap';
 import { DriverCashDrawerModal } from '../../components/driver/DriverCashDrawerModal';
 
-const STATUS: Record<Delivery['status'], { label: string; tone: StatusTone }> = {
+const STATUS: Record<DeliveryStatus, { label: string; tone: StatusTone }> = {
     confirmed: { label: 'جاهز للاستلام', tone: 'info' },
     preparing: { label: 'قيد التجهيز', tone: 'attention' },
     shipped: { label: 'في الطريق', tone: 'info' },
-    delivered: { label: 'تم التوصيل ✓', tone: 'success' },
+    delivered: { label: 'تم التسليم', tone: 'success' },
     delivery_failed: { label: 'تعذر التسليم', tone: 'danger' },
 };
 
 const DeliveryCard: React.FC<{ d: Delivery }> = ({ d }) => {
     const { getProductImageUrl } = useProductImageMap();
-
     const cleanPhone = d.phone.replace(/[^0-9]/g, '');
     const formattedPhone = cleanPhone.startsWith('0')
         ? `249${cleanPhone.slice(1)}`
@@ -45,14 +44,14 @@ const DeliveryCard: React.FC<{ d: Delivery }> = ({ d }) => {
     const hasPin = d.customerLat != null && d.customerLng != null;
 
     return (
-        <Card className="p-5 sm:p-6 hover:border-brand-blue/60 transition-all shadow-card border border-brand-blue-soft">
+        <div className="p-5 sm:p-6 bg-white border border-gray-200 rounded-lg hover:border-brand-blue/60 transition-all shadow-xs space-y-3">
             {/* Header: Customer name, Order #, Status pill */}
             <div className="flex items-start justify-between gap-3 pb-3 border-b border-gray-100">
                 <div>
                     <div className="flex items-center gap-2">
                         <span className="font-black text-gray-900 text-base">{d.customerName}</span>
                         {hasPin && (
-                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-md">
+                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-1.5 py-0.5 rounded-md">
                                 GPS
                             </span>
                         )}
@@ -63,20 +62,20 @@ const DeliveryCard: React.FC<{ d: Delivery }> = ({ d }) => {
             </div>
 
             {/* Address */}
-            <div className="py-3 text-sm text-gray-700 flex items-start gap-2.5">
+            <div className="text-sm text-gray-700 flex items-start gap-2.5">
                 <MapPin className="w-4 h-4 shrink-0 text-brand-blue mt-0.5" />
                 <span className="line-clamp-2 font-medium">{[d.city, d.state].filter(Boolean).join('، ') || d.address}</span>
             </div>
 
             {/* Products Thumbnails Preview */}
-            <div className="py-3 flex items-center justify-between gap-3">
+            <div className="py-2 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 overflow-hidden">
                     {d.items.slice(0, 4).map((item, idx) => {
                         const img = getProductImageUrl(item, 120);
                         return (
                             <div
                                 key={idx}
-                                className="w-12 h-12 rounded-2xl bg-white border border-gray-200 overflow-hidden shadow-xs flex items-center justify-center p-0.5 shrink-0"
+                                className="w-12 h-12 rounded-md bg-white border border-gray-200 overflow-hidden shadow-2xs flex items-center justify-center p-0.5 shrink-0"
                                 title={`${item.name_ar} (×${item.quantity})`}
                             >
                                 {img ? (
@@ -88,7 +87,7 @@ const DeliveryCard: React.FC<{ d: Delivery }> = ({ d }) => {
                         );
                     })}
                     {d.items.length > 4 && (
-                        <span className="w-9 h-12 rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center text-xs font-black text-gray-600">
+                        <span className="w-8 h-12 rounded-md bg-gray-100 border border-gray-200 flex items-center justify-center text-xs font-black text-gray-600">
                             +{d.items.length - 4}
                         </span>
                     )}
@@ -97,11 +96,11 @@ const DeliveryCard: React.FC<{ d: Delivery }> = ({ d }) => {
                 <div className="text-left shrink-0">
                     <span className="text-xs text-gray-500 font-bold block">{d.itemCount} قطعة</span>
                     {d.codAmount != null ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-black text-amber-900 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-xl font-mono" dir="ltr">
+                        <span className="inline-flex items-center gap-1 text-xs font-black text-amber-900 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded-md font-mono" dir="ltr">
                             <Banknote className="w-3.5 h-3.5 text-amber-600" /> {formatSDG(d.codAmount)}
                         </span>
                     ) : (
-                        <span className="text-[11px] font-black text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-xl">
+                        <span className="text-[11px] font-black text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-md">
                             مدفوع مسبقاً
                         </span>
                     )}
@@ -109,11 +108,11 @@ const DeliveryCard: React.FC<{ d: Delivery }> = ({ d }) => {
             </div>
 
             {/* Actions */}
-            <div className="pt-4 border-t border-gray-100 flex items-center justify-between gap-3">
+            <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                     <a
                         href={`tel:${d.phone}`}
-                        className="p-2.5 rounded-xl bg-sky-50 text-sky-700 hover:bg-sky-100 transition-colors border border-sky-200/60"
+                        className="p-2.5 rounded-md bg-sky-50 text-sky-800 hover:bg-sky-100 transition-colors border border-sky-200"
                         title="اتصال بالعميل"
                     >
                         <Phone className="w-4 h-4" />
@@ -122,7 +121,7 @@ const DeliveryCard: React.FC<{ d: Delivery }> = ({ d }) => {
                         href={whatsappUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-2.5 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors border border-emerald-200/60"
+                        className="p-2.5 rounded-md bg-emerald-50 text-emerald-800 hover:bg-emerald-100 transition-colors border border-emerald-200"
                         title="مراسلة واتساب"
                     >
                         <MessageCircle className="w-4 h-4" />
@@ -131,13 +130,13 @@ const DeliveryCard: React.FC<{ d: Delivery }> = ({ d }) => {
 
                 <Link
                     to={`/driver/orders/${d.id}`}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 px-5 rounded-control bg-brand-blue hover:bg-blue-700 text-white font-bold text-sm shadow-card-glow transition-all active:scale-95"
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-md bg-brand-blue hover:bg-blue-700 text-white font-bold text-sm shadow-xs transition-colors"
                 >
                     <span>تفاصيل التوصيل</span>
                     <ChevronLeft className="w-4 h-4" />
                 </Link>
             </div>
-        </Card>
+        </div>
     );
 };
 
@@ -150,7 +149,7 @@ const Section: React.FC<{ title: string; icon: React.ReactNode; items: Delivery[
         <section className="mb-6">
             <h2 className="mb-3 flex items-center gap-2 text-sm font-black text-gray-900">
                 {icon} {title}
-                <span className="rounded-full bg-gray-200 px-2.5 py-0.5 text-xs font-bold text-gray-700">
+                <span className="rounded-md bg-gray-100 border border-gray-200 px-2 py-0.5 text-xs font-bold text-gray-700">
                     {items.length}
                 </span>
             </h2>
@@ -205,26 +204,26 @@ export const DriverHomePage: React.FC = () => {
                 />
             }
         >
-            <div className="max-w-4xl mx-auto space-y-6">
+            <div className="max-w-4xl mx-auto space-y-5">
                 {/* Cash Drawer Banner Button */}
                 <div>
                     <button
                         type="button"
                         onClick={() => setCashModalOpen(true)}
-                        className="w-full flex items-center justify-between p-5 sm:p-6 rounded-card bg-linear-to-r from-amber-500 via-amber-600 to-orange-600 text-white shadow-card hover:brightness-105 transition-all active:scale-[0.98]"
+                        className="w-full flex items-center justify-between p-5 rounded-lg bg-linear-to-r from-amber-500 via-amber-600 to-orange-600 text-white shadow-xs hover:brightness-105 transition-all"
                     >
                         <div className="flex items-center gap-3.5">
-                            <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-center">
-                                <Wallet className="w-6 h-6 text-white" />
+                            <div className="w-10 h-10 rounded-md bg-white/20 backdrop-blur-xs flex items-center justify-center">
+                                <Wallet className="w-5 h-5 text-white" />
                             </div>
                             <div className="text-right">
-                                <p className="text-sm font-black text-white">صندوق النقدية والعهدة (COD)</p>
+                                <p className="text-xs font-bold text-amber-100">صندوق النقدية والعهدة (COD)</p>
                                 <p className="text-xl font-black font-mono mt-0.5" dir="ltr">
                                     {formatSDG(totalCollectedToday)}
                                 </p>
                             </div>
                         </div>
-                        <span className="text-sm font-black bg-white/25 backdrop-blur-xs px-4 py-2.5 rounded-control border border-white/20">
+                        <span className="text-xs font-bold bg-white text-amber-900 px-3.5 py-2 rounded-md shadow-2xs hover:bg-amber-50 transition-colors">
                             تسليم العهدة
                         </span>
                     </button>
@@ -237,9 +236,9 @@ export const DriverHomePage: React.FC = () => {
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="بحث برقم الطلب، اسم العميل، أو الهاتف..."
-                        className="w-full pl-4 pr-11 py-3.5 rounded-control border border-gray-200 bg-white text-sm font-bold text-gray-900 placeholder:text-gray-400 focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 outline-hidden shadow-xs transition-all"
+                        className="w-full pl-4 pr-11 py-3 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand-blue focus:ring-1 focus:ring-brand-blue outline-hidden shadow-2xs transition-all"
                     />
-                    <Search className="w-5 h-5 text-gray-400 absolute right-3.5 top-3.5" />
+                    <Search className="w-5 h-5 text-gray-400 absolute right-3.5 top-3" />
                 </div>
 
                 <Section title="في الطريق الآن" icon={<Truck className="w-4 h-4 text-sky-600" />} items={onTheRoad} />

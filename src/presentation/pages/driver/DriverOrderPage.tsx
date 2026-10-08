@@ -29,7 +29,7 @@ import { useDriver } from './DriverContext';
 import { fetchDriverDelivery as fetchMyDelivery, updateMyDeliveryStatus, type Delivery } from '@infrastructure/repositories';
 import { errorMessage } from '@application/errors';
 import { formatSDG, formatDateTime } from '@application/services/format';
-import { EmptyState, Notice, Spinner, inputClass, primaryButtonClass, secondaryButtonClass, Card } from '../../components/ui';
+import { EmptyState, Notice, Spinner } from '../../components/ui';
 import { cn } from '@presentation/utils/cn';
 import { useProductImageMap } from '../../hooks/useProductImageMap';
 import { BarcodeScannerModal } from '../../components/driver/BarcodeScannerModal';
@@ -84,7 +84,7 @@ export const DriverOrderPage: React.FC = () => {
                 title="هذا الطلب ليس مسنداً إليك"
                 body="قد يكون الطلب قد تم إعادة إسناده أو إنجازه بالفعل."
                 action={
-                    <Link to="/driver" className={primaryButtonClass}>
+                    <Link to="/driver" className="inline-flex items-center justify-center px-5 py-2.5 bg-brand-blue text-white font-bold text-sm rounded-md hover:bg-blue-700 transition-colors">
                         العودة إلى توصيلاتي
                     </Link>
                 }
@@ -169,107 +169,122 @@ export const DriverOrderPage: React.FC = () => {
     const hasMore = delivery.items.length > ITEMS_PREVIEW;
 
     return (
-        <div className="pb-40 space-y-6 max-w-4xl mx-auto">
+        <div className="pb-40 space-y-5 max-w-4xl mx-auto">
             {/* Header Navigation */}
             <div className="flex items-center justify-between">
                 <Link
                     to="/driver"
-                    className="inline-flex items-center gap-2 text-sm font-black text-brand-blue hover:text-blue-700 transition-colors bg-white px-3.5 py-2 rounded-2xl border border-gray-200 shadow-xs"
+                    className="inline-flex items-center gap-2 text-sm font-bold text-gray-700 hover:text-brand-blue transition-colors bg-white px-3.5 py-2 rounded-md border border-gray-200 shadow-xs"
                 >
-                    <ArrowRight className="w-4 h-4" /> توصيلاتي
+                    <ArrowRight className="w-4 h-4" /> العودة للتوصيلات
                 </Link>
 
-                <div className="flex items-center gap-2 text-xs font-bold text-gray-700 bg-white px-3.5 py-2 rounded-2xl border border-gray-200 shadow-xs">
+                <div className="flex items-center gap-2 text-xs font-bold text-gray-700 bg-white px-3.5 py-2 rounded-md border border-gray-200 shadow-xs">
                     <Warehouse className="w-4 h-4 text-brand-blue" />
                     <span>{delivery.warehouseName ?? 'مستودع تيبس'}</span>
                 </div>
             </div>
 
-            {/* Order Hero Status Card */}
-            <div className="bg-gradient-to-l from-brand-blue to-blue-700 text-white rounded-card p-6 sm:p-7 shadow-card-glow relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-36 h-36 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
-                <div className="relative z-10 flex items-start justify-between gap-3">
+            {/* Order Hero Status Card - Sleek, Structured, Crisp */}
+            <div className="bg-white border border-gray-200 rounded-lg p-5 sm:p-6 shadow-xs relative overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
                     <div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold bg-white/20 px-2.5 py-0.5 rounded-full backdrop-blur-xs font-mono">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-bold bg-gray-100 text-gray-800 px-2.5 py-1 rounded-md font-mono border border-gray-200">
                                 #{delivery.orderNumber}
                             </span>
                             <span className={cn(
-                                'text-xs font-black px-2.5 py-0.5 rounded-full',
-                                delivery.status === 'shipped' ? 'bg-amber-400 text-amber-950 font-bold' :
-                                delivery.status === 'delivered' ? 'bg-emerald-400 text-emerald-950 font-bold' :
-                                delivery.status === 'delivery_failed' ? 'bg-rose-400 text-rose-950 font-bold' :
-                                'bg-white text-brand-blue font-bold'
+                                'text-xs font-bold px-2.5 py-1 rounded-md border',
+                                delivery.status === 'shipped' ? 'bg-amber-50 text-amber-900 border-amber-300' :
+                                delivery.status === 'delivered' ? 'bg-emerald-50 text-emerald-900 border-emerald-300' :
+                                delivery.status === 'delivery_failed' ? 'bg-rose-50 text-rose-900 border-rose-300' :
+                                'bg-blue-50 text-blue-900 border-blue-200'
                             )}>
                                 {delivery.status === 'shipped' ? 'في الطريق للتوصيل' :
                                  delivery.status === 'delivered' ? 'تم التسليم بنجاح ✓' :
                                  delivery.status === 'delivery_failed' ? 'تعذر التسليم' :
-                                 'بانتظار الاستلام'}
+                                 'بانتظار الاستلام من المستودع'}
                             </span>
                         </div>
-                        <h1 className="text-xl font-black mt-2 text-white">{delivery.customerName}</h1>
-                        <p className="text-xs text-blue-100 flex items-center gap-1.5 mt-1">
-                            <Clock className="w-3.5 h-3.5" />
-                            <span>تاريخ الطلب: {formatDateTime(delivery.createdAt)}</span>
-                        </p>
+                        <h1 className="text-xl sm:text-2xl font-black mt-2 text-gray-900">{delivery.customerName}</h1>
                     </div>
 
-                    <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/20">
-                        {delivery.status === 'shipped' ? <Truck className="w-6 h-6 text-white" /> :
-                         delivery.status === 'delivered' ? <PackageCheck className="w-6 h-6 text-white" /> :
-                         delivery.status === 'delivery_failed' ? <AlertTriangle className="w-6 h-6 text-rose-200" /> :
-                         <Package className="w-6 h-6 text-white" />}
+                    <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
+                        <Clock className="w-4 h-4 text-gray-400" />
+                        <span>تاريخ الطلب: {formatDateTime(delivery.createdAt)}</span>
+                    </div>
+                </div>
+
+                {/* Progress / Step Indicators */}
+                <div className="grid grid-cols-3 gap-2 mt-4 pt-1 text-center">
+                    <div className={cn(
+                        'py-2 px-3 rounded-md text-xs font-bold border transition-colors',
+                        canPickUp ? 'bg-brand-blue text-white border-brand-blue' : 'bg-gray-50 text-gray-500 border-gray-200'
+                    )}>
+                        1. استلام من المستودع
+                    </div>
+                    <div className={cn(
+                        'py-2 px-3 rounded-md text-xs font-bold border transition-colors',
+                        onTheRoad ? 'bg-amber-500 text-white border-amber-500' : 'bg-gray-50 text-gray-500 border-gray-200'
+                    )}>
+                        2. في طريق التوصيل
+                    </div>
+                    <div className={cn(
+                        'py-2 px-3 rounded-md text-xs font-bold border transition-colors',
+                        closed ? (delivery.status === 'delivered' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-rose-600 text-white border-rose-600') : 'bg-gray-50 text-gray-500 border-gray-200'
+                    )}>
+                        3. التسليم النهائي
                     </div>
                 </div>
             </div>
 
-            {/* Customer Information & Navigation Card */}
-            <Card className="p-5 sm:p-6 space-y-5 shadow-card border border-brand-blue-soft">
+            {/* Customer Information & Address Card */}
+            <div className="bg-white border border-gray-200 rounded-lg p-5 sm:p-6 space-y-4 shadow-xs">
                 <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                     <div className="flex items-center gap-2">
                         <User className="w-5 h-5 text-brand-blue" />
-                        <h2 className="text-sm font-black text-gray-900">بيانات العميل والعنوان</h2>
+                        <h2 className="text-sm font-black text-gray-900">بيانات العميل والتوصيل</h2>
                     </div>
                     {hasPin && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-md">
                             <Sparkles className="w-3 h-3 text-emerald-600" /> موقع GPS دقيق
                         </span>
                     )}
                 </div>
 
-                <div className="space-y-3.5 text-xs sm:text-sm">
+                <div className="space-y-3 text-xs sm:text-sm">
                     {/* Customer Phone */}
-                    <div className="flex items-center justify-between bg-gray-50/80 p-3 rounded-2xl border border-gray-100">
-                        <div className="flex items-center gap-2.5">
-                            <div className="w-9 h-9 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0">
+                    <div className="flex items-center justify-between bg-gray-50 p-3 rounded-md border border-gray-200">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-md bg-white border border-gray-200 text-sky-700 flex items-center justify-center shrink-0">
                                 <Phone className="w-4 h-4" />
                             </div>
                             <div>
-                                <p className="text-[10px] font-bold text-gray-400">رقم الهاتف</p>
+                                <p className="text-[10px] font-bold text-gray-500">رقم الهاتف</p>
                                 <p className="text-sm font-black text-gray-900 font-mono" dir="ltr">{displayPhone}</p>
                             </div>
                         </div>
                         <button
                             type="button"
                             onClick={() => void copyToClipboard(delivery.phone, 'phone')}
-                            className="p-2 rounded-xl hover:bg-gray-200/60 transition-colors text-gray-500 flex items-center gap-1 text-xs font-bold"
+                            className="px-2.5 py-1.5 rounded-md bg-white border border-gray-200 hover:bg-gray-100 transition-colors text-gray-700 flex items-center gap-1.5 text-xs font-bold shadow-2xs"
                         >
-                            {copied === 'phone' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                            {copied === 'phone' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                             <span>{copied === 'phone' ? 'تم النسخ' : 'نسخ'}</span>
                         </button>
                     </div>
 
                     {/* Delivery Address */}
-                    <div className="flex items-start justify-between bg-gray-50/80 p-3 rounded-2xl border border-gray-100">
-                        <div className="flex items-start gap-2.5">
-                            <div className="w-9 h-9 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center shrink-0 mt-0.5">
+                    <div className="flex items-start justify-between bg-gray-50 p-3 rounded-md border border-gray-200">
+                        <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-md bg-white border border-gray-200 text-violet-700 flex items-center justify-center shrink-0 mt-0.5">
                                 <MapPin className="w-4 h-4" />
                             </div>
                             <div>
-                                <p className="text-[10px] font-bold text-gray-400">العنوان الكامل</p>
+                                <p className="text-[10px] font-bold text-gray-500">العنوان الكامل</p>
                                 <p className="text-sm font-bold text-gray-900 leading-snug">{delivery.address}</p>
                                 {(delivery.city || delivery.state) && (
-                                    <p className="text-xs text-gray-500 mt-0.5 font-medium">
+                                    <p className="text-xs text-gray-600 mt-0.5 font-medium">
                                         {[delivery.city, delivery.state].filter(Boolean).join(' · ')}
                                     </p>
                                 )}
@@ -278,72 +293,72 @@ export const DriverOrderPage: React.FC = () => {
                         <button
                             type="button"
                             onClick={() => void copyToClipboard(fullAddress, 'address')}
-                            className="p-2 rounded-xl hover:bg-gray-200/60 transition-colors text-gray-500 flex items-center gap-1 text-xs font-bold shrink-0 mt-0.5"
+                            className="px-2.5 py-1.5 rounded-md bg-white border border-gray-200 hover:bg-gray-100 transition-colors text-gray-700 flex items-center gap-1.5 text-xs font-bold shadow-2xs shrink-0 mt-0.5"
                         >
-                            {copied === 'address' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                            {copied === 'address' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                             <span>{copied === 'address' ? 'تم النسخ' : 'نسخ'}</span>
                         </button>
                     </div>
 
                     {/* Delivery Notes */}
                     {delivery.notes && (
-                        <div className="flex items-start gap-2.5 bg-amber-50/80 p-3 rounded-2xl border border-amber-200/70 text-amber-950">
-                            <StickyNote className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="flex items-start gap-3 bg-amber-50/90 p-3 rounded-md border border-amber-200 text-amber-950">
+                            <StickyNote className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
                             <div>
-                                <p className="text-[11px] font-black text-amber-900">ملاحظات العميل:</p>
-                                <p className="text-xs text-amber-900/90 mt-0.5 font-medium">{delivery.notes}</p>
+                                <p className="text-[11px] font-bold text-amber-900">ملاحظات العميل:</p>
+                                <p className="text-xs text-amber-900 mt-0.5 font-medium">{delivery.notes}</p>
                             </div>
                         </div>
                     )}
                 </div>
 
-                {/* Quick Client Action Buttons */}
-                <div className="grid grid-cols-3 gap-3 pt-3">
+                {/* Quick Client Action Buttons - Clean Rectangular Style */}
+                <div className="grid grid-cols-3 gap-2.5 pt-2">
                     <a
                         href={`tel:${delivery.phone}`}
-                        className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-2xl bg-sky-50 text-sky-800 border border-sky-200/80 hover:bg-sky-100 font-bold text-xs transition-all active:scale-95 shadow-xs"
+                        className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-md bg-sky-50 text-sky-900 border border-sky-200 hover:bg-sky-100 font-bold text-xs transition-colors"
                     >
-                        <Phone className="w-5 h-5 text-sky-600" />
+                        <Phone className="w-4 h-4 text-sky-700" />
                         <span>اتصال بالعميل</span>
                     </a>
                     <a
                         href={whatsappUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-200/80 hover:bg-emerald-100 font-bold text-xs transition-all active:scale-95 shadow-xs"
+                        className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-md bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100 font-bold text-xs transition-colors"
                     >
-                        <MessageCircle className="w-5 h-5 text-emerald-600" />
+                        <MessageCircle className="w-4 h-4 text-emerald-700" />
                         <span>مراسلة واتساب</span>
                     </a>
                     <a
                         href={mapsUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-2xl bg-violet-50 text-violet-800 border border-violet-200/80 hover:bg-violet-100 font-bold text-xs transition-all active:scale-95 shadow-xs"
+                        className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-md bg-violet-50 text-violet-900 border border-violet-200 hover:bg-violet-100 font-bold text-xs transition-colors"
                     >
-                        <Navigation className="w-5 h-5 text-violet-600" />
+                        <Navigation className="w-4 h-4 text-violet-700" />
                         <span>{hasPin ? 'توجيه GPS' : 'فتح الخريطة'}</span>
                     </a>
                 </div>
-            </Card>
+            </div>
 
             {/* Financials & COD Collection Card */}
             {delivery.codAmount != null && (
-                <div className="rounded-card border-2 border-amber-300 bg-linear-to-r from-amber-50 to-orange-50 p-5 sm:p-6 shadow-xs">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3.5">
-                            <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-500/20">
-                                <Banknote className="w-6 h-6" />
+                <div className="rounded-lg border-2 border-amber-300 bg-amber-50/70 p-4 sm:p-5 shadow-xs">
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-md bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                                <Banknote className="w-5 h-5" />
                             </div>
                             <div>
                                 <p className="text-xs font-bold text-amber-900">المبلغ المطلوب تحصيله نقداً (COD)</p>
-                                <p className="text-2xl font-black text-amber-950 font-mono tracking-tight" dir="ltr">
+                                <p className="text-xl sm:text-2xl font-black text-amber-950 font-mono tracking-tight" dir="ltr">
                                     {formatSDG(delivery.codAmount)}
                                 </p>
                             </div>
                         </div>
                         {closed && delivery.status === 'delivered' && (
-                            <span className="flex items-center gap-1 text-xs font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-3 py-1.5 rounded-xl">
+                            <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-3 py-1.5 rounded-md">
                                 <ShieldCheck className="w-4 h-4" /> تم التحصيل
                             </span>
                         )}
@@ -352,17 +367,17 @@ export const DriverOrderPage: React.FC = () => {
             )}
 
             {delivery.codAmount == null && delivery.paymentMethod !== 'COD' && (
-                <div className="rounded-3xl border border-emerald-200 bg-emerald-50/90 p-4.5 flex items-center gap-3 shadow-xs">
-                    <ShieldCheck className="w-6 h-6 text-emerald-600 shrink-0" />
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/80 p-4 flex items-center gap-3 shadow-xs">
+                    <ShieldCheck className="w-5 h-5 text-emerald-700 shrink-0" />
                     <div>
-                        <p className="text-sm font-black text-emerald-950">الطلب مدفوع مسبقاً (إلكتروني / بنكك)</p>
+                        <p className="text-sm font-bold text-emerald-950">الطلب مدفوع مسبقاً (إلكتروني / بنكك)</p>
                         <p className="text-xs text-emerald-700 mt-0.5">لا يوجد تحصيل نقدي — سلّم المنتجات للعميل مباشرة</p>
                     </div>
                 </div>
             )}
 
-            {/* Product Items Checklist Card with Large Photos */}
-            <Card className="p-5 sm:p-6 space-y-5 shadow-card border border-brand-blue-soft">
+            {/* Product Items Checklist Card */}
+            <div className="bg-white border border-gray-200 rounded-lg p-5 sm:p-6 space-y-4 shadow-xs">
                 <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                     <div className="flex items-center gap-2">
                         <Package className="w-5 h-5 text-brand-blue" />
@@ -372,8 +387,8 @@ export const DriverOrderPage: React.FC = () => {
                     </div>
                     {onTheRoad && (
                         <span className={cn(
-                            'text-xs font-black px-3 py-1 rounded-full border transition-all',
-                            allChecked ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-gray-100 text-gray-600 border-gray-200'
+                            'text-xs font-bold px-2.5 py-1 rounded-md border transition-all',
+                            allChecked ? 'bg-emerald-100 text-emerald-900 border-emerald-300' : 'bg-gray-100 text-gray-700 border-gray-200'
                         )}>
                             {checkedCount} من {delivery.items.length} تم فحصها ✓
                         </span>
@@ -390,7 +405,7 @@ export const DriverOrderPage: React.FC = () => {
                                 key={index}
                                 onClick={() => onTheRoad && toggleItemChecked(index)}
                                 className={cn(
-                                    'py-3.5 flex items-center gap-3.5 transition-all rounded-2xl px-2',
+                                    'py-3.5 flex items-center gap-3.5 transition-colors px-2 rounded-md',
                                     onTheRoad ? 'cursor-pointer hover:bg-gray-50' : '',
                                     isChecked && onTheRoad ? 'bg-emerald-50/40' : ''
                                 )}
@@ -399,18 +414,18 @@ export const DriverOrderPage: React.FC = () => {
                                     <button
                                         type="button"
                                         aria-label="تحديد المنتج"
-                                        className="shrink-0"
+                                        className="shrink-0 text-gray-400 hover:text-emerald-600"
                                     >
                                         {isChecked ? (
-                                            <CheckSquare className="w-6 h-6 text-emerald-600 fill-emerald-100" />
+                                            <CheckSquare className="w-5 h-5 text-emerald-600" />
                                         ) : (
-                                            <Square className="w-6 h-6 text-gray-300" />
+                                            <Square className="w-5 h-5 text-gray-300" />
                                         )}
                                     </button>
                                 )}
 
-                                {/* Product Image — Beauty Storefront Style */}
-                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white border border-gray-200 shrink-0 overflow-hidden shadow-xs flex items-center justify-center p-1">
+                                {/* Product Image — Crisp & Square */}
+                                <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-md bg-white border border-gray-200 shrink-0 overflow-hidden shadow-2xs flex items-center justify-center p-1">
                                     {img ? (
                                         <img
                                             src={img}
@@ -419,14 +434,14 @@ export const DriverOrderPage: React.FC = () => {
                                             loading="lazy"
                                         />
                                     ) : (
-                                        <Package className="w-7 h-7 text-gray-300" />
+                                        <Package className="w-6 h-6 text-gray-300" />
                                     )}
                                 </div>
 
                                 {/* Product Info */}
                                 <div className="min-w-0 flex-1">
                                     <p className={cn(
-                                        'text-sm font-black text-gray-900 leading-snug',
+                                        'text-sm font-bold text-gray-900 leading-snug',
                                         isChecked && onTheRoad ? 'line-through text-gray-400' : ''
                                     )}>
                                         {item.name_ar}
@@ -436,8 +451,8 @@ export const DriverOrderPage: React.FC = () => {
                                             الدرجة / النوع: <span className="font-bold text-gray-800">{item.variant_name}</span>
                                         </p>
                                     )}
-                                    <div className="flex items-center gap-2.5 mt-2">
-                                        <span className="text-xs font-black text-brand-blue bg-brand-blue-soft px-2.5 py-1 rounded-xl">
+                                    <div className="flex items-center gap-2.5 mt-1.5">
+                                        <span className="text-xs font-bold text-brand-blue bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md">
                                             الكمية: {item.quantity}
                                         </span>
                                         {item.lineTotal != null && (
@@ -456,7 +471,7 @@ export const DriverOrderPage: React.FC = () => {
                     <button
                         type="button"
                         onClick={() => setShowAllProducts(!showAllProducts)}
-                        className="w-full py-2.5 text-xs font-black text-brand-blue hover:bg-brand-blue-soft transition-colors flex items-center justify-center gap-1 rounded-xl"
+                        className="w-full py-2.5 text-xs font-bold text-brand-blue hover:bg-blue-50 transition-colors flex items-center justify-center gap-1 rounded-md border border-gray-200"
                     >
                         {showAllProducts ? (
                             <><ChevronUp className="w-4 h-4" /> عرض أقل</>
@@ -465,15 +480,15 @@ export const DriverOrderPage: React.FC = () => {
                         )}
                     </button>
                 )}
-            </Card>
+            </div>
 
             {error && <Notice kind="error">{error}</Notice>}
 
             {/* Failure Reason Form */}
             {failing && onTheRoad && (
-                <Card className="p-5 space-y-3.5 border-rose-200 bg-rose-50/40">
-                    <h2 className="text-sm font-black text-rose-950 flex items-center gap-2">
-                        <AlertTriangle className="w-5 h-5 text-rose-600" />
+                <div className="bg-white border border-rose-200 rounded-lg p-5 space-y-3 shadow-xs">
+                    <h2 className="text-sm font-bold text-rose-950 flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-rose-600" />
                         سبب تعذر تسليم الشحنة
                     </h2>
                     <div className="grid gap-2">
@@ -481,10 +496,10 @@ export const DriverOrderPage: React.FC = () => {
                             <label
                                 key={r}
                                 className={cn(
-                                    'flex min-h-11 cursor-pointer items-center gap-3 rounded-2xl border px-3.5 text-xs font-bold transition-all',
+                                    'flex min-h-10 cursor-pointer items-center gap-3 rounded-md border px-3 text-xs font-bold transition-all',
                                     reason === r
-                                        ? 'border-rose-500 bg-white text-rose-700 shadow-xs'
-                                        : 'border-rose-200 bg-white/70 text-gray-700 hover:bg-white'
+                                        ? 'border-rose-500 bg-rose-50 text-rose-800'
+                                        : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
                                 )}
                             >
                                 <input
@@ -503,21 +518,21 @@ export const DriverOrderPage: React.FC = () => {
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
                         placeholder="ملاحظة إضافية للإدارة (اختياري)..."
-                        className={inputClass}
+                        className="w-full px-3 py-2 text-sm rounded-md border border-gray-300 focus:border-brand-blue outline-hidden transition-all"
                         aria-label="ملاحظة إضافية"
                     />
-                </Card>
+                </div>
             )}
 
-            {/* Floating Bottom Actions Bar */}
-            <div className="fixed inset-x-0 bottom-0 z-40 border-t border-brand-blue-soft bg-white/95 backdrop-blur-md p-5 pb-safe shadow-lg">
-                <div className="max-w-4xl mx-auto space-y-3">
+            {/* Fixed Bottom Actions Bar - Crisp, Full Width, Clean */}
+            <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur-md p-4 pb-safe shadow-lg">
+                <div className="max-w-4xl mx-auto space-y-2">
                     {canPickUp && (
                         <button
                             type="button"
                             onClick={() => void act('shipped')}
                             disabled={busy}
-                            className={cn(primaryButtonClass, 'w-full py-4 text-base shadow-card-glow')}
+                            className="w-full py-3.5 px-4 bg-brand-blue hover:bg-blue-700 text-white font-bold text-base rounded-md flex items-center justify-center gap-2 shadow-xs transition-colors"
                         >
                             {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Truck className="w-5 h-5" />}
                             استلمت الشحنة من المستودع — بدء التوصيل
@@ -536,18 +551,18 @@ export const DriverOrderPage: React.FC = () => {
                                     }
                                 }}
                                 disabled={busy}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-control flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-md flex items-center justify-center gap-2 shadow-xs transition-colors"
                             >
-                                {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <PackageCheck className="w-5 h-5" />}
+                                {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <PackageCheck className="w-4 h-4" />}
                                 {barcodeVerified ? 'تأكيد التسليم للعميل' : 'مسح الباركود والتسليم'}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setFailing(true)}
                                 disabled={busy}
-                                className="bg-white border border-rose-300 text-rose-700 font-bold py-3.5 px-4 rounded-control hover:bg-rose-50 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                className="bg-white border border-rose-300 text-rose-700 hover:bg-rose-50 font-bold py-3 px-4 rounded-md transition-colors flex items-center justify-center gap-2"
                             >
-                                <AlertTriangle className="w-5 h-5" /> تعذر التسليم
+                                <AlertTriangle className="w-4 h-4" /> تعذر التسليم
                             </button>
                         </div>
                     )}
@@ -558,16 +573,16 @@ export const DriverOrderPage: React.FC = () => {
                                 type="button"
                                 onClick={() => void act('delivery_failed')}
                                 disabled={busy}
-                                className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-3.5 px-4 rounded-control shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2"
+                                className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 px-4 rounded-md shadow-xs transition-colors flex items-center justify-center gap-2"
                             >
-                                {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <AlertTriangle className="w-5 h-5" />}
+                                {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
                                 تأكيد تعذر التسليم
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setFailing(false)}
                                 disabled={busy}
-                                className={secondaryButtonClass}
+                                className="bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 font-bold py-3 px-4 rounded-md transition-colors"
                             >
                                 رجوع
                             </button>
@@ -575,7 +590,7 @@ export const DriverOrderPage: React.FC = () => {
                     )}
 
                     {closed && (
-                        <div className="p-3.5 text-center rounded-2xl bg-gray-100 text-xs font-bold text-gray-700">
+                        <div className="p-3 text-center rounded-md bg-gray-100 border border-gray-200 text-xs font-bold text-gray-700">
                             {delivery.status === 'delivered'
                                 ? '✓ تم تسليم هذا الطلب للعميل بنجاح'
                                 : 'سُجّل تعذر التسليم — تمت إعادة توجيه الطلب لإدارة المستودع'}
