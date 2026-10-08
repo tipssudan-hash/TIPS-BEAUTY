@@ -6,7 +6,16 @@ import type { OrderStatus } from '../../domain/entities';
 
 export type DeliveryStatus = Extract<OrderStatus, 'confirmed' | 'preparing' | 'shipped' | 'delivered' | 'delivery_failed'>;
 
-export interface DeliveryItem { name_ar: string; variant_name: string | null; quantity: number }
+export interface DeliveryItem {
+    id?: string;
+    productId?: string;
+    name_ar: string;
+    variant_name: string | null;
+    quantity: number;
+    imageUrl?: string | null;
+    unitPrice?: number | null;
+    lineTotal?: number | null;
+}
 
 export interface Delivery {
     id: string;
@@ -38,6 +47,18 @@ type DeliveryRow = {
 };
 
 function mapDelivery(row: DeliveryRow): Delivery {
+    const rawItems = Array.isArray(row.items) ? (row.items as Record<string, unknown>[]) : [];
+    const items: DeliveryItem[] = rawItems.map((i) => ({
+        id: (i.product_id as string) || (i.id as string) || undefined,
+        productId: (i.product_id as string) || (i.id as string) || undefined,
+        name_ar: (i.name_ar as string) || 'منتج',
+        variant_name: (i.variant_name as string) || null,
+        quantity: Number(i.quantity ?? 1),
+        imageUrl: (i.image_url as string) || (i.image as string) || null,
+        unitPrice: i.unit_price != null ? Number(i.unit_price) : null,
+        lineTotal: i.line_total != null ? Number(i.line_total) : null,
+    }));
+
     return {
         id: row.id,
         orderNumber: row.order_number ?? '',
@@ -50,8 +71,8 @@ function mapDelivery(row: DeliveryRow): Delivery {
         city: row.city,
         state: row.state,
         notes: row.notes,
-        items: Array.isArray(row.items) ? (row.items as DeliveryItem[]) : [],
-        itemCount: Number(row.item_count ?? 0),
+        items,
+        itemCount: items.reduce((sum, item) => sum + item.quantity, 0) || Number(row.item_count ?? 0),
         paymentMethod: row.payment_method,
         codAmount: row.cod_amount == null ? null : Number(row.cod_amount),
         warehouseName: row.warehouse_name,
@@ -126,4 +147,99 @@ export function subscribeToMyDeliveries(onChange: () => void): () => void {
         if (timer) clearTimeout(timer);
         void supabase.removeChannel(channel);
     };
+}
+
+export interface DriverCashDrawerSummary {
+    collectedToday: number;
+    deliveredCount: number;
+    pendingRemittance: number;
+    confirmedRemittance: number;
+    unremittedBalance: number;
+    deliveredOrders: {
+        id: string;
+        orderNumber: string;
+        customerName: string;
+        codAmount: number;
+        deliveredAt: string | null;
+    }[];
+}
+
+export async function fetchDriverCashDrawer(): Promise<DriverCashDrawerSummary> {
+    const deliveries = await fetchMyDeliveries();
+    const delivered = deliveries.filter((d) => d.status === 'delivered');
+
+    let totalCollected = 0;
+    const deliveredOrders = delivered.map((d) => {
+        const amt = d.codAmount ?? 0;
+        totalCollected += amt;
+        return {
+            id: d.id,
+            orderNumber: d.orderNumber,
+            customerName: d.customerName,
+            codAmount: amt,
+            deliveredAt: d.statusChangedAt || d.createdAt,
+        };
+    });
+
+    let pendingRemittance = 0;
+    let confirmedRemittance = 0;
+
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            const { data: driver } = await supabase.from('drivers').select('id').eq('user_id', user.id).maybeSingle();
+            if (driver) {
+                const { data: remittances } = await (supabase.from as any)('driver_cash_remittances')
+                    .select('amount, status')
+                    .eq('driver_id', driver.id);
+
+                if (remittances) {
+                    for (const r of (remittances as any[])) {
+                        const amt = Number(r.amount);
+                        if (r.status === 'confirmed') confirmedRemittance += amt;
+                        else if (r.status === 'submitted') pendingRemittance += amt;
+                    }
+                }
+            }
+        }
+    } catch {
+        // Fallback
+    }
+
+    const unremittedBalance = Math.max(0, totalCollected - confirmedRemittance - pendingRemittance);
+
+    return {
+        collectedToday: totalCollected,
+        deliveredCount: delivered.length,
+        pendingRemittance,
+        confirmedRemittance,
+        unremittedBalance,
+        deliveredOrders,
+    };
+}
+
+export async function submitDriverCashRemittance(amount: number, notes?: string): Promise<void> {
+    try {
+        const { error } = await (supabase.rpc as any)('driver_submit_cash_remittance', {
+            p_amount: amount,
+            p_notes: notes || undefined,
+        });
+        if (!error) return;
+    } catch {
+        // Fallback
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not logged in');
+    const { data: driver } = await supabase.from('drivers').select('id, warehouse_id').eq('user_id', user.id).single();
+    if (!driver) throw new Error('Driver profile not found');
+
+    const { error: insertErr } = await (supabase.from as any)('driver_cash_remittances').insert({
+        driver_id: driver.id,
+        warehouse_id: driver.warehouse_id,
+        amount,
+        driver_notes: notes || null,
+        status: 'submitted',
+    });
+    if (insertErr) throw insertErr;
 }

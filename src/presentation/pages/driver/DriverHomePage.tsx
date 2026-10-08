@@ -1,50 +1,191 @@
-﻿import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { PackageCheck, Truck, ClipboardList, ChevronLeft, Banknote } from 'lucide-react';
+import {
+    PackageCheck,
+    Truck,
+    ClipboardList,
+    ChevronLeft,
+    Banknote,
+    Phone,
+    MessageCircle,
+    MapPin,
+    Search,
+    Wallet,
+    Package,
+} from 'lucide-react';
 import { useDriver } from './DriverContext';
 import type { Delivery } from '@infrastructure/repositories';
-import { EmptyState, PageState, StatusPill, type StatusTone } from '../../components/ui';
-import { formatSDG, formatRelative } from '@application/services/format';
+import { EmptyState, PageState, StatusPill, type StatusTone, Card } from '../../components/ui';
+import { formatSDG } from '@application/services/format';
+import { useProductImageMap } from '../../hooks/useProductImageMap';
+import { DriverCashDrawerModal } from '../../components/driver/DriverCashDrawerModal';
 
 const STATUS: Record<Delivery['status'], { label: string; tone: StatusTone }> = {
-    confirmed: { label: 'بانتظار الاستلام', tone: 'info' },
+    confirmed: { label: 'جاهز للاستلام', tone: 'info' },
     preparing: { label: 'قيد التجهيز', tone: 'attention' },
     shipped: { label: 'في الطريق', tone: 'info' },
-    delivered: { label: 'تم التوصيل', tone: 'success' },
+    delivered: { label: 'تم التوصيل ✓', tone: 'success' },
     delivery_failed: { label: 'تعذر التسليم', tone: 'danger' },
 };
 
-const DeliveryCard: React.FC<{ d: Delivery }> = ({ d }) => (
-    <Link to={`/driver/orders/${d.id}`} className="flex items-center gap-3 rounded-card border border-gray-200 bg-white p-4 min-h-20 hover:border-brand-blue/50">
-        <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-2">
-                <span className="font-bold text-gray-900">{d.customerName}</span>
+const DeliveryCard: React.FC<{ d: Delivery }> = ({ d }) => {
+    const { getProductImageUrl } = useProductImageMap();
+
+    const cleanPhone = d.phone.replace(/[^0-9]/g, '');
+    const formattedPhone = cleanPhone.startsWith('0')
+        ? `249${cleanPhone.slice(1)}`
+        : cleanPhone.startsWith('249')
+        ? cleanPhone
+        : `249${cleanPhone}`;
+
+    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(
+        `مرحباً ${d.customerName}، أنا مندوب تيبس لمستحضرات التجميل بشأن طلبك رقم (${d.orderNumber}).`
+    )}`;
+
+    const hasPin = d.customerLat != null && d.customerLng != null;
+
+    return (
+        <Card className="p-5 sm:p-6 hover:border-brand-blue/60 transition-all shadow-card border border-brand-blue-soft">
+            {/* Header: Customer name, Order #, Status pill */}
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-gray-100">
+                <div>
+                    <div className="flex items-center gap-2">
+                        <span className="font-black text-gray-900 text-base">{d.customerName}</span>
+                        {hasPin && (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-md">
+                                GPS
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-xs text-gray-400 font-mono mt-0.5">#{d.orderNumber}</p>
+                </div>
                 <StatusPill tone={STATUS[d.status].tone}>{STATUS[d.status].label}</StatusPill>
             </div>
-            <p className="mt-0.5 truncate text-sm text-gray-600">{[d.city, d.state].filter(Boolean).join('، ') || d.address}</p>
-            <p className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-gray-500">
-                <span>{d.orderNumber}</span>
-                <span>{d.itemCount} قطعة</span>
-                {d.codAmount != null && <span className="inline-flex items-center gap-1 font-bold text-status-attention-ink"><Banknote className="w-3.5 h-3.5" /> تحصيل {formatSDG(d.codAmount)}</span>}
-                {d.statusChangedAt && <span>{formatRelative(d.statusChangedAt)}</span>}
-            </p>
-        </div>
-        <ChevronLeft className="w-5 h-5 shrink-0 text-gray-400" />
-    </Link>
-);
 
-const Section: React.FC<{ title: string; icon: React.ReactNode; items: Delivery[] }> = ({ title, icon, items }) => items.length === 0 ? null : (
-    <section className="mb-6">
-        <h2 className="mb-2 flex items-center gap-2 text-sm font-bold text-gray-700">{icon} {title} <span className="rounded-full bg-gray-200 px-2 text-xs">{items.length}</span></h2>
-        <ul className="space-y-2">{items.map((d) => <li key={d.id}><DeliveryCard d={d} /></li>)}</ul>
-    </section>
-);
+            {/* Address */}
+            <div className="py-3 text-sm text-gray-700 flex items-start gap-2.5">
+                <MapPin className="w-4 h-4 shrink-0 text-brand-blue mt-0.5" />
+                <span className="line-clamp-2 font-medium">{[d.city, d.state].filter(Boolean).join('، ') || d.address}</span>
+            </div>
+
+            {/* Products Thumbnails Preview */}
+            <div className="py-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 overflow-hidden">
+                    {d.items.slice(0, 4).map((item, idx) => {
+                        const img = getProductImageUrl(item, 120);
+                        return (
+                            <div
+                                key={idx}
+                                className="w-12 h-12 rounded-2xl bg-white border border-gray-200 overflow-hidden shadow-xs flex items-center justify-center p-0.5 shrink-0"
+                                title={`${item.name_ar} (×${item.quantity})`}
+                            >
+                                {img ? (
+                                    <img src={img} alt={item.name_ar} className="w-full h-full object-contain" />
+                                ) : (
+                                    <Package className="w-5 h-5 text-gray-300" />
+                                )}
+                            </div>
+                        );
+                    })}
+                    {d.items.length > 4 && (
+                        <span className="w-9 h-12 rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center text-xs font-black text-gray-600">
+                            +{d.items.length - 4}
+                        </span>
+                    )}
+                </div>
+
+                <div className="text-left shrink-0">
+                    <span className="text-xs text-gray-500 font-bold block">{d.itemCount} قطعة</span>
+                    {d.codAmount != null ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-black text-amber-900 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-xl font-mono" dir="ltr">
+                            <Banknote className="w-3.5 h-3.5 text-amber-600" /> {formatSDG(d.codAmount)}
+                        </span>
+                    ) : (
+                        <span className="text-[11px] font-black text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-xl">
+                            مدفوع مسبقاً
+                        </span>
+                    )}
+                </div>
+            </div>
+
+            {/* Actions */}
+            <div className="pt-4 border-t border-gray-100 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                    <a
+                        href={`tel:${d.phone}`}
+                        className="p-2.5 rounded-xl bg-sky-50 text-sky-700 hover:bg-sky-100 transition-colors border border-sky-200/60"
+                        title="اتصال بالعميل"
+                    >
+                        <Phone className="w-4 h-4" />
+                    </a>
+                    <a
+                        href={whatsappUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2.5 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors border border-emerald-200/60"
+                        title="مراسلة واتساب"
+                    >
+                        <MessageCircle className="w-4 h-4" />
+                    </a>
+                </div>
+
+                <Link
+                    to={`/driver/orders/${d.id}`}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 px-5 rounded-control bg-brand-blue hover:bg-blue-700 text-white font-bold text-sm shadow-card-glow transition-all active:scale-95"
+                >
+                    <span>تفاصيل التوصيل</span>
+                    <ChevronLeft className="w-4 h-4" />
+                </Link>
+            </div>
+        </Card>
+    );
+};
+
+const Section: React.FC<{ title: string; icon: React.ReactNode; items: Delivery[] }> = ({
+    title,
+    icon,
+    items,
+}) =>
+    items.length === 0 ? null : (
+        <section className="mb-6">
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-black text-gray-900">
+                {icon} {title}
+                <span className="rounded-full bg-gray-200 px-2.5 py-0.5 text-xs font-bold text-gray-700">
+                    {items.length}
+                </span>
+            </h2>
+            <div className="space-y-4">
+                {items.map((d) => (
+                    <DeliveryCard key={d.id} d={d} />
+                ))}
+            </div>
+        </section>
+    );
 
 export const DriverHomePage: React.FC = () => {
     const { deliveries, loading, error, refresh, profile } = useDriver();
-    const onTheRoad = deliveries.filter((d) => d.status === 'shipped');
-    const assigned = deliveries.filter((d) => d.status === 'confirmed' || d.status === 'preparing');
-    const done = deliveries.filter((d) => d.status === 'delivered' || d.status === 'delivery_failed');
+    const [search, setSearch] = useState('');
+    const [cashModalOpen, setCashModalOpen] = useState(false);
+
+    const filteredDeliveries = useMemo(() => {
+        if (!search.trim()) return deliveries;
+        const q = search.trim().toLowerCase();
+        return deliveries.filter(
+            (d) =>
+                d.orderNumber.toLowerCase().includes(q) ||
+                d.customerName.toLowerCase().includes(q) ||
+                d.phone.includes(q) ||
+                d.address.toLowerCase().includes(q)
+        );
+    }, [deliveries, search]);
+
+    const onTheRoad = filteredDeliveries.filter((d) => d.status === 'shipped');
+    const assigned = filteredDeliveries.filter((d) => d.status === 'confirmed' || d.status === 'preparing');
+    const done = filteredDeliveries.filter((d) => d.status === 'delivered' || d.status === 'delivery_failed');
+
+    const totalCollectedToday = deliveries
+        .filter((d) => d.status === 'delivered' && d.codAmount != null)
+        .reduce((sum, d) => sum + (d.codAmount ?? 0), 0);
 
     return (
         <PageState
@@ -52,11 +193,61 @@ export const DriverHomePage: React.FC = () => {
             error={error}
             onRetry={() => void refresh()}
             empty={deliveries.length === 0}
-            emptyState={<EmptyState icon={<Truck className="w-7 h-7" />} title="لا توجد توصيلات مسندة إليك" body={profile?.status === 'offline' ? 'أنت غير متاح الآن؛ فعّلي "متاح" ليتمكن الفريق من إسناد الطلبات إليك.' : 'ستظهر الطلبات هنا فور إسنادها إليك.'} />}
+            emptyState={
+                <EmptyState
+                    icon={<Truck className="w-8 h-8" />}
+                    title="لا توجد توصيلات مسندة إليك"
+                    body={
+                        profile?.status === 'offline'
+                            ? 'أنت غير متاح الآن؛ فعّل "متاح" لتستقبل الطلبات المسندة إليك من المشرف.'
+                            : 'ستظهر الطلبات هنا فور إسنادها إليك من مشرف المستودع.'
+                    }
+                />
+            }
         >
-            <Section title="في الطريق الآن" icon={<Truck className="w-4 h-4 text-brand-blue" />} items={onTheRoad} />
-            <Section title="جاهزة للاستلام" icon={<ClipboardList className="w-4 h-4 text-brand-blue" />} items={assigned} />
-            <Section title="أُنجزت اليوم" icon={<PackageCheck className="w-4 h-4 text-brand-blue" />} items={done} />
+            <div className="max-w-4xl mx-auto space-y-6">
+                {/* Cash Drawer Banner Button */}
+                <div>
+                    <button
+                        type="button"
+                        onClick={() => setCashModalOpen(true)}
+                        className="w-full flex items-center justify-between p-5 sm:p-6 rounded-card bg-linear-to-r from-amber-500 via-amber-600 to-orange-600 text-white shadow-card hover:brightness-105 transition-all active:scale-[0.98]"
+                    >
+                        <div className="flex items-center gap-3.5">
+                            <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-center">
+                                <Wallet className="w-6 h-6 text-white" />
+                            </div>
+                            <div className="text-right">
+                                <p className="text-sm font-black text-white">صندوق النقدية والعهدة (COD)</p>
+                                <p className="text-xl font-black font-mono mt-0.5" dir="ltr">
+                                    {formatSDG(totalCollectedToday)}
+                                </p>
+                            </div>
+                        </div>
+                        <span className="text-sm font-black bg-white/25 backdrop-blur-xs px-4 py-2.5 rounded-control border border-white/20">
+                            تسليم العهدة
+                        </span>
+                    </button>
+                </div>
+
+                {/* Search Bar */}
+                <div className="relative">
+                    <input
+                        type="text"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="بحث برقم الطلب، اسم العميل، أو الهاتف..."
+                        className="w-full pl-4 pr-11 py-3.5 rounded-control border border-gray-200 bg-white text-sm font-bold text-gray-900 placeholder:text-gray-400 focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 outline-hidden shadow-xs transition-all"
+                    />
+                    <Search className="w-5 h-5 text-gray-400 absolute right-3.5 top-3.5" />
+                </div>
+
+                <Section title="في الطريق الآن" icon={<Truck className="w-4 h-4 text-sky-600" />} items={onTheRoad} />
+                <Section title="جاهزة للاستلام من المستودع" icon={<ClipboardList className="w-4 h-4 text-amber-600" />} items={assigned} />
+                <Section title="أُنجزت اليوم" icon={<PackageCheck className="w-4 h-4 text-emerald-600" />} items={done} />
+
+                <DriverCashDrawerModal isOpen={cashModalOpen} onClose={() => setCashModalOpen(false)} />
+            </div>
         </PageState>
     );
 };

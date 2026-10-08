@@ -231,6 +231,41 @@ export async function fetchActiveWarehouses(): Promise<WarehouseOption[]> {
     return data ?? [];
 }
 
+export interface SupervisorUser {
+    id: string;
+    email: string | null;
+    full_name: string | null;
+    phone: string | null;
+    role: string;
+    assigned_warehouse_id: string | null;
+}
+
+export async function fetchWarehouseSupervisors(): Promise<SupervisorUser[]> {
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('role', ['warehouse_supervisor', 'admin'])
+        .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data ?? []) as unknown as SupervisorUser[];
+}
+
+export async function searchAssignableUsers(query: string): Promise<SupervisorUser[]> {
+    let q = supabase
+        .from('profiles')
+        .select('*')
+        .not('role', 'in', '("admin","driver")')
+        .order('created_at', { ascending: false })
+        .limit(20);
+    if (query.trim()) {
+        const escaped = query.trim().replace(/[%,()]/g, ' ');
+        q = q.or(`full_name.ilike.%${escaped}%,email.ilike.%${escaped}%,phone.ilike.%${escaped}%`);
+    }
+    const { data, error } = await q;
+    if (error) throw error;
+    return (data ?? []) as unknown as SupervisorUser[];
+}
+
 // GPS-06: assign or remove a warehouse supervisor. Pass null warehouseId to demote back to customer.
 export async function setWarehouseSupervisor(userId: string, warehouseId: string | null): Promise<void> {
     const { error } = await supabase.rpc('admin_set_warehouse_supervisor' as never, {

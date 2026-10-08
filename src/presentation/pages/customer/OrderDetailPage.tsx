@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { CheckCircle2, Loader2, RotateCcw, Star } from 'lucide-react';
 import { Order, OrderStatusEntry, PaymentMethod, ReviewableItem } from '@domain/entities';
@@ -13,6 +13,7 @@ import { Card, Notice, StatusPill, inputClass, secondaryButtonClass } from '../.
 import { OrderStepper } from '../../components/orders/OrderStepper';
 import { DeliveryCard } from '../../components/orders/DeliveryCard';
 import { ReturnSection } from '../../components/orders/ReturnSection';
+import { OrderDeliveryQRCode } from '../../components/orders/OrderDeliveryQRCode';
 
 const MAX_PROOF_BYTES = 5 * 1024 * 1024;
 
@@ -186,6 +187,13 @@ export const OrderDetailPage: React.FC = () => {
             {error && <Notice kind="error">{error}</Notice>}
 
             {order.status === 'shipped' && <DeliveryCard orderId={order.id} />}
+
+            {order.status !== 'cancelled' && (
+                <OrderDeliveryQRCode
+                    order={order}
+                    customerName={user?.user_metadata?.full_name ?? user?.email}
+                />
+            )}
 
             <Card className="p-6">
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">

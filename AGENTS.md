@@ -12,6 +12,7 @@
 
 ## Task Lists & Progress Tracking
 - **Always use markdown task lists** (`- [x]` for completed, `- [ ]` for pending) in responses to show exactly what was completed and what remains.
+- **Always save implementation plans into markdown files in `docs/`** (`docs/<PLAN_NAME>.md`) to maintain persistent, version-controlled architecture and execution plans.
 
 ## Clean Architecture Structure
 - **Domain Layer** (`src/domain/`): Core business entities, value objects, domain types, interfaces.
