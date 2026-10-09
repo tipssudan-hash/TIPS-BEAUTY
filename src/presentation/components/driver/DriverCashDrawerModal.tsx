@@ -3,7 +3,7 @@ import { X, Banknote, Clock, Send, Check } from 'lucide-react';
 import { fetchDriverCashDrawer, submitDriverCashRemittance, type DriverCashDrawerSummary } from '@infrastructure/repositories';
 import { formatSDG, formatRelative } from '@application/services/format';
 import { errorMessage } from '@application/errors';
-import { Notice, Spinner, inputClass } from '../ui';
+import { Notice, Spinner } from '../ui';
 
 interface Props {
     isOpen: boolean;
@@ -67,47 +67,47 @@ export const DriverCashDrawerModal: React.FC<Props> = ({ isOpen, onClose }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn" dir="rtl">
-            <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fadeIn text-black" dir="rtl">
+            <div className="w-full max-w-lg bg-white rounded-lg border-2 border-gray-400 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                 {/* Header */}
-                <div className="p-5 bg-linear-to-r from-gray-900 to-gray-800 text-white flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-10 h-10 rounded-2xl bg-amber-400/20 text-amber-300 flex items-center justify-center">
+                <div className="p-5 bg-black text-white flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-md bg-amber-400 text-black flex items-center justify-center">
                             <Banknote className="w-6 h-6" />
                         </div>
                         <div>
-                            <h2 className="font-bold text-lg">صندوق النقدية (العهدة)</h2>
-                            <p className="text-xs text-gray-300">متابعة المبالغ المحصلة وتسليمها للمستودع</p>
+                            <h2 className="font-black text-lg text-white">صندوق النقدية (العهدة)</h2>
+                            <p className="text-xs text-gray-300 font-bold">متابعة المبالغ المحصلة وتسليمها للمستودع</p>
                         </div>
                     </div>
-                    <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-white/10">
+                    <button type="button" onClick={onClose} className="p-2 text-white hover:bg-white/20 rounded-md transition-colors">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
                 {/* Body */}
-                <div className="p-5 overflow-y-auto space-y-5 flex-1">
+                <div className="p-5 overflow-y-auto space-y-5 flex-1 text-black">
                     {loading ? (
                         <div className="py-12 flex justify-center"><Spinner /></div>
                     ) : summary ? (
                         <>
                             {/* Summary Cards */}
                             <div className="grid grid-cols-2 gap-3">
-                                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200">
-                                    <p className="text-xs text-amber-800 font-medium">العهد النقدية المحصلة اليوم</p>
-                                    <p className="text-xl font-black text-amber-900 mt-1" dir="ltr">{formatSDG(summary.collectedToday)}</p>
-                                    <p className="text-[11px] text-amber-700 mt-0.5">{summary.deliveredCount} طلبات مسلّمة (COD)</p>
+                                <div className="p-4 rounded-md bg-amber-100 border-2 border-amber-400 text-black">
+                                    <p className="text-xs text-black font-black">العهد النقدية المحصلة اليوم</p>
+                                    <p className="text-2xl font-black text-black mt-1 font-mono" dir="ltr">{formatSDG(summary.collectedToday)}</p>
+                                    <p className="text-xs text-black font-bold mt-1">{summary.deliveredCount} طلبات مسلّمة (COD)</p>
                                 </div>
-                                <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200">
-                                    <p className="text-xs text-sky-800 font-medium">المتبقي للتسليم للمشرف</p>
-                                    <p className="text-xl font-black text-sky-900 mt-1" dir="ltr">{formatSDG(summary.unremittedBalance)}</p>
-                                    <p className="text-[11px] text-sky-700 mt-0.5">جاهز للتوريد</p>
+                                <div className="p-4 rounded-md bg-blue-100 border-2 border-blue-400 text-black">
+                                    <p className="text-xs text-black font-black">المتبقي للتسليم للمشرف</p>
+                                    <p className="text-2xl font-black text-black mt-1 font-mono" dir="ltr">{formatSDG(summary.unremittedBalance)}</p>
+                                    <p className="text-xs text-black font-bold mt-1">جاهز للتوريد</p>
                                 </div>
                             </div>
 
                             {summary.pendingRemittance > 0 && (
-                                <div className="flex items-center gap-2.5 p-3 rounded-xl bg-orange-50 border border-orange-200 text-orange-800 text-xs font-bold">
-                                    <Clock className="w-4 h-4 shrink-0 text-orange-600" />
+                                <div className="flex items-center gap-2.5 p-3.5 rounded-md bg-orange-100 border-2 border-orange-400 text-black text-xs font-black">
+                                    <Clock className="w-4 h-4 shrink-0 text-black" />
                                     <span>يوجد مبلغ {formatSDG(summary.pendingRemittance)} بانتظار تأكيد الاستلام من المشرف.</span>
                                 </div>
                             )}
@@ -116,58 +116,58 @@ export const DriverCashDrawerModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             {success && <Notice kind="success">{success}</Notice>}
 
                             {/* Handover / Remittance Form */}
-                            <form onSubmit={handleSubmit} className="p-4 rounded-2xl border border-gray-200 bg-gray-50/50 space-y-3">
-                                <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                                    <Send className="w-4 h-4 text-brand-blue" />
+                            <form onSubmit={handleSubmit} className="p-4 rounded-md border-2 border-gray-300 bg-gray-100 space-y-3.5 text-black">
+                                <h3 className="text-sm font-black text-black flex items-center gap-2">
+                                    <Send className="w-4 h-4 text-black" />
                                     تسليم نقدية لمشرف المستودع
                                 </h3>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-700 mb-1">المبلغ المراد تسليمه (ج.س)</label>
+                                    <label className="block text-xs font-black text-black mb-1">المبلغ المراد تسليمه (ج.س)</label>
                                     <input
                                         type="number"
                                         step="any"
                                         required
                                         value={amount}
                                         onChange={(e) => setAmount(e.target.value)}
-                                        className={inputClass}
+                                        className="w-full px-3.5 py-2.5 rounded-md border-2 border-gray-400 bg-white text-base font-black text-black focus:border-black outline-hidden"
                                         placeholder="0.00"
                                         dir="ltr"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-700 mb-1">ملاحظات التسليم (اختياري)</label>
+                                    <label className="block text-xs font-black text-black mb-1">ملاحظات التسليم (اختياري)</label>
                                     <input
                                         type="text"
                                         value={notes}
                                         onChange={(e) => setNotes(e.target.value)}
-                                        className={inputClass}
+                                        className="w-full px-3.5 py-2.5 rounded-md border-2 border-gray-400 bg-white text-sm font-bold text-black focus:border-black outline-hidden"
                                         placeholder="مثال: تسليم كامل العهدة لمشرف الوردية"
                                     />
                                 </div>
                                 <button
                                     type="submit"
                                     disabled={submitting || !amount || parseFloat(amount) <= 0}
-                                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-brand-blue hover:bg-brand-blue/90 text-white font-bold text-sm shadow-xs transition-colors disabled:opacity-50"
+                                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-md bg-black hover:bg-gray-800 text-white font-black text-sm shadow-xs transition-colors disabled:opacity-50"
                                 >
-                                    {submitting ? <Spinner /> : <Check className="w-4 h-4" />}
+                                    {submitting ? <Spinner /> : <Check className="w-4 h-4 text-white" />}
                                     تأكيد تسليم المبلغ للمشرف
                                 </button>
                             </form>
 
                             {/* Orders Delivered Today Breakdown */}
                             <div>
-                                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">الطلبات المسلمة نقداً اليوم ({summary.deliveredOrders.length})</h4>
+                                <h4 className="text-xs font-black text-black uppercase tracking-wider mb-2">الطلبات المسلمة نقداً اليوم ({summary.deliveredOrders.length})</h4>
                                 {summary.deliveredOrders.length === 0 ? (
-                                    <p className="text-xs text-gray-400 py-3 text-center">لا توجد طلبات مسلّمة نقداً بعد.</p>
+                                    <p className="text-xs text-black font-bold py-3 text-center">لا توجد طلبات مسلّمة نقداً بعد.</p>
                                 ) : (
-                                    <div className="divide-y divide-gray-100 border border-gray-200 rounded-2xl bg-white overflow-hidden text-xs">
+                                    <div className="divide-y-2 divide-gray-200 border-2 border-gray-300 rounded-md bg-white overflow-hidden text-xs text-black">
                                         {summary.deliveredOrders.map((o: { id: string; orderNumber: string; customerName: string; codAmount: number; deliveredAt: string | null }) => (
                                             <div key={o.id} className="p-3 flex items-center justify-between gap-2">
                                                 <div>
-                                                    <span className="font-bold text-gray-900 block">{o.customerName}</span>
-                                                    <span className="text-gray-500 text-[11px]">{o.orderNumber}{o.deliveredAt ? ` · ${formatRelative(o.deliveredAt)}` : ''}</span>
+                                                    <span className="font-black text-black text-sm block">{o.customerName}</span>
+                                                    <span className="text-black font-bold text-xs">{o.orderNumber}{o.deliveredAt ? ` · ${formatRelative(o.deliveredAt)}` : ''}</span>
                                                 </div>
-                                                <span className="font-bold text-emerald-700 font-mono text-sm" dir="ltr">+{formatSDG(o.codAmount)}</span>
+                                                <span className="font-black text-black font-mono text-sm" dir="ltr">+{formatSDG(o.codAmount)}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -177,8 +177,8 @@ export const DriverCashDrawerModal: React.FC<Props> = ({ isOpen, onClose }) => {
                     ) : null}
                 </div>
 
-                <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
-                    <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl border border-gray-300 bg-white text-gray-700 text-sm font-bold hover:bg-gray-100">
+                <div className="p-4 border-t-2 border-gray-200 bg-gray-100 flex justify-end">
+                    <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-md border-2 border-gray-400 bg-white text-black text-sm font-black hover:bg-gray-200">
                         إغلاق
                     </button>
                 </div>

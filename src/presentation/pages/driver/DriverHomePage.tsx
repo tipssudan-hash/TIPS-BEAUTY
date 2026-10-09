@@ -44,27 +44,27 @@ const DeliveryCard: React.FC<{ d: Delivery }> = ({ d }) => {
     const hasPin = d.customerLat != null && d.customerLng != null;
 
     return (
-        <div className="p-5 sm:p-6 bg-white border border-gray-200 rounded-lg hover:border-brand-blue/60 transition-all shadow-xs space-y-3">
+        <div className="p-5 sm:p-6 bg-white border-2 border-gray-300 rounded-lg hover:border-black transition-all shadow-xs space-y-3.5 text-black">
             {/* Header: Customer name, Order #, Status pill */}
-            <div className="flex items-start justify-between gap-3 pb-3 border-b border-gray-100">
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-gray-200">
                 <div>
                     <div className="flex items-center gap-2">
-                        <span className="font-black text-gray-900 text-base">{d.customerName}</span>
+                        <span className="font-black text-black text-lg">{d.customerName}</span>
                         {hasPin && (
-                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-1.5 py-0.5 rounded-md">
+                            <span className="text-xs font-black text-black bg-emerald-100 border border-emerald-400 px-2 py-0.5 rounded-md">
                                 GPS
                             </span>
                         )}
                     </div>
-                    <p className="text-xs text-gray-400 font-mono mt-0.5">#{d.orderNumber}</p>
+                    <p className="text-sm text-black font-black font-mono mt-0.5">#{d.orderNumber}</p>
                 </div>
                 <StatusPill tone={STATUS[d.status].tone}>{STATUS[d.status].label}</StatusPill>
             </div>
 
             {/* Address */}
-            <div className="text-sm text-gray-700 flex items-start gap-2.5">
-                <MapPin className="w-4 h-4 shrink-0 text-brand-blue mt-0.5" />
-                <span className="line-clamp-2 font-medium">{[d.city, d.state].filter(Boolean).join('، ') || d.address}</span>
+            <div className="text-sm font-bold text-black flex items-start gap-2.5">
+                <MapPin className="w-4 h-4 shrink-0 text-black mt-0.5" />
+                <span className="line-clamp-2">{[d.city, d.state].filter(Boolean).join('، ') || d.address}</span>
             </div>
 
             {/* Products Thumbnails Preview */}
@@ -75,32 +75,32 @@ const DeliveryCard: React.FC<{ d: Delivery }> = ({ d }) => {
                         return (
                             <div
                                 key={idx}
-                                className="w-12 h-12 rounded-md bg-white border border-gray-200 overflow-hidden shadow-2xs flex items-center justify-center p-0.5 shrink-0"
+                                className="w-13 h-13 rounded-md bg-white border-2 border-gray-300 overflow-hidden shadow-2xs flex items-center justify-center p-0.5 shrink-0"
                                 title={`${item.name_ar} (×${item.quantity})`}
                             >
                                 {img ? (
                                     <img src={img} alt={item.name_ar} className="w-full h-full object-contain" />
                                 ) : (
-                                    <Package className="w-5 h-5 text-gray-300" />
+                                    <Package className="w-6 h-6 text-black" />
                                 )}
                             </div>
                         );
                     })}
                     {d.items.length > 4 && (
-                        <span className="w-8 h-12 rounded-md bg-gray-100 border border-gray-200 flex items-center justify-center text-xs font-black text-gray-600">
+                        <span className="w-9 h-13 rounded-md bg-gray-200 border-2 border-gray-300 flex items-center justify-center text-xs font-black text-black">
                             +{d.items.length - 4}
                         </span>
                     )}
                 </div>
 
                 <div className="text-left shrink-0">
-                    <span className="text-xs text-gray-500 font-bold block">{d.itemCount} قطعة</span>
+                    <span className="text-xs text-black font-black block">{d.itemCount} قطعة</span>
                     {d.codAmount != null ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-black text-amber-900 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded-md font-mono" dir="ltr">
-                            <Banknote className="w-3.5 h-3.5 text-amber-600" /> {formatSDG(d.codAmount)}
+                        <span className="inline-flex items-center gap-1 text-sm font-black text-black bg-amber-100 border border-amber-400 px-2.5 py-1 rounded-md font-mono mt-0.5" dir="ltr">
+                            <Banknote className="w-4 h-4 text-black" /> {formatSDG(d.codAmount)}
                         </span>
                     ) : (
-                        <span className="text-[11px] font-black text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-md">
+                        <span className="text-xs font-black text-black bg-emerald-100 border border-emerald-400 px-2.5 py-1 rounded-md mt-0.5 inline-block">
                             مدفوع مسبقاً
                         </span>
                     )}
@@ -108,29 +108,29 @@ const DeliveryCard: React.FC<{ d: Delivery }> = ({ d }) => {
             </div>
 
             {/* Actions */}
-            <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-3">
+            <div className="pt-3 border-t border-gray-200 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                     <a
                         href={`tel:${d.phone}`}
-                        className="p-2.5 rounded-md bg-sky-50 text-sky-800 hover:bg-sky-100 transition-colors border border-sky-200"
+                        className="p-3 rounded-md bg-gray-100 text-black hover:bg-gray-200 transition-colors border border-gray-400 font-bold"
                         title="اتصال بالعميل"
                     >
-                        <Phone className="w-4 h-4" />
+                        <Phone className="w-4 h-4 text-black" />
                     </a>
                     <a
                         href={whatsappUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-2.5 rounded-md bg-emerald-50 text-emerald-800 hover:bg-emerald-100 transition-colors border border-emerald-200"
+                        className="p-3 rounded-md bg-emerald-50 text-black hover:bg-emerald-100 transition-colors border border-emerald-400 font-bold"
                         title="مراسلة واتساب"
                     >
-                        <MessageCircle className="w-4 h-4" />
+                        <MessageCircle className="w-4 h-4 text-black" />
                     </a>
                 </div>
 
                 <Link
                     to={`/driver/orders/${d.id}`}
-                    className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-md bg-brand-blue hover:bg-blue-700 text-white font-bold text-sm shadow-xs transition-colors"
+                    className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-md bg-black hover:bg-gray-800 text-white font-black text-sm shadow-xs transition-colors"
                 >
                     <span>تفاصيل التوصيل</span>
                     <ChevronLeft className="w-4 h-4" />
@@ -147,9 +147,9 @@ const Section: React.FC<{ title: string; icon: React.ReactNode; items: Delivery[
 }) =>
     items.length === 0 ? null : (
         <section className="mb-6">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-black text-gray-900">
+            <h2 className="mb-3 flex items-center gap-2 text-base font-black text-black">
                 {icon} {title}
-                <span className="rounded-md bg-gray-100 border border-gray-200 px-2 py-0.5 text-xs font-bold text-gray-700">
+                <span className="rounded-md bg-black text-white px-2.5 py-0.5 text-xs font-black">
                     {items.length}
                 </span>
             </h2>
@@ -194,7 +194,7 @@ export const DriverHomePage: React.FC = () => {
             empty={deliveries.length === 0}
             emptyState={
                 <EmptyState
-                    icon={<Truck className="w-8 h-8" />}
+                    icon={<Truck className="w-8 h-8 text-black" />}
                     title="لا توجد توصيلات مسندة إليك"
                     body={
                         profile?.status === 'offline'
@@ -204,46 +204,46 @@ export const DriverHomePage: React.FC = () => {
                 />
             }
         >
-            <div className="max-w-4xl mx-auto space-y-5">
-                {/* Cash Drawer Banner Button */}
+            <div className="max-w-4xl mx-auto space-y-5 text-black">
+                {/* Cash Drawer High Contrast Card */}
                 <div>
                     <button
                         type="button"
                         onClick={() => setCashModalOpen(true)}
-                        className="w-full flex items-center justify-between p-5 rounded-lg bg-linear-to-r from-amber-500 via-amber-600 to-orange-600 text-white shadow-xs hover:brightness-105 transition-all"
+                        className="w-full flex items-center justify-between p-5 sm:p-6 rounded-lg bg-amber-100 border-2 border-amber-400 text-black shadow-xs hover:bg-amber-200/80 transition-all text-right"
                     >
                         <div className="flex items-center gap-3.5">
-                            <div className="w-10 h-10 rounded-md bg-white/20 backdrop-blur-xs flex items-center justify-center">
-                                <Wallet className="w-5 h-5 text-white" />
+                            <div className="w-12 h-12 rounded-md bg-black text-amber-300 flex items-center justify-center shrink-0">
+                                <Wallet className="w-6 h-6" />
                             </div>
                             <div className="text-right">
-                                <p className="text-xs font-bold text-amber-100">صندوق النقدية والعهدة (COD)</p>
-                                <p className="text-xl font-black font-mono mt-0.5" dir="ltr">
+                                <p className="text-sm font-black text-black">صندوق النقدية والعهدة (COD)</p>
+                                <p className="text-2xl font-black text-black font-mono mt-0.5" dir="ltr">
                                     {formatSDG(totalCollectedToday)}
                                 </p>
                             </div>
                         </div>
-                        <span className="text-xs font-bold bg-white text-amber-900 px-3.5 py-2 rounded-md shadow-2xs hover:bg-amber-50 transition-colors">
+                        <span className="text-sm font-black bg-black text-white px-4 py-2.5 rounded-md shadow-xs hover:bg-gray-800 transition-colors shrink-0">
                             تسليم العهدة
                         </span>
                     </button>
                 </div>
 
-                {/* Search Bar */}
+                {/* Search Bar - High Contrast Dark Black */}
                 <div className="relative">
                     <input
                         type="text"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="بحث برقم الطلب، اسم العميل، أو الهاتف..."
-                        className="w-full pl-4 pr-11 py-3 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand-blue focus:ring-1 focus:ring-brand-blue outline-hidden shadow-2xs transition-all"
+                        className="w-full pl-4 pr-12 py-3.5 rounded-md border-2 border-gray-400 bg-white text-base font-bold text-black placeholder:text-gray-800 placeholder:font-bold focus:border-black focus:ring-2 focus:ring-black outline-hidden shadow-xs transition-all"
                     />
-                    <Search className="w-5 h-5 text-gray-400 absolute right-3.5 top-3" />
+                    <Search className="w-6 h-6 text-black absolute right-3.5 top-3.5" />
                 </div>
 
-                <Section title="في الطريق الآن" icon={<Truck className="w-4 h-4 text-sky-600" />} items={onTheRoad} />
-                <Section title="جاهزة للاستلام من المستودع" icon={<ClipboardList className="w-4 h-4 text-amber-600" />} items={assigned} />
-                <Section title="أُنجزت اليوم" icon={<PackageCheck className="w-4 h-4 text-emerald-600" />} items={done} />
+                <Section title="في الطريق الآن" icon={<Truck className="w-5 h-5 text-black" />} items={onTheRoad} />
+                <Section title="جاهزة للاستلام من المستودع" icon={<ClipboardList className="w-5 h-5 text-black" />} items={assigned} />
+                <Section title="أُنجزت اليوم" icon={<PackageCheck className="w-5 h-5 text-black" />} items={done} />
 
                 <DriverCashDrawerModal isOpen={cashModalOpen} onClose={() => setCashModalOpen(false)} />
             </div>
