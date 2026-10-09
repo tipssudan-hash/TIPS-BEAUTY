@@ -5,22 +5,16 @@ import {
     RefreshCw,
     UserCheck,
     Truck,
-    CheckCircle2,
     Phone,
     MessageCircle,
     MapPin,
     Search,
     Banknote,
-    Warehouse,
     ChevronDown,
     ChevronUp,
     CheckSquare,
     Square,
-    User,
-    Save,
-    Shield,
     Clock,
-    Tag,
 } from 'lucide-react';
 import {
     fetchSupervisorProfile,
@@ -37,9 +31,9 @@ import {
     type WarehouseDriverOption,
     type DriverCashRemittance,
 } from '@infrastructure/repositories';
-import { formatSDG, formatDateTime, formatRelative } from '@application/services/format';
+import { formatSDG, formatDateTime } from '@application/services/format';
 import { errorMessage } from '@application/errors';
-import { PageState, EmptyState, Spinner, Notice, inputClass, primaryButtonClass, Card, StatusPill, type StatusTone } from '../../components/ui';
+import { PageState, EmptyState, Notice, StatusPill, type StatusTone } from '../../components/ui';
 import { cn } from '@presentation/utils/cn';
 import { useProductImageMap } from '../../hooks/useProductImageMap';
 
@@ -139,7 +133,7 @@ export const SupervisorHomePage: React.FC = () => {
         setSuccess(null);
         try {
             await assignDriverToOrder(orderId, driverId);
-            setSuccess('تم إسناد الطلب للمندوب وتحديث حالته للتجهيز والتوصيل.');
+            setSuccess('تم إسناد الطلب للمندوب بنجاح.');
             const updated = await fetchSupervisorOrders();
             setOrders(updated);
         } catch (err) {
@@ -166,52 +160,38 @@ export const SupervisorHomePage: React.FC = () => {
     };
 
     const handleSaveOrderNotes = async (orderId: string) => {
-        const noteText = editingNotes[orderId];
-        if (noteText === undefined) return;
+        const notesToSave = editingNotes[orderId];
+        if (notesToSave === undefined) return;
 
         setActionBusy((prev) => ({ ...prev, [orderId]: true }));
         setError(null);
-        setSuccess(null);
         try {
-            await updateSupervisorOrderStatus(orderId, undefined, noteText);
-            setSuccess('تم حفظ ملاحظات وموعد التوصيل بنجاح.');
+            await updateSupervisorOrderStatus(orderId, undefined, notesToSave.trim() || undefined);
+            setSuccess('تم حفظ ملاحظات الطلب بنجاح.');
             const updated = await fetchSupervisorOrders();
             setOrders(updated);
         } catch (err) {
-            setError(errorMessage(err, 'تعذر تحديث الملاحظات.'));
+            setError(errorMessage(err, 'تعذر حفظ الملاحظات.'));
         } finally {
             setActionBusy((prev) => ({ ...prev, [orderId]: false }));
         }
     };
 
     const handleConfirmRemittance = async (remittanceId: string) => {
-        if (!window.confirm('هل أنت متأكد من استلام المبلغ النقدي بالكامل من المندوب وإغلاق العهدة؟')) return;
-
         setError(null);
-        setSuccess(null);
         try {
             await confirmDriverCashRemittance(remittanceId);
-            setSuccess('تم تأكيد استلام النقدية بنجاح وإغلاق عهدة المندوب!');
+            setSuccess('تم تأكيد استلام العهدة النقدية بنجاح.');
             const updated = await fetchWarehouseCashRemittances();
             setRemittances(updated);
         } catch (err) {
-            setError(errorMessage(err, 'تعذر تأكيد استلام النقدية.'));
+            setError(errorMessage(err, 'تعذر تأكيد استلام العهدة.'));
         }
-    };
-
-    const cleanPhone = (phone: string) => {
-        const clean = phone.replace(/[^0-9]/g, '');
-        return clean.startsWith('0')
-            ? `249${clean.slice(1)}`
-            : clean.startsWith('249')
-            ? clean
-            : `249${clean}`;
     };
 
     const filteredOrders = useMemo(() => {
         return orders.filter((o) => {
-            const matchesStatus = statusFilter === 'all' || o.status === statusFilter;
-            if (!matchesStatus) return false;
+            if (statusFilter !== 'all' && o.status !== statusFilter) return false;
             if (!orderSearch.trim()) return true;
             const q = orderSearch.trim().toLowerCase();
             return (
@@ -225,11 +205,10 @@ export const SupervisorHomePage: React.FC = () => {
     }, [orders, statusFilter, orderSearch]);
 
     const filteredInventory = useMemo(() => {
-        return inventory.filter((i) => {
-            if (lowStockOnly && !i.isLow) return false;
+        return inventory.filter((row) => {
+            if (lowStockOnly && !row.isLow) return false;
             if (!inventorySearch.trim()) return true;
-            const q = inventorySearch.trim().toLowerCase();
-            return i.productName.toLowerCase().includes(q);
+            return row.productName.toLowerCase().includes(inventorySearch.trim().toLowerCase());
         });
     }, [inventory, lowStockOnly, inventorySearch]);
 
@@ -239,27 +218,29 @@ export const SupervisorHomePage: React.FC = () => {
         return drivers.filter((d) => d.name.toLowerCase().includes(q) || d.phone.includes(q));
     }, [drivers, driverSearch]);
 
-    const lowCount = inventory.filter((i) => i.isLow).length;
-    const pendingRemittancesCount = remittances.filter((r) => r.status === 'submitted').length;
-    const pendingOrdersCount = orders.filter((o) => o.status === 'new' || o.status === 'confirmed').length;
+    const cleanPhone = (p: string) => {
+        const raw = p.replace(/[^0-9]/g, '');
+        return raw.startsWith('0') ? `249${raw.slice(1)}` : raw.startsWith('249') ? raw : `249${raw}`;
+    };
 
-    if (!profile) {
+    const pendingOrdersCount = orders.filter((o) => o.status === 'confirmed' || o.status === 'preparing' || o.status === 'new').length;
+    const pendingRemittancesCount = remittances.filter((r) => r.status === 'submitted').length;
+    const lowCount = inventory.filter((i) => i.isLow).length;
+
+    if (!loading && !profile) {
         return (
-            <div className="max-w-xl mx-auto my-16 p-8 sm:p-10 bg-white rounded-card border border-brand-blue-soft text-center shadow-card space-y-5" dir="rtl">
-                <div className="w-16 h-16 rounded-card bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200 shadow-xs">
-                    <Shield className="w-8 h-8" />
-                </div>
+            <div className="max-w-2xl mx-auto py-12 px-6 bg-white rounded-lg border border-gray-200 shadow-xs text-center space-y-4">
                 <h2 className="font-black text-xl text-gray-900">هذا الحساب غير معين كمشرف مستودع</h2>
                 <p className="text-sm text-gray-600 leading-relaxed font-medium">
-                    لم يتم ربط حسابك بأي مستودع تشغيلي حتى الآن. يرجى من المسؤول الانتقال إلى لوحة تحكم الإدارة (Admin Portal) وتعيينك كمشرف مستودع من صفحة <strong className="text-brand-blue">المخازن والمشرفين</strong>.
+                    لم يتم ربط حسابك بأي مستودع تشغيلي حتى الآن. يرجى من المسؤول الانتقال إلى لوحة تحكم الإدارة وتعيينك كمشرف مستودع.
                 </p>
                 <div className="pt-2">
                     <button
                         type="button"
                         onClick={() => void load()}
-                        className="inline-flex items-center gap-2 px-6 py-3 rounded-control bg-brand-blue text-white text-xs font-bold shadow-card-glow hover:bg-brand-blue/90 active:scale-98 transition-all"
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-black text-white text-xs font-bold hover:bg-gray-800 transition-all"
                     >
-                        <RefreshCw className="w-4 h-4" /> إعادة التحقق من الصلاحيات
+                        <RefreshCw className="w-4 h-4" /> إعادة التحقق
                     </button>
                 </div>
             </div>
@@ -268,104 +249,75 @@ export const SupervisorHomePage: React.FC = () => {
 
     return (
         <PageState loading={loading} error={error} onRetry={() => void load()} empty={false}>
-            {/* Beauty Storefront Header Banner */}
-            <div className="mb-8 bg-gradient-to-l from-brand-blue via-[#0066b2] to-[#004070] text-white rounded-card p-6 sm:p-8 shadow-card-glow relative overflow-hidden border border-brand-blue/30">
-                <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
-                <div className="absolute bottom-0 left-0 w-64 h-64 bg-brand-green/20 rounded-full blur-2xl -ml-20 -mb-20 pointer-events-none" />
-                
-                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 rounded-card bg-white/15 backdrop-blur-md text-white flex items-center justify-center border border-white/25 shadow-card">
-                            <Warehouse className="w-8 h-8 text-white" />
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h1 className="text-2xl sm:text-3xl font-black tracking-tight">{profile.warehouseName}</h1>
-                                <span className="px-2.5 py-0.5 rounded-full bg-brand-green/30 border border-brand-green/40 text-green-100 text-[11px] font-black">
-                                    نشط
-                                </span>
+            {/* Clean Warehouse & Metrics Unified Card */}
+            {profile && (
+                <div className="mb-6 bg-white p-5 rounded-lg border border-gray-200 shadow-xs">
+                    {/* Top Row: Warehouse Name */}
+                    <div className="pb-4 border-b border-gray-100">
+                        <h1 className="text-xl sm:text-2xl font-black text-gray-900">{profile.warehouseName}</h1>
+                        <p className="text-xs text-gray-500 mt-1 flex items-center gap-1 font-medium">
+                            <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                            {profile.warehouseCity}، {profile.warehouseState}
+                        </p>
+                    </div>
+
+                    {/* Bottom Row: 4 Metrics Grid inside the same rectangle */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 pt-5">
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100">
+                            <div>
+                                <p className="text-xs text-black font-black">طلبات بانتظار التجهيز</p>
+                                <p className="text-xl sm:text-2xl font-black text-black mt-1 font-mono">{pendingOrdersCount}</p>
                             </div>
-                            <p className="text-xs sm:text-sm text-blue-100 mt-1 flex items-center gap-1.5 font-medium">
-                                <MapPin className="w-3.5 h-3.5 text-sky-200" />
-                                {profile.warehouseCity}، {profile.warehouseState} · مركز التجهيز والتوزيع
-                            </p>
+                            <Package className="w-5 h-5 text-gray-700" />
                         </div>
-                    </div>
 
-                    <button
-                        type="button"
-                        onClick={() => void load()}
-                        aria-label="تحديث البيانات"
-                        className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-control bg-white/20 hover:bg-white/30 active:scale-95 text-xs font-black text-white transition-all backdrop-blur-sm border border-white/30 shadow-card shrink-0"
-                    >
-                        <RefreshCw className="w-4 h-4" /> تحديث البيانات
-                    </button>
-                </div>
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100">
+                            <div>
+                                <p className="text-xs text-black font-black">المناديب المسجلين</p>
+                                <p className="text-xl sm:text-2xl font-black text-black mt-1 font-mono">{drivers.length}</p>
+                            </div>
+                            <Truck className="w-5 h-5 text-gray-700" />
+                        </div>
 
-                {/* KPI Metrics Dashboard */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-6 pt-6 border-t border-white/15">
-                    <div className="bg-white/10 backdrop-blur-xs rounded-card p-4 border border-white/10 flex items-center justify-between">
-                        <div>
-                            <p className="text-xs text-blue-100 font-bold">طلبات بانتظار التجهيز</p>
-                            <p className="text-2xl font-black text-amber-300 mt-1">{pendingOrdersCount}</p>
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100">
+                            <div>
+                                <p className="text-xs text-black font-black">عهد نقدية للتأكيد</p>
+                                <p className="text-xl sm:text-2xl font-black text-black mt-1 font-mono">{pendingRemittancesCount}</p>
+                            </div>
+                            <Banknote className="w-5 h-5 text-gray-700" />
                         </div>
-                        <div className="w-10 h-10 rounded-xl bg-amber-400/20 flex items-center justify-center text-amber-300">
-                            <Package className="w-5 h-5" />
-                        </div>
-                    </div>
 
-                    <div className="bg-white/10 backdrop-blur-xs rounded-card p-4 border border-white/10 flex items-center justify-between">
-                        <div>
-                            <p className="text-xs text-blue-100 font-bold">المناديب المسجلين</p>
-                            <p className="text-2xl font-black text-sky-200 mt-1">{drivers.length}</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-xl bg-sky-400/20 flex items-center justify-center text-sky-200">
-                            <Truck className="w-5 h-5" />
-                        </div>
-                    </div>
-
-                    <div className="bg-white/10 backdrop-blur-xs rounded-card p-4 border border-white/10 flex items-center justify-between">
-                        <div>
-                            <p className="text-xs text-blue-100 font-bold">عهد نقدية للتأكيد</p>
-                            <p className="text-2xl font-black text-emerald-300 mt-1">{pendingRemittancesCount}</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-xl bg-emerald-400/20 flex items-center justify-center text-emerald-300">
-                            <Banknote className="w-5 h-5" />
-                        </div>
-                    </div>
-
-                    <div className="bg-white/10 backdrop-blur-xs rounded-card p-4 border border-white/10 flex items-center justify-between">
-                        <div>
-                            <p className="text-xs text-blue-100 font-bold">تنبيهات انخفاض المخزون</p>
-                            <p className="text-2xl font-black text-rose-300 mt-1">{lowCount}</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-xl bg-rose-400/20 flex items-center justify-center text-rose-300">
-                            <AlertTriangle className="w-5 h-5" />
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100">
+                            <div>
+                                <p className="text-xs text-black font-black">تنبيهات نقص المخزون</p>
+                                <p className="text-xl sm:text-2xl font-black text-black mt-1 font-mono">{lowCount}</p>
+                            </div>
+                            <AlertTriangle className="w-5 h-5 text-gray-700" />
                         </div>
                     </div>
                 </div>
-            </div>
+            )}
 
-            {success && <div className="mb-6"><Notice kind="success">{success}</Notice></div>}
-            {error && <div className="mb-6"><Notice kind="error">{error}</Notice></div>}
+            {success && <div className="mb-4"><Notice kind="success">{success}</Notice></div>}
+            {error && <div className="mb-4"><Notice kind="error">{error}</Notice></div>}
 
-            {/* Navigation Tabs */}
-            <div className="bg-white rounded-card border border-brand-blue-soft p-1.5 shadow-card mb-8 flex flex-wrap gap-1">
+            {/* Navigation Tabs - White text inside Black on highlight */}
+            <div className="bg-white rounded-lg border border-gray-200 p-1 shadow-xs mb-6 flex flex-wrap gap-1">
                 <button
                     type="button"
                     onClick={() => setTab('orders')}
                     className={cn(
-                        'flex-1 min-w-[140px] py-3 px-4 rounded-control text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2',
+                        'flex-1 min-w-[130px] py-2.5 px-4 rounded-md text-xs sm:text-sm font-bold transition-colors flex items-center justify-center gap-2',
                         tab === 'orders'
-                            ? 'bg-brand-blue text-white shadow-card-glow'
-                            : 'text-gray-600 hover:text-brand-blue hover:bg-brand-blue-soft'
+                            ? 'bg-black text-white'
+                            : 'text-gray-700 hover:bg-gray-100'
                     )}
                 >
                     <Package className="w-4 h-4" />
                     <span>الطلبات والتجهيز</span>
                     <span className={cn(
-                        'px-2 py-0.5 rounded-full text-[11px] font-bold',
-                        tab === 'orders' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-700'
+                        'px-2 py-0.2 rounded-md text-xs font-mono font-bold',
+                        tab === 'orders' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-800'
                     )}>
                         {orders.length}
                     </span>
@@ -375,17 +327,17 @@ export const SupervisorHomePage: React.FC = () => {
                     type="button"
                     onClick={() => setTab('drivers')}
                     className={cn(
-                        'flex-1 min-w-[140px] py-3 px-4 rounded-control text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2',
+                        'flex-1 min-w-[130px] py-2.5 px-4 rounded-md text-xs sm:text-sm font-bold transition-colors flex items-center justify-center gap-2',
                         tab === 'drivers'
-                            ? 'bg-brand-blue text-white shadow-card-glow'
-                            : 'text-gray-600 hover:text-brand-blue hover:bg-brand-blue-soft'
+                            ? 'bg-black text-white'
+                            : 'text-gray-700 hover:bg-gray-100'
                     )}
                 >
                     <Truck className="w-4 h-4" />
                     <span>فريق المناديب</span>
                     <span className={cn(
-                        'px-2 py-0.5 rounded-full text-[11px] font-bold',
-                        tab === 'drivers' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-700'
+                        'px-2 py-0.2 rounded-md text-xs font-mono font-bold',
+                        tab === 'drivers' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-800'
                     )}>
                         {drivers.length}
                     </span>
@@ -395,17 +347,20 @@ export const SupervisorHomePage: React.FC = () => {
                     type="button"
                     onClick={() => setTab('remittances')}
                     className={cn(
-                        'flex-1 min-w-[140px] py-3 px-4 rounded-control text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2',
+                        'flex-1 min-w-[130px] py-2.5 px-4 rounded-md text-xs sm:text-sm font-bold transition-colors flex items-center justify-center gap-2',
                         tab === 'remittances'
-                            ? 'bg-brand-blue text-white shadow-card-glow'
-                            : 'text-gray-600 hover:text-brand-blue hover:bg-brand-blue-soft'
+                            ? 'bg-black text-white'
+                            : 'text-gray-700 hover:bg-gray-100'
                     )}
                 >
                     <Banknote className="w-4 h-4" />
                     <span>تسليم العهد النقدية</span>
                     {pendingRemittancesCount > 0 && (
-                        <span className="px-2 py-0.5 rounded-full bg-amber-400 text-amber-950 text-[10px] font-black animate-pulse">
-                            {pendingRemittancesCount} جديد
+                        <span className={cn(
+                            'px-2 py-0.2 rounded-md text-xs font-bold',
+                            tab === 'remittances' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-900'
+                        )}>
+                            {pendingRemittancesCount}
                         </span>
                     )}
                 </button>
@@ -414,17 +369,20 @@ export const SupervisorHomePage: React.FC = () => {
                     type="button"
                     onClick={() => setTab('inventory')}
                     className={cn(
-                        'flex-1 min-w-[140px] py-3 px-4 rounded-control text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2',
+                        'flex-1 min-w-[130px] py-2.5 px-4 rounded-md text-xs sm:text-sm font-bold transition-colors flex items-center justify-center gap-2',
                         tab === 'inventory'
-                            ? 'bg-brand-blue text-white shadow-card-glow'
-                            : 'text-gray-600 hover:text-brand-blue hover:bg-brand-blue-soft'
+                            ? 'bg-black text-white'
+                            : 'text-gray-700 hover:bg-gray-100'
                     )}
                 >
-                    <Warehouse className="w-4 h-4" />
+                    <Package className="w-4 h-4" />
                     <span>مخزون المنتجات</span>
                     {lowCount > 0 && (
-                        <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black">
-                            {lowCount} ناقص
+                        <span className={cn(
+                            'px-2 py-0.2 rounded-md text-xs font-bold',
+                            tab === 'inventory' ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-900'
+                        )}>
+                            {lowCount}
                         </span>
                     )}
                 </button>
@@ -432,34 +390,34 @@ export const SupervisorHomePage: React.FC = () => {
 
             {/* TAB 1: ORDERS & PACKING */}
             {tab === 'orders' && (
-                <div className="space-y-6">
+                <div className="space-y-4">
                     {/* Search & Filter Header */}
-                    <div className="bg-white p-4 sm:p-5 rounded-card border border-brand-blue-soft shadow-card flex flex-col md:flex-row gap-4 items-stretch justify-between">
+                    <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-xs flex flex-col md:flex-row gap-3 items-stretch justify-between">
                         <div className="relative flex-1">
                             <input
                                 type="text"
                                 value={orderSearch}
                                 onChange={(e) => setOrderSearch(e.target.value)}
-                                placeholder="بحث برقم الطلب، اسم العميل، رقم الهاتف، العنوان، أو اسم المندوب..."
-                                className="w-full pl-4 pr-11 py-3 rounded-control border border-gray-200 bg-slate-50/50 text-xs sm:text-sm font-bold focus:border-brand-blue focus:bg-white focus:ring-2 focus:ring-brand-blue/20 outline-hidden transition-all shadow-xs"
+                                placeholder="بحث برقم الطلب، اسم العميل، الهاتف، أو المندوب..."
+                                className="w-full pl-4 pr-10 py-2.5 rounded-lg border border-gray-200 bg-gray-50/60 text-xs sm:text-sm font-medium focus:border-black focus:bg-white outline-hidden transition-all text-gray-900"
                             />
-                            <Search className="w-5 h-5 text-gray-400 absolute right-3.5 top-3.5" />
+                            <Search className="w-4 h-4 text-gray-400 absolute right-3.5 top-3" />
                         </div>
 
-                        <div className="flex gap-2 overflow-x-auto pb-1 items-center">
+                        <div className="flex gap-1.5 overflow-x-auto pb-0.5 items-center">
                             {(['all', 'new', 'confirmed', 'preparing', 'shipped'] as const).map((s) => (
                                 <button
                                     key={s}
                                     type="button"
                                     onClick={() => setStatusFilter(s)}
                                     className={cn(
-                                        'px-4 py-2.5 rounded-control text-xs font-black whitespace-nowrap transition-all',
+                                        'px-3 py-1.5 rounded-md text-xs font-bold whitespace-nowrap transition-colors',
                                         statusFilter === s
-                                            ? 'bg-brand-blue text-white shadow-card-glow'
-                                            : 'bg-slate-100/70 border border-gray-200/80 text-gray-700 hover:bg-brand-blue-soft hover:text-brand-blue'
+                                            ? 'bg-black text-white'
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                     )}
                                 >
-                                    {s === 'all' ? 'جميع الطلبات' : STATUS_CONFIG[s]?.label || s}
+                                    {s === 'all' ? 'الكل' : STATUS_CONFIG[s]?.label || s}
                                 </button>
                             ))}
                         </div>
@@ -467,12 +425,11 @@ export const SupervisorHomePage: React.FC = () => {
 
                     {filteredOrders.length === 0 ? (
                         <EmptyState
-                            icon={<Package className="w-12 h-12 text-gray-300" />}
                             title="لا توجد طلبات مطابقة"
                             body="لم يتم العثور على طلبات في هذا المستودع وفقاً لمعايير البحث الحالية."
                         />
                     ) : (
-                        <div className="space-y-5">
+                        <div className="space-y-3">
                             {filteredOrders.map((o) => {
                                 const isExpanded = !!expandedOrders[o.id];
                                 const isBusy = !!actionBusy[o.id];
@@ -481,123 +438,112 @@ export const SupervisorHomePage: React.FC = () => {
                                     `مرحباً ${o.customerName}، معكم إدارة مستودع تيبس لمستحضرات التجميل بخصوص طلبكم رقم (${o.orderNumber}).`
                                 )}`;
 
-                                const driverPhoneClean = o.driverPhone ? cleanPhone(o.driverPhone) : '';
-                                const driverWhatsappUrl = driverPhoneClean
-                                    ? `https://wa.me/${driverPhoneClean}?text=${encodeURIComponent(
-                                          `مرحباً ${o.driverName}، متابعة بخصوص تسليم طلب العميل ${o.customerName} رقم (${o.orderNumber}).`
-                                      )}`
-                                    : '';
-
                                 const currentNotes = editingNotes[o.id] !== undefined ? editingNotes[o.id] : (o.notes || '');
 
                                 return (
-                                    <Card
+                                    <div
                                         key={o.id}
-                                        className={cn(
-                                            'overflow-hidden transition-all duration-200 border border-brand-blue-soft shadow-card hover:shadow-card-glow',
-                                            isExpanded ? 'ring-2 ring-brand-blue/30' : ''
-                                        )}
+                                        className="bg-white rounded-lg border border-gray-200 shadow-xs hover:border-gray-400 transition-colors overflow-hidden"
                                     >
-                                        {/* Order Summary Card Header (Storefront Style) */}
+                                        {/* Order Summary Header */}
                                         <div
                                             onClick={() => toggleOrderExpanded(o.id)}
-                                            className="p-5 sm:p-6 cursor-pointer hover:bg-slate-50/70 transition-colors select-none"
+                                            className="p-4 sm:p-5 cursor-pointer hover:bg-gray-50/60 transition-colors select-none"
                                         >
-                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                                <div className="space-y-2">
-                                                    <div className="flex items-center gap-3 flex-wrap">
-                                                        <span className="font-mono font-black text-gray-900 text-base sm:text-lg">
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                <div className="space-y-1.5">
+                                                    <div className="flex items-center gap-2.5 flex-wrap">
+                                                        <span className="font-mono font-bold text-gray-900 text-sm sm:text-base">
                                                             #{o.orderNumber}
                                                         </span>
                                                         <StatusPill tone={STATUS_CONFIG[o.status]?.tone || 'neutral'}>
                                                             {STATUS_CONFIG[o.status]?.label || o.status}
                                                         </StatusPill>
-                                                        <span className="text-xs font-bold text-gray-500 flex items-center gap-1">
-                                                            <Clock className="w-3.5 h-3.5" />
+                                                        <span className="text-xs text-gray-500 flex items-center gap-1 font-medium">
+                                                            <Clock className="w-3 h-3 text-gray-400" />
                                                             {formatDateTime(o.createdAt)}
                                                         </span>
                                                     </div>
 
-                                                    <div className="flex items-center gap-3 flex-wrap text-sm font-bold text-gray-900">
-                                                        <span className="text-base text-gray-950">{o.customerName}</span>
+                                                    <div className="flex items-center gap-2.5 flex-wrap text-sm font-bold text-gray-900">
+                                                        <span>{o.customerName}</span>
                                                         <span className="text-gray-300">•</span>
                                                         <span className="text-xs text-gray-500 font-medium flex items-center gap-1">
-                                                            <MapPin className="w-3.5 h-3.5 text-brand-blue" />
+                                                            <MapPin className="w-3.5 h-3.5 text-gray-400" />
                                                             {[o.city, o.state].filter(Boolean).join(' - ') || o.shippingAddress}
                                                         </span>
                                                     </div>
                                                 </div>
 
-                                                <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 pt-3 sm:pt-0 border-gray-100">
+                                                <div className="flex items-center justify-between sm:justify-end gap-3 border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-100">
                                                     <div className="text-left sm:text-right">
-                                                        <span className="text-[11px] text-gray-400 font-bold block">إجمالي الطلب</span>
-                                                        <span className="text-lg sm:text-xl font-black text-brand-blue font-mono" dir="ltr">
+                                                        <span className="text-[10px] text-gray-400 font-bold block">إجمالي الطلب</span>
+                                                        <span className="text-base sm:text-lg font-black text-gray-900 font-mono" dir="ltr">
                                                             {formatSDG(o.total)}
                                                         </span>
                                                     </div>
 
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-xs font-bold text-gray-600 bg-brand-blue-soft px-3 py-1.5 rounded-control">
+                                                        <span className="text-xs font-bold text-gray-700 bg-gray-100 px-2.5 py-1 rounded-md">
                                                             {o.itemCount} قطع
                                                         </span>
-                                                        <div className="p-2 text-gray-400 hover:text-brand-blue rounded-control hover:bg-brand-blue-soft transition-colors">
-                                                            {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                                                        <div className="p-1.5 text-gray-500 hover:text-black rounded-md transition-colors">
+                                                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
 
                                             {/* Driver assignment quick strip */}
-                                            <div className="mt-4 pt-3 border-t border-gray-100/80 flex items-center justify-between text-xs">
-                                                <div className="flex items-center gap-2 font-medium">
-                                                    <span className="text-gray-500 font-bold">المندوب:</span>
-                                                    {o.driverName ? (
-                                                        <span className="text-brand-blue font-bold bg-brand-blue-soft px-2.5 py-1 rounded-control flex items-center gap-1.5">
-                                                            <Truck className="w-3.5 h-3.5" />
-                                                            {o.driverName}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-amber-800 font-bold bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-control">
-                                                            لم يُسند لمندوب بعد
-                                                        </span>
-                                                    )}
-                                                </div>
+                                            {(() => {
+                                                const driverDisplayName = o.driverName || (o.driverId ? drivers.find((d) => d.id === o.driverId)?.name : null);
+                                                return (
+                                                    <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs">
+                                                        <div className="flex items-center gap-1.5 font-medium">
+                                                            <span className="text-gray-500 font-bold">المندوب:</span>
+                                                            {driverDisplayName ? (
+                                                                <span className="text-gray-900 font-bold bg-gray-100 px-2 py-0.5 rounded-md">
+                                                                    {driverDisplayName}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-gray-500 font-medium">
+                                                                    لم يُسند بعد
+                                                                </span>
+                                                            )}
+                                                        </div>
 
-                                                <span className="text-[11px] text-brand-blue font-bold underline">
-                                                    {isExpanded ? 'إخفاء التفاصيل والتجهيز' : 'عرض محتويات الشحنة والتجهيز ←'}
-                                                </span>
-                                            </div>
+                                                        <span className="text-xs font-bold text-gray-700 hover:text-black">
+                                                            {isExpanded ? 'إخفاء التفاصيل' : 'عرض التفاصيل والتجهيز ←'}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
 
                                         {/* Expanded Detailed View */}
                                         {isExpanded && (
-                                            <div className="p-5 sm:p-6 border-t border-brand-blue-soft bg-slate-50/40 space-y-6">
-                                                {/* 1. Customer & Delivery Information Card */}
-                                                <div className="bg-white rounded-card p-5 border border-brand-blue-soft shadow-xs space-y-4">
-                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
-                                                        <div className="flex items-center gap-2.5">
-                                                            <div className="w-8 h-8 rounded-control bg-brand-blue-soft text-brand-blue flex items-center justify-center">
-                                                                <User className="w-4 h-4" />
-                                                            </div>
-                                                            <div>
-                                                                <h3 className="font-black text-gray-900 text-sm">بيانات العميل والتوصيل</h3>
-                                                                <p className="text-xs text-gray-500">{o.customerName} · {o.phone}</p>
-                                                            </div>
+                                            <div className="p-4 sm:p-5 border-t border-gray-200 bg-gray-50/40 space-y-4">
+                                                {/* 1. Customer & Delivery Info */}
+                                                <div className="bg-white rounded-lg p-4 border border-gray-200 space-y-3">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-gray-100">
+                                                        <div>
+                                                            <h3 className="font-bold text-gray-900 text-xs sm:text-sm">بيانات العميل والتوصيل</h3>
+                                                            <p className="text-xs text-gray-500">{o.customerName} · {o.phone}</p>
                                                         </div>
 
                                                         <div className="flex items-center gap-2">
                                                             <a
                                                                 href={`tel:${o.phone}`}
-                                                                className="flex items-center gap-1.5 px-3.5 py-2 rounded-control bg-sky-50 text-sky-800 border border-sky-200 font-bold text-xs hover:bg-sky-100 transition-colors"
+                                                                className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-gray-100 text-gray-800 hover:bg-gray-200 font-bold text-xs transition-colors"
                                                             >
-                                                                <Phone className="w-3.5 h-3.5 text-sky-600" />
-                                                                اتصال بالعميل
+                                                                <Phone className="w-3.5 h-3.5" />
+                                                                اتصال
                                                             </a>
                                                             <a
                                                                 href={custWhatsappUrl}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
-                                                                className="flex items-center gap-1.5 px-3.5 py-2 rounded-control bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-xs hover:bg-emerald-100 transition-colors"
+                                                                className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 font-bold text-xs transition-colors"
                                                             >
                                                                 <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
                                                                 واتساب
@@ -605,79 +551,59 @@ export const SupervisorHomePage: React.FC = () => {
                                                         </div>
                                                     </div>
 
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium">
-                                                        <div className="space-y-1">
-                                                            <span className="text-gray-400 font-bold block">عنوان التوصيل المسجل:</span>
-                                                            <p className="text-gray-900 font-bold text-sm flex items-start gap-1.5">
-                                                                <MapPin className="w-4 h-4 text-brand-blue shrink-0 mt-0.5" />
-                                                                <span>{o.shippingAddress} {o.city ? `، ${o.city}` : ''} {o.state ? `، ${o.state}` : ''}</span>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                                                        <div>
+                                                            <span className="text-gray-400 font-bold block">العنوان:</span>
+                                                            <p className="text-gray-900 font-medium mt-0.5">
+                                                                {o.shippingAddress} {o.city ? `، ${o.city}` : ''} {o.state ? `، ${o.state}` : ''}
                                                             </p>
                                                         </div>
 
-                                                        <div className="space-y-1">
-                                                            <span className="text-gray-400 font-bold block">طريقة وحالة الدفع:</span>
-                                                            <div className="flex items-center gap-2 text-gray-800 font-bold">
-                                                                <span>{o.paymentMethod === 'COD' ? 'الدفع عند الاستلام (COD)' : o.paymentMethod}</span>
-                                                                <StatusPill tone={o.paymentStatus === 'paid' ? 'success' : 'attention'}>
-                                                                    {o.paymentStatus === 'paid' ? 'تم الدفع' : 'بانتظار التحصيل'}
-                                                                </StatusPill>
-                                                            </div>
+                                                        <div>
+                                                            <span className="text-gray-400 font-bold block">طريقة الدفع:</span>
+                                                            <p className="text-gray-900 font-medium mt-0.5">
+                                                                {o.paymentMethod === 'COD' ? 'الدفع عند الاستلام (COD)' : o.paymentMethod}
+                                                            </p>
                                                         </div>
                                                     </div>
 
-                                                    {/* Delivery Notes / Special Timing Box */}
-                                                    <div className="pt-3 border-t border-gray-100 space-y-2">
-                                                        <label className="block text-xs font-bold text-gray-700">
-                                                            ملاحظات التوصيل أو الموعد المفضل:
-                                                        </label>
-                                                        <div className="flex gap-2">
-                                                            <input
-                                                                type="text"
-                                                                value={currentNotes}
-                                                                onChange={(e) =>
-                                                                    setEditingNotes((prev) => ({
-                                                                        ...prev,
-                                                                        [o.id]: e.target.value,
-                                                                    }))
-                                                                }
-                                                                placeholder="مثال: التوصيل مساءً بعد الساعة 5، أو عمارة كذا شقة كذا..."
-                                                                className={inputClass}
-                                                            />
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => void handleSaveOrderNotes(o.id)}
-                                                                disabled={isBusy}
-                                                                className={cn(primaryButtonClass, 'px-5 py-2.5 text-xs shrink-0 flex items-center gap-1.5')}
-                                                            >
-                                                                <Save className="w-4 h-4" /> حفظ
-                                                            </button>
-                                                        </div>
+                                                    {/* Delivery Notes Box */}
+                                                    <div className="pt-2 border-t border-gray-100 flex gap-2 items-center">
+                                                        <input
+                                                            type="text"
+                                                            value={currentNotes}
+                                                            onChange={(e) =>
+                                                                setEditingNotes((prev) => ({
+                                                                    ...prev,
+                                                                    [o.id]: e.target.value,
+                                                                }))
+                                                            }
+                                                            placeholder="ملاحظات التوصيل أو الموعد المفضل..."
+                                                            className="flex-1 px-3 py-1.5 text-xs rounded-md border border-gray-200 focus:border-black outline-hidden"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void handleSaveOrderNotes(o.id)}
+                                                            disabled={isBusy}
+                                                            className="px-3.5 py-1.5 bg-black text-white hover:bg-gray-800 text-xs font-bold rounded-md transition-colors"
+                                                        >
+                                                            حفظ
+                                                        </button>
                                                     </div>
                                                 </div>
 
-                                                {/* 2. Products and Packing Checklist (Large, Visible, Customer Theme) */}
-                                                <div className="bg-white rounded-card p-5 sm:p-6 border border-brand-blue-soft shadow-xs space-y-4">
-                                                    <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                                                        <div className="flex items-center gap-2.5">
-                                                            <div className="w-8 h-8 rounded-control bg-brand-blue-soft text-brand-blue flex items-center justify-center">
-                                                                <Package className="w-4 h-4" />
-                                                            </div>
-                                                            <div>
-                                                                <h3 className="font-black text-gray-900 text-sm sm:text-base">
-                                                                    محتويات الشحنة للتجهيز ({o.itemCount} قطع)
-                                                                </h3>
-                                                                <p className="text-xs text-gray-500">تحقق من كل صنف أثناء تجهيز الشحنة في كيس التغليف</p>
-                                                            </div>
-                                                        </div>
-
-                                                        <span className="text-xs font-black text-brand-blue bg-brand-blue-soft px-3 py-1.5 rounded-control">
-                                                            قائمة التحقق والتجهيز
-                                                        </span>
+                                                {/* 2. Products and Packing Checklist */}
+                                                <div className="bg-white rounded-lg p-4 border border-gray-200 space-y-3">
+                                                    <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                                                        <h3 className="font-bold text-gray-900 text-xs sm:text-sm">
+                                                            محتويات الشحنة ({o.itemCount} قطع)
+                                                        </h3>
+                                                        <span className="text-xs text-gray-500 font-medium">فحص الأصناف</span>
                                                     </div>
 
                                                     <div className="divide-y divide-gray-100">
                                                         {o.items.map((item, itemIdx) => {
-                                                            const img = getProductImageUrl(item, 200);
+                                                            const img = getProductImageUrl(item, 160);
                                                             const isChecked = !!packingChecked[o.id]?.[itemIdx];
                                                             const unitPrice = item.unit_price;
                                                             const lineTotal = item.line_total ?? (unitPrice ? unitPrice * item.quantity : null);
@@ -687,64 +613,54 @@ export const SupervisorHomePage: React.FC = () => {
                                                                     key={itemIdx}
                                                                     onClick={() => togglePackingItem(o.id, itemIdx)}
                                                                     className={cn(
-                                                                        'py-4 px-3 flex items-center gap-4 cursor-pointer rounded-card transition-all select-none',
-                                                                        isChecked ? 'bg-emerald-50/40 text-gray-500' : 'hover:bg-slate-50'
+                                                                        'py-2.5 px-2 flex items-center gap-3 cursor-pointer rounded-md transition-colors select-none',
+                                                                        isChecked ? 'bg-gray-50 text-gray-400' : 'hover:bg-gray-50'
                                                                     )}
                                                                 >
-                                                                    {/* Interactive Checkbox */}
+                                                                    {/* Checkbox */}
                                                                     <div className="shrink-0">
                                                                         {isChecked ? (
-                                                                            <CheckSquare className="w-6 h-6 text-emerald-600 fill-emerald-100" />
+                                                                            <CheckSquare className="w-5 h-5 text-emerald-600" />
                                                                         ) : (
-                                                                            <Square className="w-6 h-6 text-gray-300 hover:text-brand-blue" />
+                                                                            <Square className="w-5 h-5 text-gray-300" />
                                                                         )}
                                                                     </div>
 
-                                                                    {/* Large Visible Product Image */}
-                                                                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-card bg-white border border-brand-blue-soft shrink-0 overflow-hidden shadow-xs flex items-center justify-center p-1">
+                                                                    {/* Product Image */}
+                                                                    <div className="w-12 h-12 rounded-md bg-white border border-gray-200 shrink-0 overflow-hidden flex items-center justify-center p-0.5">
                                                                         {img ? (
                                                                             <img
                                                                                 src={img}
-                                                                                alt={item.name_ar || 'منتج تجميل'}
+                                                                                alt={item.name_ar || 'منتج'}
                                                                                 className="w-full h-full object-contain"
                                                                             />
                                                                         ) : (
-                                                                            <Package className="w-8 h-8 text-gray-300" />
+                                                                            <Package className="w-5 h-5 text-gray-300" />
                                                                         )}
                                                                     </div>
 
                                                                     {/* Product Details */}
-                                                                    <div className="min-w-0 flex-1 space-y-1">
+                                                                    <div className="min-w-0 flex-1">
                                                                         <p className={cn(
-                                                                            'font-black text-sm sm:text-base text-gray-900 leading-snug',
+                                                                            'font-bold text-xs sm:text-sm text-gray-900',
                                                                             isChecked ? 'line-through text-gray-400' : ''
                                                                         )}>
-                                                                            {item.name_ar || 'منتج تجميل'}
+                                                                            {item.name_ar || 'منتج'}
                                                                         </p>
-
-                                                                        <div className="flex items-center gap-2 flex-wrap text-xs">
-                                                                            {item.variant_name && (
-                                                                                <span className="bg-slate-100 text-gray-700 px-2 py-0.5 rounded-md font-bold flex items-center gap-1">
-                                                                                    <Tag className="w-3 h-3 text-brand-blue" />
-                                                                                    {item.variant_name}
-                                                                                </span>
-                                                                            )}
-
-                                                                            {unitPrice != null && (
-                                                                                <span className="text-gray-500 font-mono" dir="ltr">
-                                                                                    {formatSDG(unitPrice)} للقطعة
-                                                                                </span>
-                                                                            )}
-                                                                        </div>
+                                                                        {item.variant_name && (
+                                                                            <p className="text-[11px] text-gray-500 mt-0.5">
+                                                                                {item.variant_name}
+                                                                            </p>
+                                                                        )}
                                                                     </div>
 
-                                                                    {/* Quantity & Line Total */}
-                                                                    <div className="text-left shrink-0 space-y-1">
-                                                                        <span className="inline-block font-black text-brand-blue bg-brand-blue-soft px-3 py-1.5 rounded-control text-xs sm:text-sm">
+                                                                    {/* Quantity */}
+                                                                    <div className="text-left shrink-0">
+                                                                        <span className="font-bold text-gray-900 bg-gray-100 px-2 py-0.5 rounded-md text-xs">
                                                                             × {item.quantity}
                                                                         </span>
                                                                         {lineTotal != null && (
-                                                                            <p className="text-xs font-mono font-bold text-gray-600 block" dir="ltr">
+                                                                            <p className="text-xs font-mono font-bold text-gray-600 mt-0.5" dir="ltr">
                                                                                 {formatSDG(lineTotal)}
                                                                             </p>
                                                                         )}
@@ -753,136 +669,76 @@ export const SupervisorHomePage: React.FC = () => {
                                                             );
                                                         })}
                                                     </div>
-
-                                                    {/* Order Totals Summary */}
-                                                    <div className="pt-4 border-t border-gray-100 flex items-center justify-between font-bold text-sm bg-slate-50/70 p-3.5 rounded-control">
-                                                        <span className="text-gray-700">إجمالي قيمة المنتجات المطلوب تحصيلها:</span>
-                                                        <span className="text-base font-black text-brand-blue font-mono" dir="ltr">
-                                                            {formatSDG(o.total)}
-                                                        </span>
-                                                    </div>
                                                 </div>
 
-                                                {/* 3. Assigned Driver & Dispatch Actions */}
-                                                <div className="bg-white rounded-card p-5 sm:p-6 border border-brand-blue-soft shadow-xs space-y-4">
-                                                    <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                                                        <div className="flex items-center gap-2.5">
-                                                            <div className="w-8 h-8 rounded-control bg-sky-50 text-brand-blue flex items-center justify-center">
-                                                                <Truck className="w-4 h-4" />
-                                                            </div>
-                                                            <div>
-                                                                <h3 className="font-black text-gray-900 text-sm sm:text-base">
-                                                                    إسناد لمندوب التوصيل وتحديث مسار الطلب
-                                                                </h3>
-                                                                <p className="text-xs text-gray-500">عيّن المندوب المسؤول وانقل الطلب لمرحلة التوصيل</p>
-                                                            </div>
-                                                        </div>
+                                                {/* 3. Driver Assignment & Action */}
+                                                <div className="bg-white rounded-lg p-4 border border-gray-200 space-y-3">
+                                                    <h3 className="font-bold text-gray-900 text-xs sm:text-sm">
+                                                        إسناد لمندوب التوصيل وتحديث الحالة
+                                                    </h3>
 
-                                                        {o.driverName && (
-                                                            <div className="flex items-center gap-2">
-                                                                {o.driverPhone && (
-                                                                    <a
-                                                                        href={`tel:${o.driverPhone}`}
-                                                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-control bg-sky-50 text-sky-800 border border-sky-200 font-bold text-xs hover:bg-sky-100 transition-colors"
-                                                                    >
-                                                                        <Phone className="w-3.5 h-3.5 text-sky-600" />
-                                                                        اتصال بالمندوب
-                                                                    </a>
-                                                                )}
-                                                                {driverWhatsappUrl && (
-                                                                    <a
-                                                                        href={driverWhatsappUrl}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-control bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition-colors shadow-xs"
-                                                                    >
-                                                                        <MessageCircle className="w-3.5 h-3.5" />
-                                                                        واتساب المندوب
-                                                                    </a>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-
-                                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-                                                        <div className="sm:col-span-2">
-                                                            <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                                                                اختيار المندوب المكلف من أسطول المستودع:
-                                                            </label>
-                                                            <select
-                                                                value={selectedDrivers[o.id] || o.driverId || ''}
-                                                                onChange={(e) =>
-                                                                    setSelectedDrivers((prev) => ({
-                                                                        ...prev,
-                                                                        [o.id]: e.target.value,
-                                                                    }))
-                                                                }
-                                                                className={inputClass}
-                                                            >
-                                                                <option value="">-- اضغط لاختيار المندوب --</option>
-                                                                {drivers.map((d) => (
-                                                                    <option key={d.id} value={d.id}>
-                                                                        {d.name} ({d.phone}) - {d.status === 'active' ? 'متاح' : d.status === 'busy' ? 'في مهمة' : 'غير متاح'}
-                                                                    </option>
-                                                                ))}
-                                                            </select>
-                                                        </div>
+                                                    <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center">
+                                                        <select
+                                                            value={selectedDrivers[o.id] || o.driverId || ''}
+                                                            onChange={(e) =>
+                                                                setSelectedDrivers((prev) => ({
+                                                                    ...prev,
+                                                                    [o.id]: e.target.value,
+                                                                }))
+                                                            }
+                                                            className="flex-1 px-3 py-2 text-xs rounded-md border border-gray-200 bg-white focus:border-black outline-hidden text-gray-900"
+                                                        >
+                                                            <option value="">-- اختيار المندوب --</option>
+                                                            {drivers.map((d) => (
+                                                                <option key={d.id} value={d.id}>
+                                                                    {d.name} ({d.phone})
+                                                                </option>
+                                                            ))}
+                                                        </select>
 
                                                         <button
                                                             type="button"
                                                             onClick={() => void handleAssignDriver(o.id)}
                                                             disabled={isBusy || !selectedDrivers[o.id]}
-                                                            className={cn(primaryButtonClass, 'w-full py-3 text-xs flex items-center justify-center gap-2')}
+                                                            className="px-4 py-2 bg-black hover:bg-gray-800 disabled:opacity-40 text-white font-bold text-xs rounded-md transition-colors shrink-0 flex items-center justify-center gap-1.5"
                                                         >
-                                                            {isBusy ? <Spinner label="" /> : <UserCheck className="w-4 h-4" />}
-                                                            إسناد للمندوب وبدء التجهيز
+                                                            <UserCheck className="w-4 h-4" />
+                                                            إسناد للمندوب
                                                         </button>
                                                     </div>
 
-                                                    {/* Fast Status Change Buttons */}
-                                                    <div className="pt-4 border-t border-gray-100 flex items-center gap-2 flex-wrap">
-                                                        <span className="text-xs font-bold text-gray-600 ml-1">تحديث الحالة السريع:</span>
-                                                        
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => void handleStatusTransition(o.id, 'confirmed')}
-                                                            disabled={isBusy || o.status === 'confirmed'}
-                                                            className="px-4 py-2 rounded-control border border-indigo-200 bg-indigo-50 text-indigo-800 text-xs font-black hover:bg-indigo-100 disabled:opacity-40 transition-colors"
-                                                        >
-                                                            تأكيد الطلب
-                                                        </button>
-
+                                                    {/* Clean Status Transitions */}
+                                                    <div className="pt-2 border-t border-gray-100 flex items-center gap-2 flex-wrap text-xs">
+                                                        <span className="text-gray-500 font-bold">تحديث الحالة:</span>
                                                         <button
                                                             type="button"
                                                             onClick={() => void handleStatusTransition(o.id, 'preparing')}
                                                             disabled={isBusy || o.status === 'preparing'}
-                                                            className="px-4 py-2 rounded-control border border-amber-200 bg-amber-50 text-amber-800 text-xs font-black hover:bg-amber-100 disabled:opacity-40 transition-colors"
+                                                            className="px-3 py-1 rounded-md border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-800 font-bold transition-colors disabled:opacity-40"
                                                         >
-                                                            قيد التجهيز بالمستودع
+                                                            قيد التجهيز
                                                         </button>
-
                                                         <button
                                                             type="button"
                                                             onClick={() => void handleStatusTransition(o.id, 'shipped')}
                                                             disabled={isBusy || o.status === 'shipped'}
-                                                            className="px-4 py-2 rounded-control border border-brand-blue-soft bg-sky-50 text-brand-blue text-xs font-black hover:bg-sky-100 disabled:opacity-40 transition-colors"
+                                                            className="px-3 py-1 rounded-md border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-800 font-bold transition-colors disabled:opacity-40"
                                                         >
-                                                            في الطريق للتوصيل
+                                                            في الطريق
                                                         </button>
-
                                                         <button
                                                             type="button"
                                                             onClick={() => void handleStatusTransition(o.id, 'delivered')}
                                                             disabled={isBusy || o.status === 'delivered'}
-                                                            className="px-4 py-2 rounded-control border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-black hover:bg-emerald-100 disabled:opacity-40 transition-colors"
+                                                            className="px-3 py-1 rounded-md border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 font-bold transition-colors disabled:opacity-40"
                                                         >
-                                                            تم التسليم للعميل ✓
+                                                            تم التسليم ✓
                                                         </button>
                                                     </div>
                                                 </div>
                                             </div>
                                         )}
-                                    </Card>
+                                    </div>
                                 );
                             })}
                         </div>
@@ -892,28 +748,27 @@ export const SupervisorHomePage: React.FC = () => {
 
             {/* TAB 2: DRIVERS & FLEET */}
             {tab === 'drivers' && (
-                <div className="space-y-6">
-                    <div className="bg-white p-4 sm:p-5 rounded-card border border-brand-blue-soft shadow-card flex items-center justify-between">
-                        <div className="relative flex-1">
+                <div className="space-y-4">
+                    <div className="bg-white p-3.5 rounded-lg border border-gray-200 shadow-xs">
+                        <div className="relative">
                             <input
                                 type="text"
                                 value={driverSearch}
                                 onChange={(e) => setDriverSearch(e.target.value)}
-                                placeholder="بحث باسم مندوب التوصيل أو رقم الهاتف..."
-                                className="w-full pl-4 pr-11 py-3 rounded-control border border-gray-200 bg-slate-50/50 text-xs sm:text-sm font-bold focus:border-brand-blue focus:bg-white focus:ring-2 focus:ring-brand-blue/20 outline-hidden transition-all shadow-xs"
+                                placeholder="بحث باسم المندوب أو رقم الهاتف..."
+                                className="w-full pl-4 pr-10 py-2.5 rounded-lg border border-gray-200 bg-gray-50/60 text-xs sm:text-sm font-medium focus:border-black focus:bg-white outline-hidden text-gray-900"
                             />
-                            <Search className="w-5 h-5 text-gray-400 absolute right-3.5 top-3.5" />
+                            <Search className="w-4 h-4 text-gray-400 absolute right-3.5 top-3" />
                         </div>
                     </div>
 
                     {filteredDrivers.length === 0 ? (
                         <EmptyState
-                            icon={<Truck className="w-12 h-12 text-gray-300" />}
                             title="لا يوجد مناديب مسجلين"
                             body="لم يتم العثور على مناديب توصيل مسجلين في هذا المستودع."
                         />
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                             {filteredDrivers.map((drv) => {
                                 const cleanDrvPhone = cleanPhone(drv.phone);
                                 const drvWaUrl = `https://wa.me/${cleanDrvPhone}?text=${encodeURIComponent(
@@ -921,60 +776,48 @@ export const SupervisorHomePage: React.FC = () => {
                                 )}`;
 
                                 return (
-                                    <Card
+                                    <div
                                         key={drv.id}
-                                        className="p-5 sm:p-6 border border-brand-blue-soft shadow-card hover:shadow-card-glow transition-all space-y-4"
+                                        className="p-4 bg-white rounded-lg border border-gray-200 shadow-xs space-y-3"
                                     >
                                         <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-3.5">
-                                                <div className="w-12 h-12 rounded-card bg-brand-blue-soft text-brand-blue flex items-center justify-center shrink-0 border border-brand-blue/20 shadow-xs">
-                                                    <Truck className="w-6 h-6" />
-                                                </div>
-                                                <div>
-                                                    <h3 className="font-black text-gray-900 text-base">{drv.name}</h3>
-                                                    <p className="text-xs text-gray-500 font-mono mt-0.5" dir="ltr">{drv.phone}</p>
-                                                </div>
+                                            <div>
+                                                <h3 className="font-bold text-gray-900 text-sm sm:text-base">{drv.name}</h3>
+                                                <p className="text-xs text-gray-500 font-mono mt-0.5" dir="ltr">{drv.phone}</p>
                                             </div>
-
-                                            <span
-                                                className={cn(
-                                                    'px-3 py-1 rounded-full text-xs font-black border',
-                                                    drv.status === 'active'
-                                                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                                        : drv.status === 'busy'
-                                                        ? 'bg-amber-50 text-amber-800 border-amber-200'
-                                                        : 'bg-gray-100 text-gray-600 border-gray-200'
-                                                )}
-                                            >
-                                                {drv.status === 'active' ? 'متاح للتوصيل' : drv.status === 'busy' ? 'في مهمة توصيل' : 'غير متاح'}
+                                            <span className={cn(
+                                                'px-2 py-0.5 rounded-md text-xs font-bold',
+                                                drv.status === 'active' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+                                                drv.status === 'busy' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                                                'bg-gray-100 text-gray-600 border border-gray-200'
+                                            )}>
+                                                {drv.status === 'active' ? 'متاح' : drv.status === 'busy' ? 'في مهمة' : 'غير متاح'}
                                             </span>
                                         </div>
 
-                                        <div className="flex items-center justify-between pt-3 border-t border-gray-100 text-xs">
-                                            <span className="text-gray-500 font-bold">
-                                                الطلبات النشطة: <strong className="text-brand-blue font-mono font-black text-sm">{drv.activeDeliveries ?? 0}</strong>
+                                        <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 text-xs">
+                                            <span className="text-gray-500">
+                                                طلبات نشطة: <strong className="text-gray-900 font-mono">{drv.activeDeliveries ?? 0}</strong>
                                             </span>
 
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-1.5">
                                                 <a
                                                     href={`tel:${drv.phone}`}
-                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-control bg-sky-50 text-sky-800 border border-sky-200 font-bold hover:bg-sky-100 transition-colors"
+                                                    className="px-2.5 py-1 rounded-md bg-gray-100 text-gray-800 hover:bg-gray-200 font-bold transition-colors"
                                                 >
-                                                    <Phone className="w-3.5 h-3.5 text-sky-600" />
                                                     اتصال
                                                 </a>
                                                 <a
                                                     href={drvWaUrl}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-control bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold hover:bg-emerald-100 transition-colors"
+                                                    className="px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 font-bold transition-colors"
                                                 >
-                                                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
                                                     واتساب
                                                 </a>
                                             </div>
                                         </div>
-                                    </Card>
+                                    </div>
                                 );
                             })}
                         </div>
@@ -984,70 +827,50 @@ export const SupervisorHomePage: React.FC = () => {
 
             {/* TAB 3: CASH REMITTANCES */}
             {tab === 'remittances' && (
-                <div className="space-y-6">
-                    <div className="p-5 rounded-card bg-amber-50/80 border border-amber-200 text-xs sm:text-sm text-amber-950 flex items-start sm:items-center gap-4 shadow-card">
-                        <div className="w-10 h-10 rounded-card bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-                            <Banknote className="w-6 h-6" />
-                        </div>
-                        <div className="space-y-0.5">
-                            <p className="font-black text-sm sm:text-base">تسليم العهد النقدية المحصلة من المناديب (COD)</p>
-                            <p className="text-amber-900 font-medium">
-                                يقوم المندوب بتسجيل المبالغ المحصلة عند عودته للمستودع، ويقوم المشرف بمراجعتها وتأكيد الاستلام لإغلاق العهدة.
-                            </p>
-                        </div>
-                    </div>
-
+                <div className="space-y-4">
                     {remittances.length === 0 ? (
                         <EmptyState
-                            icon={<Banknote className="w-12 h-12 text-gray-300" />}
                             title="لا توجد تسليمات نقدية مسجلة"
                             body="لم يقم أي مندوب بتسجيل تسليم عهدة نقدية بعد في هذا المستودع."
                         />
                     ) : (
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                             {remittances.map((rem) => {
                                 const isPending = rem.status === 'submitted';
 
                                 return (
-                                    <Card
+                                    <div
                                         key={rem.id}
-                                        className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-5 border border-brand-blue-soft shadow-card hover:shadow-card-glow transition-all"
+                                        className="p-4 bg-white rounded-lg border border-gray-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                                     >
-                                        <div className="space-y-2">
-                                            <div className="flex items-center gap-3">
-                                                <span className="font-black text-gray-900 text-base sm:text-lg">
+                                        <div className="space-y-1">
+                                            <div className="flex items-center gap-2.5">
+                                                <span className="font-bold text-gray-900 text-sm sm:text-base">
                                                     {rem.driverName || 'مندوب التوصيل'}
                                                 </span>
-                                                <span
-                                                    className={cn(
-                                                        'px-3 py-0.5 rounded-full text-xs font-black border',
-                                                        isPending
-                                                            ? 'bg-amber-100 text-amber-800 border-amber-300 animate-pulse'
-                                                            : 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                                    )}
-                                                >
-                                                    {isPending ? 'بانتظار تأكيد المشرف' : 'تم استلام وتأكيد المبلغ ✓'}
+                                                <span className={cn(
+                                                    'px-2 py-0.5 rounded-md text-xs font-bold',
+                                                    isPending ? 'bg-amber-50 text-amber-900 border border-amber-200' : 'bg-emerald-50 text-emerald-900 border border-emerald-200'
+                                                )}>
+                                                    {isPending ? 'بانتظار التأكيد' : 'تم التأكيد ✓'}
                                                 </span>
                                             </div>
 
-                                            <p className="text-xs text-gray-500 font-medium flex items-center gap-2">
-                                                <span>وقت التسجيل: {formatDateTime(rem.submittedAt)}</span>
-                                                {rem.confirmedAt && (
-                                                    <span>· تم التأكيد: {formatRelative(rem.confirmedAt)}</span>
-                                                )}
+                                            <p className="text-xs text-gray-500 font-medium">
+                                                وقت التسجيل: {formatDateTime(rem.submittedAt)}
                                             </p>
 
                                             {rem.driverNotes && (
-                                                <p className="text-xs text-gray-700 bg-slate-50 p-3 rounded-control border border-gray-100 mt-1 font-medium">
-                                                    <strong className="text-gray-900">ملاحظة المندوب:</strong> {rem.driverNotes}
+                                                <p className="text-xs text-gray-700 bg-gray-50 p-2 rounded-md mt-1">
+                                                    <strong className="text-gray-900">ملاحظة:</strong> {rem.driverNotes}
                                                 </p>
                                             )}
                                         </div>
 
-                                        <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-gray-100">
+                                        <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100">
                                             <div className="text-left sm:text-right">
-                                                <p className="text-xs text-gray-400 font-bold">المبلغ المسلَّم</p>
-                                                <p className="text-xl sm:text-2xl font-black text-emerald-700 font-mono" dir="ltr">
+                                                <p className="text-[10px] text-gray-400 font-bold">المبلغ</p>
+                                                <p className="text-lg font-black text-gray-900 font-mono" dir="ltr">
                                                     {formatSDG(rem.amount)}
                                                 </p>
                                             </div>
@@ -1056,14 +879,13 @@ export const SupervisorHomePage: React.FC = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => void handleConfirmRemittance(rem.id)}
-                                                    className="flex items-center gap-2 py-3 px-6 rounded-control bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xs shadow-card transition-all"
+                                                    className="py-2 px-4 rounded-md bg-black hover:bg-gray-800 text-white font-bold text-xs transition-colors"
                                                 >
-                                                    <CheckCircle2 className="w-4 h-4" />
-                                                    تأكيد استلام المبلغ
+                                                    تأكيد الاستلام
                                                 </button>
                                             )}
                                         </div>
-                                    </Card>
+                                    </div>
                                 );
                             })}
                         </div>
@@ -1071,53 +893,52 @@ export const SupervisorHomePage: React.FC = () => {
                 </div>
             )}
 
-            {/* TAB 4: INVENTORY WITH HD PRODUCT PHOTOS */}
+            {/* TAB 4: INVENTORY */}
             {tab === 'inventory' && (
-                <div className="space-y-6">
+                <div className="space-y-4">
                     {/* Search & Filter */}
-                    <div className="bg-white p-4 sm:p-5 rounded-card border border-brand-blue-soft shadow-card flex flex-col sm:flex-row gap-4 justify-between items-stretch">
+                    <div className="bg-white p-3.5 rounded-lg border border-gray-200 shadow-xs flex flex-col sm:flex-row gap-3 justify-between items-stretch">
                         <div className="relative flex-1">
                             <input
                                 type="text"
                                 value={inventorySearch}
                                 onChange={(e) => setInventorySearch(e.target.value)}
-                                placeholder="بحث عن منتج في المستودع بالاسم..."
-                                className="w-full pl-4 pr-11 py-3 rounded-control border border-gray-200 bg-slate-50/50 text-xs sm:text-sm font-bold focus:border-brand-blue focus:bg-white focus:ring-2 focus:ring-brand-blue/20 outline-hidden transition-all shadow-xs"
+                                placeholder="بحث عن منتج في المستودع..."
+                                className="w-full pl-4 pr-10 py-2.5 rounded-lg border border-gray-200 bg-gray-50/60 text-xs sm:text-sm font-medium focus:border-black focus:bg-white outline-hidden text-gray-900"
                             />
-                            <Search className="w-5 h-5 text-gray-400 absolute right-3.5 top-3.5" />
+                            <Search className="w-4 h-4 text-gray-400 absolute right-3.5 top-3" />
                         </div>
 
                         <button
                             type="button"
                             onClick={() => setLowStockOnly(!lowStockOnly)}
                             className={cn(
-                                'px-5 py-3 rounded-control text-xs font-black border transition-all flex items-center justify-center gap-2 shrink-0',
+                                'px-4 py-2 rounded-md text-xs font-bold border transition-colors flex items-center justify-center gap-1.5 shrink-0',
                                 lowStockOnly
-                                    ? 'bg-rose-50 border-rose-300 text-rose-800 shadow-xs'
-                                    : 'bg-white border-gray-200 text-gray-700 hover:bg-slate-50'
+                                    ? 'bg-rose-50 border-rose-200 text-rose-800'
+                                    : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
                             )}
                         >
-                            <AlertTriangle className="w-4 h-4 text-rose-600" />
-                            المخزون المنخفض فقط ({lowCount})
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            المخزون المنخفض ({lowCount})
                         </button>
                     </div>
 
                     {filteredInventory.length === 0 ? (
                         <EmptyState
-                            icon={<Package className="w-12 h-12 text-gray-300" />}
                             title="لا توجد منتجات مطابقة"
                             body="لم يتم العثور على منتجات تطابق البحث في هذا المستودع."
                         />
                     ) : (
-                        <Card className="overflow-hidden border border-brand-blue-soft shadow-card">
+                        <div className="bg-white rounded-lg border border-gray-200 shadow-xs overflow-hidden">
                             <div className="overflow-x-auto">
                                 <table className="w-full text-right text-xs sm:text-sm">
-                                    <thead className="bg-slate-50 text-[11px] font-black text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                                    <thead className="bg-gray-50 text-[11px] font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
                                         <tr>
-                                            <th className="px-5 py-4">المنتج والصورة</th>
-                                            <th className="px-5 py-4 text-center">الكمية المتوفرة بالمستودع</th>
-                                            <th className="px-5 py-4 text-center">حد إعادة الطلب</th>
-                                            <th className="px-5 py-4 text-center">حالة المخزون</th>
+                                            <th className="px-4 py-3">المنتج</th>
+                                            <th className="px-4 py-3 text-center">الكمية المتوفرة</th>
+                                            <th className="px-4 py-3 text-center">حد إعادة الطلب</th>
+                                            <th className="px-4 py-3 text-center">الحالة</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100">
@@ -1126,19 +947,19 @@ export const SupervisorHomePage: React.FC = () => {
                                                 id: row.productId,
                                                 name_ar: row.productName,
                                                 imageUrl: row.imageUrl,
-                                            }, 160);
+                                            }, 120);
 
                                             return (
                                                 <tr
                                                     key={row.productId}
                                                     className={cn(
-                                                        'hover:bg-slate-50/70 transition-colors',
-                                                        row.isLow ? 'bg-rose-50/30' : ''
+                                                        'hover:bg-gray-50 transition-colors',
+                                                        row.isLow ? 'bg-rose-50/20' : ''
                                                     )}
                                                 >
-                                                    <td className="px-5 py-4 font-medium text-gray-900">
-                                                        <div className="flex items-center gap-3.5">
-                                                            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-card bg-white border border-brand-blue-soft overflow-hidden shrink-0 shadow-xs flex items-center justify-center p-1">
+                                                    <td className="px-4 py-3 font-medium text-gray-900">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-md bg-white border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center p-0.5">
                                                                 {img ? (
                                                                     <img
                                                                         src={img}
@@ -1146,36 +967,36 @@ export const SupervisorHomePage: React.FC = () => {
                                                                         className="w-full h-full object-contain"
                                                                     />
                                                                 ) : (
-                                                                    <Package className="w-7 h-7 text-gray-300" />
+                                                                    <Package className="w-4 h-4 text-gray-300" />
                                                                 )}
                                                             </div>
-                                                            <span className="font-black text-gray-900 text-sm sm:text-base leading-snug">
+                                                            <span className="font-bold text-gray-900 text-xs sm:text-sm">
                                                                 {row.productName}
                                                             </span>
                                                         </div>
                                                     </td>
 
-                                                    <td className="px-5 py-4 text-center">
+                                                    <td className="px-4 py-3 text-center">
                                                         <span className={cn(
-                                                            'font-mono font-black text-base px-3 py-1 rounded-control inline-block',
-                                                            row.isLow ? 'bg-rose-100 text-rose-700' : 'bg-brand-blue-soft text-brand-blue'
+                                                            'font-mono font-bold text-sm px-2.5 py-0.5 rounded-md inline-block',
+                                                            row.isLow ? 'bg-rose-100 text-rose-800' : 'bg-gray-100 text-gray-900'
                                                         )}>
                                                             {row.quantity}
                                                         </span>
                                                     </td>
 
-                                                    <td className="px-5 py-4 text-center text-gray-500 font-mono font-bold text-sm">
+                                                    <td className="px-4 py-3 text-center text-gray-500 font-mono text-xs">
                                                         {row.reorderLevel}
                                                     </td>
 
-                                                    <td className="px-5 py-4 text-center">
+                                                    <td className="px-4 py-3 text-center">
                                                         {row.isLow ? (
-                                                            <span className="inline-flex items-center gap-1.5 text-xs font-black text-rose-800 bg-rose-100 border border-rose-300 px-3 py-1 rounded-full">
-                                                                <AlertTriangle className="w-3.5 h-3.5" /> مخزون منخفض
+                                                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-800 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md">
+                                                                <AlertTriangle className="w-3 h-3" /> منخفض
                                                             </span>
                                                         ) : (
-                                                            <span className="inline-flex items-center gap-1.5 text-xs text-emerald-800 font-black bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
-                                                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> متوفر
+                                                            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-800 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                                                متوفر
                                                             </span>
                                                         )}
                                                     </td>
@@ -1185,7 +1006,7 @@ export const SupervisorHomePage: React.FC = () => {
                                     </tbody>
                                 </table>
                             </div>
-                        </Card>
+                        </div>
                     )}
                 </div>
             )}

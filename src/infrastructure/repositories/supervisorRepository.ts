@@ -133,10 +133,38 @@ export async function fetchSupervisorOrders(): Promise<SupervisorOrder[]> {
     // Fetch drivers map to resolve driver details safely
     let driversMap = new Map<string, { name: string; phone: string; status: string }>();
     try {
-        const { data: drvList } = await supabase.from('drivers').select('id, name, phone, status');
-        if (drvList) {
-            for (const d of drvList) {
+        const warehouseDrivers = await fetchWarehouseDrivers();
+        if (warehouseDrivers && warehouseDrivers.length > 0) {
+            for (const d of warehouseDrivers) {
                 driversMap.set(d.id, { name: d.name, phone: d.phone, status: d.status });
+            }
+        }
+    } catch {
+        // Non-critical
+    }
+
+    try {
+        const { data: drvList } = await supabase.from('drivers').select('id, user_id, name, phone, status');
+        if (drvList) {
+            for (const d of drvList as any[]) {
+                const info = { name: d.name, phone: d.phone, status: d.status };
+                driversMap.set(d.id, info);
+                if (d.user_id) {
+                    driversMap.set(d.user_id, info);
+                }
+            }
+        }
+    } catch {
+        // Non-critical
+    }
+
+    try {
+        const { data: profDrivers } = await supabase.from('profiles').select('id, full_name, phone').eq('role', 'driver');
+        if (profDrivers) {
+            for (const p of profDrivers) {
+                if (!driversMap.has(p.id)) {
+                    driversMap.set(p.id, { name: p.full_name || 'مندوب', phone: p.phone || '', status: 'active' });
+                }
             }
         }
     } catch {
