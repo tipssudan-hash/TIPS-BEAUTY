@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generate12DigitDeliveryCode } from '../../src/presentation/components/orders/OrderDeliveryQRCode';
+import { validateDeliveryCode } from '../../src/presentation/components/driver/BarcodeScannerModal';
 
 describe('Order Delivery QR & Verification Code Generator', () => {
     it('generates a 12-character formatted code (XXXX-XXXX-XXXX)', () => {
@@ -38,3 +39,48 @@ describe('Order Delivery QR & Verification Code Generator', () => {
         }
     });
 });
+
+describe('Driver Delivery Verification Security (validateDeliveryCode)', () => {
+    const orderId = 'e3c5d8a0-1234-4567-89ab-cdef01234567';
+    const orderNumber = 'ORD-2026-0042';
+    const valid12Code = generate12DigitDeliveryCode(orderId, orderNumber);
+
+    it('accepts correct 12-digit code with hyphens', () => {
+        expect(validateDeliveryCode(valid12Code, orderId, orderNumber)).toBe(true);
+    });
+
+    it('accepts correct 12-digit code without hyphens or in lowercase', () => {
+        const rawWithoutHyphens = valid12Code.replace(/-/g, '').toLowerCase();
+        expect(validateDeliveryCode(rawWithoutHyphens, orderId, orderNumber)).toBe(true);
+    });
+
+    it('accepts scanned QR JSON payload containing correct verification code', () => {
+        const qrPayload = JSON.stringify({
+            order_id: orderId,
+            order_number: orderNumber,
+            verification_code: valid12Code,
+        });
+        expect(validateDeliveryCode(qrPayload, orderId, orderNumber)).toBe(true);
+    });
+
+    it('rejects public order number to prevent driver fraud', () => {
+        expect(validateDeliveryCode(orderNumber, orderId, orderNumber)).toBe(false);
+    });
+
+    it('rejects order ID or random text', () => {
+        expect(validateDeliveryCode(orderId, orderId, orderNumber)).toBe(false);
+        expect(validateDeliveryCode('1234', orderId, orderNumber)).toBe(false);
+        expect(validateDeliveryCode('INVALID-CODE-XXXX', orderId, orderNumber)).toBe(false);
+        expect(validateDeliveryCode('', orderId, orderNumber)).toBe(false);
+    });
+
+    it('rejects QR JSON payload with mismatched verification code', () => {
+        const fakeQrPayload = JSON.stringify({
+            order_id: orderId,
+            order_number: orderNumber,
+            verification_code: 'XXXX-YYYY-ZZZZ',
+        });
+        expect(validateDeliveryCode(fakeQrPayload, orderId, orderNumber)).toBe(false);
+    });
+});
+
