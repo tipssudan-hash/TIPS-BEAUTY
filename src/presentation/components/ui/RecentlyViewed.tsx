@@ -1,12 +1,14 @@
 import React from 'react';
 import { useStore } from '../../context/StoreContext';
+import { useAuth } from '../../context/AuthContext';
 import { ProductRow } from './ProductRow';
 import { Clock } from 'lucide-react';
 
 export const RecentlyViewed: React.FC<{ className?: string }> = ({ className = '' }) => {
     const { recentlyViewed, addToCart, wishlist, toggleWishlist } = useStore();
+    const { user } = useAuth();
 
-    if (recentlyViewed.length === 0) return null;
+    if (!user || recentlyViewed.length === 0) return null;
 
     return (
         <ProductRow

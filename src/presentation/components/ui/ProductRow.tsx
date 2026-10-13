@@ -1,4 +1,4 @@
-﻿import React, { useRef } from 'react';
+import React, { useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Product } from '@domain/entities';
 import { ProductCard } from './ProductCard';
@@ -10,7 +10,7 @@ interface ProductRowProps {
     subtitle?: string | null;
     products: Product[];
     wishlist: string[];
-    onToggleWishlist: (id: string) => void;
+    onToggleWishlist: (id: string, product?: Product) => void;
     onAddToCart: (product: Product) => void;
     className?: string;
 }

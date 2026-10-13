@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, ChevronLeft, Heart } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
+import { useAuth } from '../../context/AuthContext';
 import { ProductCard } from '../../components/ui/ProductCard';
 import { ProductRow } from '../../components/ui/ProductRow';
 import { RecentlyViewed } from '../../components/ui/RecentlyViewed';
@@ -18,7 +19,8 @@ import { DiscountIcon } from '@presentation/components/ui/DiscountIcon';
 const PAGE_SIZE = 20;
 
 export const HomePage: React.FC = () => {
-    const { products, productsLoading, productsError, reloadProducts, wishlist, addToCart, toggleWishlist } = useStore();
+    const { user } = useAuth();
+    const { products, productsLoading, productsError, reloadProducts, wishlist, favoriteProducts, addToCart, toggleWishlist } = useStore();
     const [searchQuery, setSearchQuery] = useState('');
     const [activeCategory, setActiveCategory] = useState(ALL_CATEGORIES);
     const [activeBrand, setActiveBrand] = useState(ALL_BRANDS);
@@ -77,10 +79,6 @@ export const HomePage: React.FC = () => {
     const collectionProducts = useMemo(
         () => collections.map(c => ({ collection: c, products: c.productIds.map(id => productsById.get(id)).filter((p): p is typeof products[number] => Boolean(p)) })),
         [collections, productsById]
-    );
-    const wishlistProducts = useMemo(
-        () => wishlist.map(id => productsById.get(id)).filter((p): p is typeof products[number] => Boolean(p)),
-        [wishlist, productsById]
     );
 
     const brands = useMemo(() => availableBrands(products), [products]);
@@ -190,14 +188,14 @@ export const HomePage: React.FC = () => {
                     </Link>
                 )}
 
-                {/* Favorites Section: displayed at top if user has favorites */}
-                {!isFiltered && wishlistProducts.length > 0 && (
+                {/* Favorites Section: displayed only for logged-in users with personal favorites */}
+                {!isFiltered && Boolean(user) && favoriteProducts.length > 0 && (
                     <ProductRow
                         id="wishlist-products"
                         title="منتجاتي المفضلة"
                         icon={<Heart className="w-5 h-5 text-red-500 fill-red-500" />}
                         subtitle="المنتجات التي اخترتِها في قائمتك المفضلة"
-                        products={wishlistProducts}
+                        products={favoriteProducts}
                         wishlist={wishlist}
                         onToggleWishlist={toggleWishlist}
                         onAddToCart={addToCart}
@@ -205,8 +203,8 @@ export const HomePage: React.FC = () => {
                     />
                 )}
 
-                {/* Recently Viewed: placed before collections */}
-                {!isFiltered && (
+                {/* Recently Viewed: placed before collections, only for logged in users */}
+                {!isFiltered && Boolean(user) && (
                     <RecentlyViewed className="mb-8 md:mb-12" />
                 )}
 

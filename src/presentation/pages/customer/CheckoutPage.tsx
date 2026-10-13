@@ -3,7 +3,7 @@ import { useNavigate, Navigate } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 import { useAuth } from '../../context/AuthContext';
 import { CouponPreview, DeliveryQuote, DeliveryZone, PaymentMethod } from '@domain/entities';
-import { checkout, previewCoupon, previewDeliveryQuote, uploadPaymentProof, submitPaymentProof, fetchPaymentMethods, fetchDeliveryZones } from '@infrastructure/repositories';
+import { checkout, previewCoupon, previewDeliveryQuote, uploadPaymentProof, submitPaymentProof, fetchPaymentMethods, fetchDeliveryZones, cancelMyOrder } from '@infrastructure/repositories';
 import { isValidSudanPhone, normalizeSudanPhone } from '@infrastructure/auth/phone';
 import { couponRefusalMessage, errorMessage } from '@application/errors';
 import { cartLineKey, cartLineUnavailable, cartUnitPrice } from '@domain/valueObjects';
@@ -223,7 +223,7 @@ export const CheckoutPage: React.FC = () => {
         if (!user || !selectedZone || !selectedMethod) return;
 
         if (!isValidSudanPhone(formData.phone)) {
-            setSubmitError('يرجى إدخال رقم هاتف سوداني صحيح (مثال: 0912345678 أو 0123456789).');
+            setSubmitError('يرجى إدخال رقم هاتف سوداني صحيح.');
             return;
         }
 
@@ -237,7 +237,13 @@ export const CheckoutPage: React.FC = () => {
         try {
             let proofPath: string | null = null;
             if (selectedMethod.requiresProof && proofFile) {
-                proofPath = await uploadPaymentProof(user.id, idempotencyKey, proofFile);
+                try {
+                    proofPath = await uploadPaymentProof(user.id, idempotencyKey, proofFile);
+                } catch (err) {
+                    setSubmitError(errorMessage(err, 'تعذر رفع صورة إثبات الدفع، تحققي من اتصالك وحاولي مرة أخرى.'));
+                    setSubmitting(false);
+                    return;
+                }
             }
 
             const result = await checkout({
@@ -254,22 +260,31 @@ export const CheckoutPage: React.FC = () => {
                 customerLng: gps.longitude,
             });
 
-            let proofWarning: string | undefined;
+            let hadProofError = false;
             if (proofPath) {
                 try {
                     await submitPaymentProof(result.orderId, selectedMethod.code, result.total, formData.reference.trim(), proofPath);
                 } catch (err) {
                     console.error('submitPaymentProof failed', err);
-                    proofWarning = 'تم إنشاء الطلب، لكن تعذر إرفاق إثبات الدفع. يمكنك إرفاقه من صفحة الطلب.';
+                    hadProofError = true;
+                    try {
+                        await cancelMyOrder(result.orderId);
+                    } catch (cancelErr) {
+                        console.error('cancelMyOrder failed after proof error', cancelErr);
+                    }
+                    setSubmitError('تعذّر إرفاق إثبات الدفع، لم يتم إنشاء الطلب. تحققي من اتصالك وحاولي مرة أخرى.');
+                    setSubmitting(false);
                 }
             }
 
-            sessionStorage.removeItem(IDEMPOTENCY_KEY);
-            navigate(`/orders/${result.orderId}`, { state: { justOrdered: true, orderNumber: result.orderNumber, proofWarning }, replace: true });
-            clearCart();
+            if (!hadProofError) {
+                sessionStorage.removeItem(IDEMPOTENCY_KEY);
+                navigate(`/orders/${result.orderId}`, { state: { justOrdered: true, orderNumber: result.orderNumber }, replace: true });
+                clearCart();
+            }
         } catch (err) {
             console.error(err);
-            setSubmitError(errorMessage(err, 'فشل إنشاء الطلب، حاولي مرة أخرى.'));
+            setSubmitError(errorMessage(err, 'تعذر إنشاء الطلب، تحققي من اتصالك وحاولي مرة أخرى.'));
             setSubmitting(false);
         }
     };

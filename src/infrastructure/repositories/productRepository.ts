@@ -148,7 +148,7 @@ async function _fetchProduct(id: string): Promise<Product | null> {
         // Fallback below
     }
     try {
-        const { data, error } = await supabase.from('products').select('*').eq('id', id).maybeSingle();
+        const { data, error } = await supabase.from('products').select('*').eq('id', id).eq('is_active', true).maybeSingle();
         if (!error && data) {
             return mapProduct(data as unknown as ProductRow);
         }

@@ -11,7 +11,7 @@ import { Card, EmptyState, Spinner } from '../../components/ui';
 
 export const ProductDetailsPage: React.FC = () => {
     const { id } = useParams();
-    const { addToCart, wishlist, toggleWishlist, addToRecentlyViewed } = useStore();
+    const { products, addToCart, wishlist, favoriteProducts, toggleWishlist, addToRecentlyViewed } = useStore();
     const [product, setProduct] = useState<Product | null>(null);
     const [loading, setLoading] = useState(true);
     const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -22,19 +22,41 @@ export const ProductDetailsPage: React.FC = () => {
 
     useEffect(() => {
         if (!id) return;
+        const cached = products.find(p => p.id === id);
+        if (cached && !cached.isRemoved) {
+            setProduct(cached);
+            setLoading(false);
+            addToRecentlyViewed(cached);
+            return;
+        }
         let cancelled = false;
         setLoading(true);
         fetchProduct(id)
             .then((data) => {
                 if (cancelled) return;
-                setProduct(data);
-                setVariantId(data && data.variants.length === 1 ? data.variants[0].id : null);
-                if (data) addToRecentlyViewed(data);
+                if (data && !data.isRemoved) {
+                    setProduct(data);
+                    setVariantId(data.variants.length === 1 ? data.variants[0].id : null);
+                    addToRecentlyViewed(data);
+                } else {
+                    const fav = favoriteProducts.find(p => p.id === id);
+                    if (fav) {
+                        setProduct(fav);
+                    } else {
+                        setProduct(null);
+                    }
+                }
             })
-            .catch((error) => console.error('Error fetching product:', error))
+            .catch((error) => {
+                console.error('Error fetching product:', error);
+                if (!cancelled) {
+                    const fav = favoriteProducts.find(p => p.id === id);
+                    setProduct(fav ?? null);
+                }
+            })
             .finally(() => { if (!cancelled) setLoading(false); });
         return () => { cancelled = true; };
-    }, [id, addToRecentlyViewed]);
+    }, [id, products, favoriteProducts, addToRecentlyViewed]);
 
     useEffect(() => {
         if (!notice) return;
@@ -142,7 +164,7 @@ export const ProductDetailsPage: React.FC = () => {
                                 </div>
                                 <div className="flex gap-2 shrink-0">
                                     <button
-                                        onClick={() => toggleWishlist(product.id)}
+                                        onClick={() => toggleWishlist(product.id, product)}
                                         className="p-2.5 rounded-full bg-brand-blue-soft hover:bg-blue-100 transition-colors"
                                         aria-label="إضافة للمفضلة"
                                     >
@@ -168,7 +190,9 @@ export const ProductDetailsPage: React.FC = () => {
                                         </>
                                     )}
                                 </div>
-                                {product.stock > 0 ? (
+                                {product.isRemoved ? (
+                                    <p className="text-xs sm:text-sm text-rose-600 mt-1 font-bold">تمت إزالة هذا المنتج من المتجر</p>
+                                ) : product.stock > 0 ? (
                                     <p className="text-xs sm:text-sm text-green-600 mt-1 font-medium">{product.stock <= 5 ? 'الكمية محدودة' : 'متوفر في المخزون'}</p>
                                 ) : (
                                     <p className="text-xs sm:text-sm text-red-600 mt-1 font-medium">غير متوفر حالياً</p>
@@ -243,20 +267,22 @@ export const ProductDetailsPage: React.FC = () => {
 
                         <button
                             onClick={handleAddToCart}
-                            disabled={product.stock === 0}
+                            disabled={product.stock === 0 || product.isRemoved}
                             className="w-full bg-brand-blue hover:bg-sky-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-bold py-3.5 sm:py-4 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-98 shadow-md shadow-brand-blue/20"
                         >
                             <ShoppingCart className="w-5 h-5" />
-                            {product.stock > 0 ? 'أضيفي للسلة' : 'غير متوفر'}
+                            {product.isRemoved ? 'غير متوفر بالمتجر' : product.stock > 0 ? 'أضيفي للسلة' : 'غير متوفر'}
                         </button>
                     </div>
                 </div>
             </Card>
 
-            <div className="space-y-8">
-                <RelatedProducts currentProduct={product} />
-                <ReviewSection productId={product.id} />
-            </div>
+            {!product.isRemoved && (
+                <div className="space-y-8">
+                    <RelatedProducts currentProduct={product} />
+                    <ReviewSection productId={product.id} />
+                </div>
+            )}
         </div>
     );
 };

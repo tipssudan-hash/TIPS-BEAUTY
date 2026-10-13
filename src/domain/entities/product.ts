@@ -42,4 +42,5 @@ export interface Product {
   reviewCount: number;
   variants: ProductVariant[];
   createdAt: string;
+  isRemoved?: boolean;
 }

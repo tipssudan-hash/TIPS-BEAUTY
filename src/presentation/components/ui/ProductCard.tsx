@@ -10,7 +10,7 @@ import { DiscountIcon } from './DiscountIcon';
 interface ProductCardProps {
     product: Product;
     isInWishlist: boolean;
-    onToggleWishlist: (id: string) => void;
+    onToggleWishlist: (id: string, product?: Product) => void;
     onAddToCart: (product: Product) => void;
     priority?: boolean; // true for first ~8 cards visible on load
 }
@@ -21,7 +21,7 @@ const ProductCardInner: React.FC<ProductCardProps> = ({ product, isInWishlist, o
     const [imgError, setImgError] = useState(false);
 
     const finalPrice = product.effectivePrice;
-    const hasDiscount = finalPrice < product.price || Boolean(product.discountPercentage && product.discountPercentage > 0);
+    const hasDiscount = !product.isRemoved && (finalPrice < product.price || Boolean(product.discountPercentage && product.discountPercentage > 0));
     const discountPct = product.discountPercentage || Math.round(((product.price - finalPrice) / product.price) * 100);
     const outOfStock = product.stock <= 0;
     const hasVariants = product.variants.length > 0;
@@ -50,7 +50,7 @@ const ProductCardInner: React.FC<ProductCardProps> = ({ product, isInWishlist, o
                 <button
                     type="button"
                     aria-label={isInWishlist ? 'إزالة من المفضلة' : 'إضافة للمفضلة'}
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleWishlist(product.id); }}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleWishlist(product.id, product); }}
                     className="bg-white/90 backdrop-blur-xs w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full shadow-sm text-brand-blue hover:scale-110 active:scale-95 transition-transform"
                 >
                     <Heart className={clsx('w-4 h-4', isInWishlist && 'fill-current text-red-500')} />
@@ -107,11 +107,16 @@ const ProductCardInner: React.FC<ProductCardProps> = ({ product, isInWishlist, o
                         {product.pricingRule?.label || `خصم ${discountPct}%`}
                     </span>
                 )}
-                {outOfStock && (
+                {product.isRemoved ? (
+                    <span className="absolute inset-0 bg-white/80 backdrop-blur-[2px] flex flex-col items-center justify-center p-2 text-center text-xs font-bold text-rose-600 gap-1">
+                        <Package className="w-5 h-5 text-rose-500" />
+                        <span>تمت إزالته من المتجر</span>
+                    </span>
+                ) : outOfStock ? (
                     <span className="absolute inset-0 bg-white/75 backdrop-blur-[2px] flex items-center justify-center text-xs font-bold text-gray-700">
                         غير متوفر
                     </span>
-                )}
+                ) : null}
             </div>
 
             <div className="p-2.5 sm:p-3 flex flex-col flex-1">
@@ -132,11 +137,16 @@ const ProductCardInner: React.FC<ProductCardProps> = ({ product, isInWishlist, o
                 </div>
                 <button
                     type="button"
-                    disabled={outOfStock}
-                    onClick={(e) => { e.preventDefault(); if (hasVariants) navigate(`/product/${product.id}`); else onAddToCart(product); }}
+                    disabled={outOfStock || product.isRemoved}
+                    onClick={(e) => {
+                        e.preventDefault();
+                        if (product.isRemoved) return;
+                        if (hasVariants) navigate(`/product/${product.id}`);
+                        else onAddToCart(product);
+                    }}
                     className="mt-auto w-full py-2 rounded-xl text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95 bg-brand-blue hover:bg-sky-700 text-white disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none disabled:cursor-not-allowed"
                 >
-                    {hasVariants ? 'اختاري الخيار' : 'أضيفي للسلة'} <ShoppingCart className="w-3.5 h-3.5" />
+                    {product.isRemoved ? 'غير متوفر بالمتجر' : hasVariants ? 'اختاري الخيار' : 'أضيفي للسلة'} <ShoppingCart className="w-3.5 h-3.5" />
                 </button>
             </div>
         </Link>
@@ -147,6 +157,7 @@ export const ProductCard = React.memo(ProductCardInner, (prev, next) =>
     prev.product.id === next.product.id &&
     prev.product.effectivePrice === next.product.effectivePrice &&
     prev.product.stock === next.product.stock &&
+    prev.product.isRemoved === next.product.isRemoved &&
     prev.product.pricingRule?.label === next.product.pricingRule?.label &&
     prev.isInWishlist === next.isInWishlist &&
     prev.priority === next.priority,

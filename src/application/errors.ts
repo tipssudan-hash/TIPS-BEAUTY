@@ -2,29 +2,66 @@
 // English messages; anything not listed falls back to the caller's text.
 
 const backendMessages: [RegExp, string][] = [
-    [/Insufficient stock/i, 'الكمية المطلوبة غير متوفرة حالياً لأحد المنتجات.'],
-    [/No active warehouse/i, 'عذراً، لا يمكن توصيل هذا الطلب كاملاً إلى منطقتك حالياً.'],
-    [/GPS coordinates/i, 'يجب تحديد موقعك الجغرافي لإكمال الطلب.'],
-    [/No delivery pricing configuration/i, 'تعذر حساب رسوم التوصيل حالياً، يرجى المحاولة لاحقاً.'],
-    [/Inventory changed/i, 'تغيّر المخزون أثناء إتمام الطلب، يرجى المحاولة مرة أخرى.'],
-    [/no longer available/i, 'أحد المنتجات لم يعد متاحاً.'],
-    [/Unsupported payment method/i, 'طريقة الدفع غير مدعومة.'],
+    [/No active warehouse/i, 'عذراً، لا يتوفر مستودع يخدم منطقتك حالياً. جربي لاحقاً أو تواصلي معنا.'],
+    [/GPS coordinates/i, 'يرجى تحديد موقعك الجغرافي أولاً قبل إتمام الطلب.'],
+    [/No delivery pricing configuration/i, 'تعذر حساب رسوم التوصيل لمنطقتك حالياً، يرجى المحاولة لاحقاً.'],
+    [/Unsupported payment method/i, 'طريقة الدفع التي اخترتِها غير مدعومة حالياً.'],
     [/Only new orders can be cancelled/i, 'لا يمكن إلغاء الطلب بعد تأكيده، تواصلي مع خدمة العملاء.'],
-    [/Authentication required/i, 'يجب تسجيل الدخول أولاً.'],
+    [/Authentication required/i, 'انتهت جلستك، يرجى تسجيل الدخول مجدداً.'],
     [/delivered order/i, 'يمكن تقييم المنتجات المستلمة فقط.'],
     [/already/i, 'تم تنفيذ هذا الإجراء مسبقاً.'],
+    [/duplicate key|unique.*violation/i, 'تم إرسال هذا الطلب مسبقاً، يرجى التحقق من قائمة طلباتك.'],
+    [/timeout|timed out/i, 'استغرقت العملية وقتاً طويلاً بسبب ضعف الاتصال، يرجى المحاولة مرة أخرى.'],
+    [/row.level security|permission denied|not authorized/i, 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مجدداً.'],
 ];
 
+function extractProductError(message: string): string | null {
+    const stockMatch = /Insufficient stock(?:[: ]+(.+))?/i.exec(message);
+    if (stockMatch) {
+        const product = stockMatch[1]?.trim();
+        return product
+            ? `عذراً، الكمية المطلوبة من "${product}" غير متوفرة في المخزون حالياً.`
+            : 'عذراً، الكمية المطلوبة من أحد المنتجات غير متوفرة في المخزون حالياً.';
+    }
+    const changedMatch = /Inventory changed(?:[: ]+(.+))?/i.exec(message);
+    if (changedMatch) {
+        const product = changedMatch[1]?.trim();
+        return product
+            ? `تغيّرت كمية "${product}" أثناء تأكيد الطلب، يرجى المحاولة مرة أخرى.`
+            : 'تغيّرت كمية أحد المنتجات أثناء تأكيد الطلب، يرجى المحاولة مرة أخرى.';
+    }
+    const unavailableMatch = /no longer available(?:[: ]+(.+))?/i.exec(message);
+    if (unavailableMatch) {
+        const product = unavailableMatch[1]?.trim();
+        return product
+            ? `"${product}" لم يعد متاحاً، يرجى حذفه من السلة وإعادة المحاولة.`
+            : 'أحد المنتجات في سلتك لم يعد متاحاً، يرجى حذفه وإعادة المحاولة.';
+    }
+    return null;
+}
+
 export function errorMessage(error: unknown, fallback = 'حدث خطأ غير متوقع، حاولي مرة أخرى.'): string {
-    if (error && typeof error === 'object' && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
-        const message = (error as { message: string }).message;
-        // checkout_order raises the same typed reason preview_coupon returns.
-        const refused = /Coupon refused: (\w+)/.exec(message);
-        if (refused) return couponRefusalMessage(refused[1]);
-        for (const [pattern, text] of backendMessages) {
-            if (pattern.test(message)) return text;
+    if (error && typeof error === 'object') {
+        const err = error as { message?: unknown; name?: unknown };
+
+        if (
+            err.name === 'TypeError' ||
+            (typeof err.message === 'string' && /failed to fetch|network|load failed/i.test(err.message))
+        ) {
+            return 'يبدو أن الاتصال بالإنترنت منقطع أو ضعيف، تحققي من اتصالك وحاولي مرة أخرى.';
         }
-        return /[؀-ۿ]/.test(message) ? message : fallback;
+
+        if (typeof err.message === 'string') {
+            const message = err.message;
+            const refused = /Coupon refused: (\w+)/.exec(message);
+            if (refused) return couponRefusalMessage(refused[1]);
+            const productError = extractProductError(message);
+            if (productError) return productError;
+            for (const [pattern, text] of backendMessages) {
+                if (pattern.test(message)) return text;
+            }
+            return /[\u0600-\u06ff]/.test(message) ? message : fallback;
+        }
     }
     return fallback;
 }
