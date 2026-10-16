@@ -631,12 +631,21 @@ export async function fetchOrderReturns(): Promise<import('../types').OrderRetur
     }));
 }
 
-export async function reviewOrderReturn(returnId: string, status: import('../types').ReturnStatus, adminNote?: string, restock?: boolean): Promise<void> {
+export async function reviewOrderReturn(
+    returnId: string,
+    status: import('../types').ReturnStatus,
+    adminNote?: string,
+    restock?: boolean,
+    refundAmount?: number,
+    refundReference?: string,
+): Promise<void> {
     const { error } = await supabase.rpc('review_order_return', {
         p_return_id: returnId,
         p_status: status,
         p_admin_note: adminNote?.trim() || undefined,
         p_restock: restock ?? false,
+        p_refund_amount: refundAmount ?? undefined,
+        p_refund_reference: refundReference?.trim() || undefined,
     });
     if (error) throw error;
 }

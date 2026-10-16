@@ -486,6 +486,12 @@ export interface OrderReturn {
     reviewed_at: string | null;
     created_at: string;
     updated_at: string;
+    order_payment_status?: string | null;
+    order_payment_method?: string | null;
+    order_total?: number | null;
+    refund_amount?: number | null;
+    refund_reference?: string | null;
+    refunded_at?: string | null;
 }
 
 export const SUDANESE_STATES = [

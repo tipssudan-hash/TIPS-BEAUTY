@@ -386,7 +386,7 @@ export async function fetchCustomers(filters: CustomerFilters): Promise<{ rows: 
             if (!ord.customer_id) return;
             const current = statsMap.get(ord.customer_id) ?? { count: 0, spent: 0 };
             current.count += 1;
-            if (ord.status !== 'cancelled') {
+            if (ord.status !== 'cancelled' && ord.status !== 'delivery_failed') {
                 current.spent += Number(ord.total ?? 0);
             }
             statsMap.set(ord.customer_id, current);
@@ -429,7 +429,7 @@ export async function fetchCustomerDetail(customerId: string): Promise<CustomerD
     })) as AdminOrder[];
 
     profile.orders_count = orders.length;
-    profile.total_spent = orders.filter((o) => o.status !== 'cancelled').reduce((sum, o) => sum + o.total, 0);
+    profile.total_spent = orders.filter((o) => o.status !== 'cancelled' && o.status !== 'delivery_failed').reduce((sum, o) => sum + o.total, 0);
 
     return {
         profile,
