@@ -15,6 +15,7 @@ import {
     CheckSquare,
     Square,
     Clock,
+    X,
 } from 'lucide-react';
 import {
     fetchSupervisorProfile,
@@ -73,6 +74,14 @@ export const SupervisorHomePage: React.FC = () => {
     const [selectedDrivers, setSelectedDrivers] = useState<Record<string, string>>({});
     const [editingNotes, setEditingNotes] = useState<Record<string, string>>({});
     const [actionBusy, setActionBusy] = useState<Record<string, boolean>>({});
+
+    // Manual ETA & Delivery Notes Dialog State
+    const [etaModalOrder, setEtaModalOrder] = useState<SupervisorOrder | null>(null);
+    const [selectedEtaPreset, setSelectedEtaPreset] = useState<string>('');
+    const [customEtaText, setCustomEtaText] = useState<string>('');
+    const [selectedDelayReason, setSelectedDelayReason] = useState<string>('');
+    const [extraEtaNotes, setExtraEtaNotes] = useState<string>('');
+    const [etaModalBusy, setEtaModalBusy] = useState(false);
 
     const load = async () => {
         setLoading(true);
@@ -174,6 +183,44 @@ export const SupervisorHomePage: React.FC = () => {
             setError(errorMessage(err, 'تعذر حفظ الملاحظات.'));
         } finally {
             setActionBusy((prev) => ({ ...prev, [orderId]: false }));
+        }
+    };
+
+    const openEtaModal = (order: SupervisorOrder) => {
+        setEtaModalOrder(order);
+        setSelectedEtaPreset('');
+        setCustomEtaText('');
+        setSelectedDelayReason('');
+        setExtraEtaNotes(order.notes || '');
+    };
+
+    const handleSaveEtaModal = async () => {
+        if (!etaModalOrder) return;
+        setEtaModalBusy(true);
+        setError(null);
+        try {
+            const parts: string[] = [];
+            const etaVal = selectedEtaPreset || customEtaText.trim();
+            if (etaVal) {
+                parts.push(`[الموعد المتوقع: ${etaVal}]`);
+            }
+            if (selectedDelayReason) {
+                parts.push(`[تحديث: ${selectedDelayReason}]`);
+            }
+            if (extraEtaNotes.trim()) {
+                parts.push(extraEtaNotes.trim());
+            }
+            const finalNotes = parts.join(' ').trim() || undefined;
+
+            await updateSupervisorOrderStatus(etaModalOrder.id, undefined, finalNotes);
+            setSuccess(`تم تحديث موعد التوصيل وملاحظات الطلب #${etaModalOrder.orderNumber} بنجاح.`);
+            setEtaModalOrder(null);
+            const updated = await fetchSupervisorOrders();
+            setOrders(updated);
+        } catch (err) {
+            setError(errorMessage(err, 'تعذر تحديث موعد التوصيل وملاحظات الطلب.'));
+        } finally {
+            setEtaModalBusy(false);
         }
     };
 
@@ -567,28 +614,51 @@ export const SupervisorHomePage: React.FC = () => {
                                                         </div>
                                                     </div>
 
-                                                    {/* Delivery Notes Box */}
-                                                    <div className="pt-2 border-t border-gray-100 flex gap-2 items-center">
-                                                        <input
-                                                            type="text"
-                                                            value={currentNotes}
-                                                            onChange={(e) =>
-                                                                setEditingNotes((prev) => ({
-                                                                    ...prev,
-                                                                    [o.id]: e.target.value,
-                                                                }))
-                                                            }
-                                                            placeholder="ملاحظات التوصيل أو الموعد المفضل..."
-                                                            className="flex-1 px-3 py-1.5 text-xs rounded-md border border-gray-200 focus:border-black outline-hidden"
-                                                        />
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => void handleSaveOrderNotes(o.id)}
-                                                            disabled={isBusy}
-                                                            className="px-3.5 py-1.5 bg-black text-white hover:bg-gray-800 text-xs font-bold rounded-md transition-colors"
-                                                        >
-                                                            حفظ
-                                                        </button>
+                                                    {/* Delivery Notes & ETA Box */}
+                                                    <div className="pt-2.5 border-t border-gray-100 space-y-2">
+                                                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                            <span className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                                                                <Clock className="w-3.5 h-3.5 text-gray-500" />
+                                                                موعد الوصول وملاحظات التوصيل:
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openEtaModal(o)}
+                                                                className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-xs font-bold transition-colors cursor-pointer"
+                                                            >
+                                                                <Clock className="w-3.5 h-3.5 text-amber-700" />
+                                                                <span>تعديل الموعد (ETA)</span>
+                                                            </button>
+                                                        </div>
+
+                                                        {o.notes && (
+                                                            <div className="p-2.5 rounded-md bg-amber-50/70 border border-amber-100 text-xs text-amber-950 font-medium leading-relaxed">
+                                                                {o.notes}
+                                                            </div>
+                                                        )}
+
+                                                        <div className="flex gap-2 items-center">
+                                                            <input
+                                                                type="text"
+                                                                value={currentNotes}
+                                                                onChange={(e) =>
+                                                                    setEditingNotes((prev) => ({
+                                                                        ...prev,
+                                                                        [o.id]: e.target.value,
+                                                                    }))
+                                                                }
+                                                                placeholder="كتابة ملاحظة سريعة أو موعد التوصيل..."
+                                                                className="flex-1 px-3 py-1.5 text-xs rounded-md border border-gray-200 focus:border-black outline-hidden bg-white"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => void handleSaveOrderNotes(o.id)}
+                                                                disabled={isBusy}
+                                                                className="px-3.5 py-1.5 bg-black text-white hover:bg-gray-800 text-xs font-bold rounded-md transition-colors"
+                                                            >
+                                                                حفظ
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
 
@@ -1008,6 +1078,202 @@ export const SupervisorHomePage: React.FC = () => {
                             </div>
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* MANUAL ETA & DELIVERY NOTES DIALOG */}
+            {etaModalOrder && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200"
+                    dir="rtl"
+                >
+                    <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col max-h-[90vh]">
+                        {/* Modal Header */}
+                        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/60">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-900 flex items-center justify-center">
+                                    <Clock className="w-4 h-4 text-amber-700" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-gray-900 text-sm sm:text-base">
+                                        تعديل موعد التوصيل وملاحظات الطلب (ETA)
+                                    </h3>
+                                    <p className="text-xs text-gray-500 font-mono">
+                                        طلب #{etaModalOrder.orderNumber} · {etaModalOrder.customerName}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setEtaModalOrder(null)}
+                                disabled={etaModalBusy}
+                                className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-5 overflow-y-auto space-y-4 text-xs">
+                            {/* 1. Quick ETA Presets */}
+                            <div className="space-y-2">
+                                <label className="font-bold text-gray-800 block text-xs">
+                                    موعد الوصول المتوقع السريع (ETA Preset):
+                                </label>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    {[
+                                        'خلال 30 دقيقة',
+                                        'خلال ساعة واحدة',
+                                        'خلال ساعتين',
+                                        'اليوم (5:00 - 8:00 مساءً)',
+                                        'غداً (9:00 - 12:00 ظهراً)',
+                                        'غداً (4:00 - 7:00 مساءً)',
+                                    ].map((preset) => (
+                                        <button
+                                            key={preset}
+                                            type="button"
+                                            onClick={() => {
+                                                setSelectedEtaPreset(preset === selectedEtaPreset ? '' : preset);
+                                                if (preset !== selectedEtaPreset) setCustomEtaText('');
+                                            }}
+                                            className={cn(
+                                                'px-2.5 py-2 rounded-lg border text-center font-bold text-[11px] transition-all cursor-pointer',
+                                                selectedEtaPreset === preset
+                                                    ? 'bg-black text-white border-black shadow-xs'
+                                                    : 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-700'
+                                            )}
+                                        >
+                                            {preset}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* 2. Custom ETA input */}
+                            <div className="space-y-1.5">
+                                <label className="font-bold text-gray-700 block text-xs">
+                                    أو حددي وقتاً مخصصاً:
+                                </label>
+                                <input
+                                    type="text"
+                                    value={customEtaText}
+                                    onChange={(e) => {
+                                        setCustomEtaText(e.target.value);
+                                        if (e.target.value) setSelectedEtaPreset('');
+                                    }}
+                                    placeholder="مثال: غداً الساعة 2:00 ظهراً / اليوم قبل صلاة العصر..."
+                                    className="w-full px-3 py-2 text-xs rounded-lg border border-gray-200 focus:border-black outline-hidden bg-white text-gray-900"
+                                />
+                            </div>
+
+                            {/* 3. Operational Delay Reason */}
+                            <div className="space-y-2 pt-2 border-t border-gray-100">
+                                <label className="font-bold text-gray-800 block text-xs">
+                                    سبب التعديل أو التأخير التشغيلي (اختياري):
+                                </label>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {[
+                                        'ازدحام مروري',
+                                        'أمطار / ظروف جوية',
+                                        'طلب العميل التأجيل',
+                                        'تأخر تجهيز الشحنة بالمستودع',
+                                        'تغيير المندوب',
+                                    ].map((reason) => (
+                                        <button
+                                            key={reason}
+                                            type="button"
+                                            onClick={() =>
+                                                setSelectedDelayReason(reason === selectedDelayReason ? '' : reason)
+                                            }
+                                            className={cn(
+                                                'px-2.5 py-1 rounded-md border text-[11px] font-bold transition-all cursor-pointer',
+                                                selectedDelayReason === reason
+                                                    ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                                    : 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-600'
+                                            )}
+                                        >
+                                            {reason}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* 4. Extra Notes */}
+                            <div className="space-y-1.5 pt-2 border-t border-gray-100">
+                                <label className="font-bold text-gray-800 block text-xs">
+                                    ملاحظات أو توجيهات إضافية للمندوب والعميل:
+                                </label>
+                                <textarea
+                                    rows={2}
+                                    value={extraEtaNotes}
+                                    onChange={(e) => setExtraEtaNotes(e.target.value)}
+                                    placeholder="أي تفاصيل خاصة بالموقع أو رقم بديل للتواصل..."
+                                    className="w-full p-2.5 text-xs rounded-lg border border-gray-200 focus:border-black outline-hidden bg-white text-gray-900 resize-none"
+                                />
+                            </div>
+
+                            {/* 5. Live Preview */}
+                            {(() => {
+                                const etaVal = selectedEtaPreset || customEtaText.trim();
+                                const parts: string[] = [];
+                                if (etaVal) parts.push(`[الموعد المتوقع: ${etaVal}]`);
+                                if (selectedDelayReason) parts.push(`[تحديث: ${selectedDelayReason}]`);
+                                if (extraEtaNotes.trim()) parts.push(extraEtaNotes.trim());
+                                const previewText = parts.join(' ').trim();
+
+                                if (!previewText) return null;
+
+                                return (
+                                    <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-1">
+                                        <span className="text-[10px] text-gray-400 font-bold block">معاينة نص الملاحظات:</span>
+                                        <p className="text-xs text-gray-800 font-mono leading-relaxed">{previewText}</p>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="px-5 py-3.5 bg-gray-50/80 border-t border-gray-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                            {/* WhatsApp Notify Button */}
+                            {(() => {
+                                const custPhoneClean = cleanPhone(etaModalOrder.phone);
+                                const etaVal = selectedEtaPreset || customEtaText.trim();
+                                const msg = `مرحباً ${etaModalOrder.customerName}، معكم مستودع تيبس لمستحضرات التجميل بخصوص طلبكم #${etaModalOrder.orderNumber}.${etaVal ? ` موعد التوصيل المتوقع: ${etaVal}.` : ''}${selectedDelayReason ? ` (${selectedDelayReason})` : ''} شكراً لتسوقكم معنا.`;
+                                const waUrl = `https://wa.me/${custPhoneClean}?text=${encodeURIComponent(msg)}`;
+
+                                return (
+                                    <a
+                                        href={waUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs transition-colors"
+                                    >
+                                        <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                        <span>إخطار العميل عبر واتساب</span>
+                                    </a>
+                                );
+                            })()}
+
+                            <div className="flex items-center gap-2 justify-end">
+                                <button
+                                    type="button"
+                                    onClick={() => setEtaModalOrder(null)}
+                                    disabled={etaModalBusy}
+                                    className="px-3.5 py-2 text-xs font-bold text-gray-600 hover:text-black hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                                >
+                                    إلغاء
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => void handleSaveEtaModal()}
+                                    disabled={etaModalBusy}
+                                    className="px-5 py-2 bg-black hover:bg-gray-800 disabled:opacity-40 text-white font-bold text-xs rounded-lg transition-colors shadow-xs cursor-pointer"
+                                >
+                                    {etaModalBusy ? 'جارٍ الحفظ...' : 'حفظ وتحديث الموعد'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </PageState>
