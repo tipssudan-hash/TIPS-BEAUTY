@@ -8,6 +8,7 @@ import { VerifiedRoute } from '@presentation/components/layout/VerifiedRoute';
 import { NativeBridge } from '@presentation/components/layout/NativeBridge';
 import { OfflineBanner } from '@presentation/components/layout/OfflineBanner';
 import { Spinner } from '@presentation/components/ui';
+import { CartNotificationToast } from '@presentation/components/ui/CartNotificationToast';
 import { HomePage } from '@presentation/pages/customer/HomePage';
 import { useStore } from '@presentation/context/StoreContext';
 import { useAuth } from '@presentation/context/AuthContext';
@@ -141,6 +142,7 @@ function App() {
         </ErrorBoundary>
       </main>
       <Footer />
+      <CartNotificationToast />
       <BottomNav cartCount={cartCount} />
     </div>
   );

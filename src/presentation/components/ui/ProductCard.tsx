@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Heart, Share2, ShoppingCart, Sparkles, Package } from 'lucide-react';
+import { Heart, Share2, ShoppingCart, Sparkles, Package, Check } from 'lucide-react';
 import { Product } from '@domain/entities';
 import clsx from 'clsx';
 import { Link, useNavigate } from 'react-router-dom';
@@ -19,6 +19,7 @@ const ProductCardInner: React.FC<ProductCardProps> = ({ product, isInWishlist, o
     const navigate = useNavigate();
     const [imgLoaded, setImgLoaded] = useState(false);
     const [imgError, setImgError] = useState(false);
+    const [isAdded, setIsAdded] = useState(false);
 
     const finalPrice = product.effectivePrice;
     const hasDiscount = !product.isRemoved && (finalPrice < product.price || Boolean(product.discountPercentage && product.discountPercentage > 0));
@@ -137,16 +138,34 @@ const ProductCardInner: React.FC<ProductCardProps> = ({ product, isInWishlist, o
                 </div>
                 <button
                     type="button"
-                    disabled={outOfStock || product.isRemoved}
+                    disabled={outOfStock || product.isRemoved || isAdded}
                     onClick={(e) => {
                         e.preventDefault();
-                        if (product.isRemoved) return;
-                        if (hasVariants) navigate(`/product/${product.id}`);
-                        else onAddToCart(product);
+                        if (product.isRemoved || isAdded) return;
+                        if (hasVariants) {
+                            navigate(`/product/${product.id}`);
+                        } else {
+                            setIsAdded(true);
+                            onAddToCart(product);
+                            setTimeout(() => setIsAdded(false), 1200);
+                        }
                     }}
-                    className="mt-auto w-full py-2 rounded-xl text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95 bg-brand-blue hover:bg-sky-700 text-white disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none disabled:cursor-not-allowed"
+                    className={clsx(
+                        "mt-auto w-full py-2 rounded-xl text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all duration-200 active:scale-95 disabled:cursor-not-allowed",
+                        isAdded
+                            ? "bg-green-600 text-white shadow-green-600/30"
+                            : "bg-brand-blue hover:bg-sky-700 text-white disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none"
+                    )}
                 >
-                    {product.isRemoved ? 'غير متوفر بالمتجر' : hasVariants ? 'اختاري الخيار' : 'أضيفي للسلة'} <ShoppingCart className="w-3.5 h-3.5" />
+                    {product.isRemoved ? (
+                        'غير متوفر بالمتجر'
+                    ) : isAdded ? (
+                        <>تمت الإضافة <Check className="w-3.5 h-3.5" /></>
+                    ) : hasVariants ? (
+                        <>اختاري الخيار <ShoppingCart className="w-3.5 h-3.5" /></>
+                    ) : (
+                        <>أضيفي للسلة <ShoppingCart className="w-3.5 h-3.5" /></>
+                    )}
                 </button>
             </div>
         </Link>

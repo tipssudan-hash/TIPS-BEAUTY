@@ -47,7 +47,7 @@ const GpsCapture: React.FC<{ gps: CustomerGpsState }> = ({ gps }) => {
         return (
             <div className="space-y-1">
                 <div className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-sm text-green-700" role="status">
-                    <span>✓ تم تحديد موقعك{gps.accuracyMeters != null ? ` (دقة: ${Math.round(gps.accuracyMeters)} متر)` : ''}</span>
+                    <span>✓ تم تحديد موقعك{gps.accuracyMeters != null ? ` - دقة ${Math.round(gps.accuracyMeters)} متر` : ''}</span>
                     <button type="button" onClick={gps.clearGps} className="text-gray-400 hover:text-red-500 min-w-8 min-h-8 flex items-center justify-center" aria-label="إلغاء تحديد الموقع"><X className="w-4 h-4" /></button>
                 </div>
                 {gps.accuracyMeters != null && gps.accuracyMeters > LOW_GPS_ACCURACY_METERS && (
@@ -56,10 +56,24 @@ const GpsCapture: React.FC<{ gps: CustomerGpsState }> = ({ gps }) => {
             </div>
         );
     }
+    if (gps.status === 'denied') {
+        return (
+            <div className="space-y-2" role="alert">
+                <Notice kind="error">تم حظر صلاحية الموقع، يرجى تفعيلها من إعدادات المتصفح لإتمام الطلب.</Notice>
+                <button
+                    type="button"
+                    onClick={gps.requestGps}
+                    className="px-4 py-2 rounded-lg border border-red-300 text-sm font-bold text-red-700 hover:bg-red-50 flex items-center gap-2 transition-colors"
+                >
+                    📍 إعادة المحاولة
+                </button>
+            </div>
+        );
+    }
     const failure = GPS_FAILURE_MESSAGES[gps.status];
     return (
         <div className="space-y-2">
-            <Notice kind="error">الموقع الجغرافي مطلوب لحساب رسوم التوصيل وإتمام الطلب. اضغطي على "📍 حدد موقعي" وامنحي صلاحية الموقع.</Notice>
+            <Notice kind="error">يرجى تحديد موقعك أولاً للمتابعة.</Notice>
             <button type="button" onClick={gps.requestGps} className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50">📍 حدد موقعي</button>
             {failure && <p role="alert" className="text-xs text-gray-500">{failure}</p>}
         </div>
@@ -217,7 +231,11 @@ export const CheckoutPage: React.FC = () => {
         e.preventDefault();
         setSubmitError(null);
         if (gps.status !== 'granted' || gps.latitude == null || gps.longitude == null) {
-            setSubmitError('يجب تحديد موقعك الجغرافي لإكمال الطلب. اضغط على "📍 حدد موقعي" أعلاه.');
+            setSubmitError(
+                gps.status === 'denied'
+                    ? 'صلاحية الموقع محظورة، يرجى تفعيلها من إعدادات المتصفح لإتمام الطلب.'
+                    : 'يرجى تحديد موقعك أولاً للمتابعة.'
+            );
             return;
         }
         if (!user || !selectedZone || !selectedMethod) return;
@@ -249,7 +267,7 @@ export const CheckoutPage: React.FC = () => {
             const result = await checkout({
                 customerName: formData.name.trim(),
                 phone: normalizeSudanPhone(formData.phone) ?? formData.phone.trim(),
-                shippingAddress: formData.address.trim(),
+                shippingAddress: formData.address.trim() || 'الموقع محدد عبر الخريطة',
                 zoneName: selectedZone.name,
                 state: formData.state,
                 paymentMethod: selectedMethod.code,
@@ -319,8 +337,14 @@ export const CheckoutPage: React.FC = () => {
                                 </select>
                             </Field>
                         </div>
-                        <Field label="العنوان بالتفصيل" required>
-                            <textarea required minLength={5} value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} className={inputClass} rows={3} />
+                        <Field label="العنوان بالتفصيل" hint="معالم قريبة، رقم العمارة أو الشقة">
+                            <textarea
+                                value={formData.address}
+                                onChange={e => setFormData({ ...formData, address: e.target.value })}
+                                className={inputClass}
+                                rows={3}
+                                placeholder="معالم إضافية، رقم الشقة أو الطابق"
+                            />
                         </Field>
                         {/* Customer location pin: mandatory for GPS-based delivery pricing */}
                         <GpsCapture gps={gps} />
@@ -367,7 +391,7 @@ export const CheckoutPage: React.FC = () => {
                                 <Field label="الرقم المرجعي" required>
                                     <input required value={formData.reference} onChange={e => setFormData({ ...formData, reference: e.target.value })} className={inputClass} placeholder="الرقم المرجعي للتحويل" />
                                 </Field>
-                                <Field label="إثبات الدفع (صورة حتى 5 ميجابايت)" required hint={proofFile && !proofError ? `تم اختيار: ${proofFile.name}` : undefined}>
+                                <Field label="إثبات الدفع - صورة حتى 5 ميجابايت" required hint={proofFile && !proofError ? `تم اختيار: ${proofFile.name}` : undefined}>
                                     <input required type="file" accept="image/*" onChange={e => handleProofChange(e.target.files?.[0] ?? null)} className="w-full text-sm text-gray-600 file:ml-3 file:py-2 file:px-4 file:rounded-control file:border-0 file:bg-brand-blue-soft file:text-brand-blue file:font-bold" />
                                     {proofError && <p role="alert" className="text-xs text-red-600 mt-1">{proofError}</p>}
                                 </Field>

@@ -7,6 +7,14 @@ import { useAuth } from './AuthContext';
 import { supabase } from '@infrastructure/supabase';
 import { useNavigate } from 'react-router-dom';
 
+export interface CartNotificationData {
+    productId: string;
+    productName: string;
+    variantName?: string | null;
+    image: string;
+    price: number;
+}
+
 interface StoreContextType {
     products: Product[];
     productsLoading: boolean;
@@ -24,6 +32,8 @@ interface StoreContextType {
     addToRecentlyViewed: (product: Product) => void;
     recentlyViewed: Product[];
     cartCount: number;
+    cartNotification: CartNotificationData | null;
+    dismissCartNotification: () => void;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -258,6 +268,17 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setRecentlyViewed(prev => [product, ...prev.filter(p => p.id !== product.id)].slice(0, MAX_RECENTLY_VIEWED_ITEMS));
     }, [userId, products]);
 
+    const [cartNotification, setCartNotification] = useState<CartNotificationData | null>(null);
+    const dismissCartNotification = useCallback(() => setCartNotification(null), []);
+
+    useEffect(() => {
+        if (!cartNotification) return;
+        const timer = setTimeout(() => {
+            setCartNotification(null);
+        }, 3500);
+        return () => clearTimeout(timer);
+    }, [cartNotification]);
+
     const addToCart = useCallback((product: Product, variant: ProductVariant | null = null, quantity = 1) => {
         if (product.isRemoved) return;
         if (products.length > 0 && !products.some(p => p.id === product.id)) return;
@@ -280,6 +301,13 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 return prev.map(item => cartLineKey(item) === key ? { ...item, quantity: item.quantity + quantity } : item);
             }
             return [...prev, line];
+        });
+        setCartNotification({
+            productId: product.id,
+            productName: product.name_ar,
+            variantName: variant?.name_ar ?? null,
+            image: product.image,
+            price: variant ? variant.effectivePrice : product.effectivePrice,
         });
     }, [products]);
 
@@ -350,6 +378,8 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             toggleWishlist,
             addToRecentlyViewed,
             cartCount,
+            cartNotification,
+            dismissCartNotification,
         }}>
             {children}
         </StoreContext.Provider>

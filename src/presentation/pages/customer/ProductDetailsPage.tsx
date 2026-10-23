@@ -19,6 +19,7 @@ export const ProductDetailsPage: React.FC = () => {
     // The chosen Variant (shade/size); a Product with Variants is only added with one.
     const [variantId, setVariantId] = useState<string | null>(null);
     const [variantHint, setVariantHint] = useState(false);
+    const [isAdded, setIsAdded] = useState(false);
 
     useEffect(() => {
         if (!id) return;
@@ -84,13 +85,15 @@ export const ProductDetailsPage: React.FC = () => {
     };
 
     const handleAddToCart = () => {
-        if (!product) return;
+        if (!product || isAdded) return;
         const variant = product.variants.find((v) => v.id === variantId) ?? null;
         if (product.variants.length > 0 && !variant) {
             setVariantHint(true);
             return;
         }
+        setIsAdded(true);
         addToCart(product, variant);
+        setTimeout(() => setIsAdded(false), 1200);
         setNotice(variant ? `تمت إضافة ${product.name_ar} (${variant.name_ar}) للسلة` : 'تمت إضافة المنتج للسلة');
     };
 
@@ -266,12 +269,26 @@ export const ProductDetailsPage: React.FC = () => {
                         </div>
 
                         <button
+                            type="button"
                             onClick={handleAddToCart}
-                            disabled={product.stock === 0 || product.isRemoved}
-                            className="w-full bg-brand-blue hover:bg-sky-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-bold py-3.5 sm:py-4 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-98 shadow-md shadow-brand-blue/20"
+                            disabled={product.stock === 0 || product.isRemoved || isAdded}
+                            className={`w-full font-bold py-3.5 sm:py-4 rounded-xl flex items-center justify-center gap-2 transition-all duration-200 active:scale-98 shadow-md disabled:cursor-not-allowed ${
+                                isAdded
+                                    ? 'bg-green-600 text-white shadow-green-600/30'
+                                    : 'bg-brand-blue hover:bg-sky-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none text-white shadow-brand-blue/20'
+                            }`}
                         >
-                            <ShoppingCart className="w-5 h-5" />
-                            {product.isRemoved ? 'غير متوفر بالمتجر' : product.stock > 0 ? 'أضيفي للسلة' : 'غير متوفر'}
+                            {isAdded ? (
+                                <>
+                                    <Check className="w-5 h-5" />
+                                    <span>تمت الإضافة للسلة بنجاح</span>
+                                </>
+                            ) : (
+                                <>
+                                    <ShoppingCart className="w-5 h-5" />
+                                    <span>{product.isRemoved ? 'غير متوفر بالمتجر' : product.stock > 0 ? 'أضيفي للسلة' : 'غير متوفر'}</span>
+                                </>
+                            )}
                         </button>
                     </div>
                 </div>
