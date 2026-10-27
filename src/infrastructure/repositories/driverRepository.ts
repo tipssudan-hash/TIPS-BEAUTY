@@ -117,9 +117,31 @@ export async function setMyAvailability(status: 'active' | 'offline'): Promise<v
 }
 
 // shipped = picked up; delivered / delivery_failed close the delivery (reason required on failure).
-export async function updateMyDeliveryStatus(orderId: string, status: 'shipped' | 'delivered' | 'delivery_failed', failureReason?: string, note?: string): Promise<void> {
-    const { error } = await supabase.rpc('update_driver_order_status', { p_order_id: orderId, p_status: status, p_failure_reason: failureReason, p_note: note });
+export async function updateMyDeliveryStatus(
+    orderId: string,
+    status: 'shipped' | 'delivered' | 'delivery_failed',
+    failureReason?: string,
+    note?: string,
+    paymentType: 'cash' | 'bank_transfer' = 'cash',
+    receiptUrl?: string
+): Promise<void> {
+    const { error } = await supabase.rpc('update_driver_order_status', {
+        p_order_id: orderId,
+        p_status: status,
+        p_failure_reason: failureReason,
+        p_note: note,
+        p_payment_type: paymentType,
+        p_receipt_url: receiptUrl,
+    });
     if (error) throw error;
+}
+
+export async function uploadDriverCodReceipt(orderId: string, file: File): Promise<string> {
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const path = `cod-receipts/${orderId}-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from('payment-proofs').upload(path, file, { upsert: false, contentType: file.type || undefined });
+    if (error) throw error;
+    return path;
 }
 
 export async function shareMyLocation(latitude: number, longitude: number, accuracyMeters: number | null): Promise<void> {

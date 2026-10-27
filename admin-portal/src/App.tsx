@@ -22,6 +22,10 @@ import { SettingsPage } from './pages/SettingsPage';
 import { DeliveryHealthPage } from './pages/DeliveryHealthPage';
 import { DeliveryPricingPage } from './pages/DeliveryPricingPage';
 import { ReturnsPage } from './pages/ReturnsPage';
+import { WarehousePerformancePage } from './pages/accounting/WarehousePerformancePage';
+import { CustodyPage } from './pages/accounting/CustodyPage';
+import { DriverAccountsPage } from './pages/accounting/DriverAccountsPage';
+import { MarketerAccountsPage } from './pages/accounting/MarketerAccountsPage';
 
 function App() {
   return (
@@ -52,6 +56,11 @@ function App() {
         <Route path="reviews" element={<ReviewsPage />} />
         <Route path="delivery-health" element={<DeliveryHealthPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        {/* Accountant routes */}
+        <Route path="accounting/warehouse-performance" element={<WarehousePerformancePage />} />
+        <Route path="accounting/custody" element={<CustodyPage />} />
+        <Route path="accounting/driver-accounts" element={<DriverAccountsPage />} />
+        <Route path="accounting/marketer-accounts" element={<MarketerAccountsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
@@ -59,3 +68,4 @@ function App() {
 }
 
 export default App;
+

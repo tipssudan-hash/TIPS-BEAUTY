@@ -499,3 +499,127 @@ export async function verifyAndAdvanceOrder(params: {
     }
 }
 
+// ============================================================================
+// Accountant API
+// ============================================================================
+
+export interface WarehouseSettlementSummary {
+    period: { start: string; end: string };
+    total_orders: number;
+    delivered_orders: number;
+    failed_orders: number;
+    cancelled_orders: number;
+    total_revenue: number;
+    cod_collected: number;
+    online_paid: number;
+    pending_payment: number;
+    paid_confirmed: number;
+    shipping_fees_collected: number;
+    cash_remittances: {
+        total_submitted: number;
+        total_confirmed: number;
+        pending_confirmation: number;
+        rejected: number;
+    };
+    driver_performance: Array<{
+        driver_id: string;
+        driver_name: string;
+        delivered: number;
+        failed: number;
+        cod_collected: number;
+        cash_submitted: number;
+        cash_confirmed: number;
+    }>;
+}
+
+export async function fetchWarehouseSettlement(start: string, end: string): Promise<WarehouseSettlementSummary> {
+    // get_warehouse_settlement_summary is ahead of generated types — use `as any`
+    const { data, error } = await (supabase.rpc as any)('get_warehouse_settlement_summary', {
+        p_start: start,
+        p_end: end,
+    });
+    if (error) throw error;
+    return data as unknown as WarehouseSettlementSummary;
+}
+
+export interface CashRemittanceRow {
+    id: string;
+    driver_id: string;
+    driver_name: string;
+    warehouse_id: string | null;
+    warehouse_name: string | null;
+    amount: number;
+    status: 'submitted' | 'confirmed' | 'rejected';
+    driver_notes: string | null;
+    supervisor_notes: string | null;
+    submitted_at: string;
+    confirmed_at: string | null;
+}
+
+export async function fetchPendingRemittances(): Promise<CashRemittanceRow[]> {
+    // driver_cash_remittances is ahead of generated types — use `as any`
+    const { data, error } = await (supabase.from as any)('driver_cash_remittances')
+        .select('id,driver_id,amount,status,driver_notes,supervisor_notes,submitted_at,confirmed_at,drivers(name),warehouses(name)')
+        .order('submitted_at', { ascending: false });
+    if (error) throw error;
+    return ((data ?? []) as unknown[]).map((r: unknown) => {
+        const row = r as Record<string, unknown>;
+        return {
+            id: row.id as string,
+            driver_id: row.driver_id as string,
+            driver_name: (row.drivers as { name: string } | null)?.name ?? '—',
+            warehouse_id: (row.warehouse_id as string | null) ?? null,
+            warehouse_name: (row.warehouses as { name: string } | null)?.name ?? null,
+            amount: Number(row.amount),
+            status: row.status as CashRemittanceRow['status'],
+            driver_notes: (row.driver_notes as string | null) ?? null,
+            supervisor_notes: (row.supervisor_notes as string | null) ?? null,
+            submitted_at: row.submitted_at as string,
+            confirmed_at: (row.confirmed_at as string | null) ?? null,
+        };
+    });
+}
+
+export async function confirmRemittanceAsAdmin(remittanceId: string, action: 'confirmed' | 'rejected', notes?: string): Promise<void> {
+    // supervisor_confirm_cash_remittance is ahead of generated types — use `as any`
+    const { error } = await (supabase.rpc as any)('supervisor_confirm_cash_remittance', {
+        p_remittance_id: remittanceId,
+        p_action: action,
+        p_notes: notes ?? null,
+    });
+    if (error) throw error;
+}
+
+export interface DriverAccountSummary {
+    driver_id: string;
+    driver_name: string;
+    warehouse_name: string | null;
+    total_delivered: number;
+    total_cod: number;
+    total_submitted: number;
+    total_confirmed: number;
+    pending_amount: number;
+}
+
+export async function fetchDriverAccountSummaries(): Promise<DriverAccountSummary[]> {
+    const today = new Date().toISOString().split('T')[0];
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    // get_warehouse_settlement_summary is ahead of generated types — use `as any`
+    const { data, error } = await (supabase.rpc as any)('get_warehouse_settlement_summary', {
+        p_start: thirtyDaysAgo,
+        p_end: today,
+    });
+    if (error) throw error;
+    const summary = data as unknown as WarehouseSettlementSummary;
+    return (summary?.driver_performance ?? []).map((d) => ({
+        driver_id: d.driver_id,
+        driver_name: d.driver_name,
+        warehouse_name: null,
+        total_delivered: d.delivered,
+        total_cod: d.cod_collected,
+        total_submitted: d.cash_submitted,
+        total_confirmed: d.cash_confirmed,
+        pending_amount: d.cash_submitted - d.cash_confirmed,
+    }));
+}
+

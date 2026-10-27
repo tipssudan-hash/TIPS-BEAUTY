@@ -94,11 +94,24 @@ export const OrderDetailPage: React.FC = () => {
     const changeStatus = (status: OrderStatus) => {
         if (!order) return;
         if (status === 'cancelled' && !window.confirm('هل تريد إلغاء هذا الطلب؟ سيتم إرجاع المخزون والنقاط المستخدمة.')) return;
-        if (status === 'delivered' && !paymentReady) {
-            setError('لا يمكن تسليم الطلب قبل تأكيد الدفع. يرجى تأكيد استلام المبلغ أولاً.');
+        if (status === 'delivered') {
+            setError('لا يمكن للآدمن تأكيد التسليم. تأكيد التسليم يتم حصرياً بواسطة مندوب التوصيل عبر كود التحقق أو الباركود.');
             return;
         }
-        void run(() => updateOrderOperation({ orderId: order.id, expectedStatus: order.status, status, note }));
+        if (order.status !== 'new' && order.status !== 'delivery_failed') {
+            setError('لا يمكن تغيير حالة الطلب من لوحة الإدارة بعد التأكيد. الطلب الآن بعهدة المستودع.');
+            return;
+        }
+        void run(async () => {
+            const targetWarehouseId = warehouseId || order.fulfillment_warehouse_id || (warehouses.length > 0 ? warehouses[0].id : null);
+            await updateOrderOperation({
+                orderId: order.id,
+                expectedStatus: order.status,
+                status,
+                warehouseId: targetWarehouseId || undefined,
+                note,
+            });
+        });
     };
 
     const handleConfirmCod = () => {
@@ -287,24 +300,36 @@ export const OrderDetailPage: React.FC = () => {
                         )}
 
                         {transitions.length === 0 ? (
-                            <p className="text-sm text-slate-400 font-bold">لا توجد إجراءات متاحة لهذه الحالة.</p>
+                            <div className="p-4 bg-sky-50 border border-sky-100 rounded-xl text-sky-950 text-xs space-y-1.5">
+                                <div className="flex items-center gap-2 font-bold text-sky-900">
+                                    <Warehouse className="w-4 h-4 text-brand-blue" />
+                                    <span>الطلب بعهدة المستودع وفريق التوصيل</span>
+                                </div>
+                                <p className="text-slate-600 leading-relaxed font-medium">
+                                    تم تأكيد الطلب وانتقاله لعمليات المستودع. لا يمكن تعديل الحالة من لوحة الإدارة بعد التأكيد لضمان تدفق الشحنات، وتأكيد التسليم محصور بالمندوب عبر كود التحقق.
+                                </p>
+                            </div>
                         ) : (
-                            <div className="flex flex-wrap gap-2">
-                                {transitions.map((next) => {
-                                    const isDelivered = next === 'delivered';
-                                    const blocked = isDelivered && !paymentReady;
-                                    return (
-                                        <button
-                                            key={next}
-                                            disabled={busy || blocked}
-                                            onClick={() => changeStatus(next)}
-                                            title={blocked ? 'يرجى تأكيد الدفع أولاً' : undefined}
-                                            className={`px-4 py-2 rounded-xl text-sm font-black border transition-colors disabled:opacity-50 ${next === 'cancelled' ? 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100' : blocked ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-brand-blue text-white border-brand-blue hover:bg-blue-700'}`}
-                                        >
-                                            {next === 'cancelled' ? 'إلغاء الطلب' : `→ ${orderStatusLabel(next)}`}
-                                        </button>
-                                    );
-                                })}
+                            <div className="space-y-3">
+                                {order.status === 'new' && (
+                                    <p className="text-xs text-slate-500 font-medium">
+                                        تأكيد الطلب سينقله مباشرة إلى المستودع المحدد لبدء التجهيز والإسناد للمندوب.
+                                    </p>
+                                )}
+                                <div className="flex flex-wrap gap-2">
+                                    {transitions.map((next) => {
+                                        return (
+                                            <button
+                                                key={next}
+                                                disabled={busy}
+                                                onClick={() => changeStatus(next)}
+                                                className={`px-4 py-2 rounded-xl text-sm font-black border transition-colors disabled:opacity-50 ${next === 'cancelled' ? 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100' : 'bg-brand-blue text-white border-brand-blue hover:bg-blue-700'}`}
+                                            >
+                                                {next === 'cancelled' ? 'إلغاء الطلب' : `تأكيد الطلب ونقله للمخزن ←`}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         )}
                     </Card>

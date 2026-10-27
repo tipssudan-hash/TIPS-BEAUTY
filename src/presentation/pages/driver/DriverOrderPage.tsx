@@ -19,9 +19,13 @@ import {
     Check,
     ChevronDown,
     ChevronUp,
+    Camera,
+    UploadCloud,
+    CreditCard,
+    X,
 } from 'lucide-react';
 import { useDriver } from './DriverContext';
-import { fetchDriverDelivery as fetchMyDelivery, updateMyDeliveryStatus, type Delivery } from '@infrastructure/repositories';
+import { fetchDriverDelivery as fetchMyDelivery, updateMyDeliveryStatus, uploadDriverCodReceipt, type Delivery } from '@infrastructure/repositories';
 import { errorMessage } from '@application/errors';
 import { formatSDG, formatDateTime } from '@application/services/format';
 import { EmptyState, Notice, Spinner } from '../../components/ui';
@@ -52,6 +56,13 @@ export const DriverOrderPage: React.FC = () => {
     const [barcodeVerified, setBarcodeVerified] = useState(false);
     const [copied, setCopied] = useState<string | null>(null);
     const [showAllProducts, setShowAllProducts] = useState(false);
+
+    // COD Payment selection state (Cash vs Bank Transfer with Receipt)
+    const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+    const [paymentType, setPaymentType] = useState<'cash' | 'bank_transfer'>('cash');
+    const [receiptFile, setReceiptFile] = useState<File | null>(null);
+    const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+    const [paymentModalError, setPaymentModalError] = useState<string | null>(null);
 
     const fromFeed = deliveries.find((d) => d.id === id);
     useEffect(() => {
@@ -100,18 +111,11 @@ export const DriverOrderPage: React.FC = () => {
         }
     };
 
-    const act = async (status: 'shipped' | 'delivered' | 'delivery_failed') => {
-        if (status === 'delivered') {
-            if (delivery.codAmount != null && delivery.codAmount > 0) {
-                const confirmed = window.confirm(
-                    `تأكيد تسليم الطلب وتحصيل مبلغ ${formatSDG(delivery.codAmount)} نقداً من العميل؟`
-                );
-                if (!confirmed) return;
-            } else {
-                if (!window.confirm('تأكيد تسليم الطلب للعميل؟')) return;
-            }
-        }
-
+    const act = async (
+        status: 'shipped' | 'delivered' | 'delivery_failed',
+        payType: 'cash' | 'bank_transfer' = 'cash',
+        receiptPath?: string
+    ) => {
         setBusy(true);
         setError(null);
         try {
@@ -119,14 +123,20 @@ export const DriverOrderPage: React.FC = () => {
                 delivery.id,
                 status,
                 status === 'delivery_failed' ? reason : undefined,
-                note.trim() || undefined
+                note.trim() || undefined,
+                payType,
+                receiptPath
             );
             setFailing(false);
+            setPaymentModalOpen(false);
+            setReceiptFile(null);
+            setReceiptPreview(null);
             setNote('');
             await refresh();
             if (fallback) setFallback(await fetchMyDelivery(delivery.id));
         } catch (err) {
             setError(errorMessage(err, 'تعذر تحديث حالة الطلب.'));
+            throw err;
         } finally {
             setBusy(false);
         }
@@ -504,21 +514,23 @@ export const DriverOrderPage: React.FC = () => {
                                 onClick={() => {
                                     if (!barcodeVerified) {
                                         setBarcodeModalOpen(true);
+                                    } else if (delivery.codAmount != null && delivery.codAmount > 0) {
+                                        setPaymentModalOpen(true);
                                     } else {
                                         void act('delivered');
                                     }
                                 }}
                                 disabled={busy}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 sm:py-3 px-3 rounded-lg flex items-center justify-center gap-1.5 shadow-xs transition-colors text-xs sm:text-sm active:scale-95"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 sm:py-3 px-3 rounded-lg flex items-center justify-center gap-1.5 shadow-xs transition-colors text-xs sm:text-sm active:scale-95 cursor-pointer"
                             >
                                 {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <PackageCheck className="w-4 h-4" />}
-                                {barcodeVerified ? 'تأكيد التسليم' : 'مسح الباركود والتسليم'}
+                                {!barcodeVerified ? 'مسح الباركود والتسليم' : (delivery.codAmount && delivery.codAmount > 0) ? 'تأكيد الدفع والتسليم' : 'تأكيد التسليم'}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setFailing(true)}
                                 disabled={busy}
-                                className="bg-white border border-rose-300 text-rose-700 hover:bg-rose-50 font-bold py-2.5 sm:py-3 px-3 rounded-lg transition-colors flex items-center justify-center gap-1.5 text-xs sm:text-sm active:scale-95"
+                                className="bg-white border border-rose-300 text-rose-700 hover:bg-rose-50 font-bold py-2.5 sm:py-3 px-3 rounded-lg transition-colors flex items-center justify-center gap-1.5 text-xs sm:text-sm active:scale-95 cursor-pointer"
                             >
                                 <AlertTriangle className="w-4 h-4" /> تعذر التسليم
                             </button>
@@ -531,7 +543,7 @@ export const DriverOrderPage: React.FC = () => {
                                 type="button"
                                 onClick={() => void act('delivery_failed')}
                                 disabled={busy}
-                                className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 sm:py-3 px-3 rounded-lg shadow-xs transition-colors flex items-center justify-center gap-1.5 text-xs sm:text-sm"
+                                className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 sm:py-3 px-3 rounded-lg shadow-xs transition-colors flex items-center justify-center gap-1.5 text-xs sm:text-sm cursor-pointer"
                             >
                                 {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
                                 تأكيد تعذر التسليم
@@ -540,7 +552,7 @@ export const DriverOrderPage: React.FC = () => {
                                 type="button"
                                 onClick={() => setFailing(false)}
                                 disabled={busy}
-                                className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 font-bold py-2.5 sm:py-3 px-3 rounded-lg transition-colors text-xs sm:text-sm"
+                                className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 font-bold py-2.5 sm:py-3 px-3 rounded-lg transition-colors text-xs sm:text-sm cursor-pointer"
                             >
                                 رجوع
                             </button>
@@ -566,9 +578,182 @@ export const DriverOrderPage: React.FC = () => {
                 onVerified={() => {
                     setBarcodeVerified(true);
                     setBarcodeModalOpen(false);
-                    void act('delivered');
+                    if (delivery.codAmount != null && delivery.codAmount > 0) {
+                        setPaymentModalOpen(true);
+                    } else {
+                        void act('delivered');
+                    }
                 }}
             />
+
+            {/* COD Payment Method Modal (Cash vs Bank Transfer with Receipt Image Upload) */}
+            {paymentModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs" dir="rtl">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-5 space-y-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                            <div>
+                                <h2 className="text-base font-bold text-gray-900">تأكيد استلام الدفع والتسليم</h2>
+                                <p className="text-xs text-gray-500 mt-0.5">طلب #{delivery.orderNumber} · {delivery.customerName}</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setPaymentModalOpen(false)}
+                                className="p-1.5 text-gray-400 hover:text-black rounded-lg transition-colors cursor-pointer"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Amount Required */}
+                        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                            <span className="text-xs font-bold text-emerald-900">المبلغ المطلوب تحصيله:</span>
+                            <span className="text-lg font-black text-emerald-700 font-mono" dir="ltr">
+                                {formatSDG(delivery.codAmount || 0)}
+                            </span>
+                        </div>
+
+                        {/* Payment Type Selection */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-700 block">طريقة سداد العميل عند الاستلام:</label>
+                            <div className="grid grid-cols-2 gap-2.5">
+                                <button
+                                    type="button"
+                                    onClick={() => setPaymentType('cash')}
+                                    className={cn(
+                                        'p-3 rounded-xl border text-right transition-all flex flex-col justify-between gap-2 cursor-pointer',
+                                        paymentType === 'cash'
+                                            ? 'border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500/20'
+                                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                                    )}
+                                >
+                                    <div className="flex items-center justify-between w-full">
+                                        <Banknote className={cn('w-5 h-5', paymentType === 'cash' ? 'text-emerald-600' : 'text-gray-400')} />
+                                        {paymentType === 'cash' && <span className="w-2 h-2 rounded-full bg-emerald-600" />}
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-gray-900">نقداً (كاش)</p>
+                                        <p className="text-[10px] text-gray-500 mt-0.5">استلام المبلغ نقداً وتوريده كعهدة</p>
+                                    </div>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setPaymentType('bank_transfer')}
+                                    className={cn(
+                                        'p-3 rounded-xl border text-right transition-all flex flex-col justify-between gap-2 cursor-pointer',
+                                        paymentType === 'bank_transfer'
+                                            ? 'border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500/20'
+                                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                                    )}
+                                >
+                                    <div className="flex items-center justify-between w-full">
+                                        <CreditCard className={cn('w-5 h-5', paymentType === 'bank_transfer' ? 'text-emerald-600' : 'text-gray-400')} />
+                                        {paymentType === 'bank_transfer' && <span className="w-2 h-2 rounded-full bg-emerald-600" />}
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-gray-900">تحويل بنكي</p>
+                                        <p className="text-[10px] text-gray-500 mt-0.5">تطبيق بنكك أو إلكتروني</p>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Bank Transfer Receipt Upload */}
+                        {paymentType === 'bank_transfer' && (
+                            <div className="p-3.5 bg-sky-50/70 border border-sky-200 rounded-xl space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <Camera className="w-4 h-4 text-sky-700" />
+                                    <label className="text-xs font-bold text-sky-950">
+                                        صورة إشعار التحويل البنكي <span className="text-rose-500">* (إلزامية)</span>:
+                                    </label>
+                                </div>
+
+                                {receiptPreview ? (
+                                    <div className="relative rounded-lg overflow-hidden border border-sky-200 bg-black/5 p-2 text-center">
+                                        <img src={receiptPreview} alt="إشعار التحويل" className="max-h-48 mx-auto object-contain rounded" />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setReceiptFile(null);
+                                                setReceiptPreview(null);
+                                            }}
+                                            className="absolute top-3 left-3 p-1.5 rounded-full bg-rose-600 text-white hover:bg-rose-700 shadow-md cursor-pointer"
+                                            title="حذف الصورة واختيار أخرى"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-sky-300 hover:border-sky-500 rounded-xl cursor-pointer bg-white transition-colors">
+                                        <UploadCloud className="w-8 h-8 text-sky-500 mb-1" />
+                                        <span className="text-xs font-bold text-sky-900">التقاط بالكاميرا أو اختيار صورة الإشعار</span>
+                                        <span className="text-[10px] text-gray-400 mt-0.5">PNG, JPG حتى 10MB</span>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            capture="environment"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    setReceiptFile(file);
+                                                    setReceiptPreview(URL.createObjectURL(file));
+                                                    setPaymentModalError(null);
+                                                }
+                                            }}
+                                        />
+                                    </label>
+                                )}
+                            </div>
+                        )}
+
+                        {paymentModalError && (
+                            <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">
+                                {paymentModalError}
+                            </div>
+                        )}
+
+                        {/* Modal Submit Actions */}
+                        <div className="flex gap-2.5 pt-2 border-t border-gray-100">
+                            <button
+                                type="button"
+                                disabled={busy || (paymentType === 'bank_transfer' && !receiptFile)}
+                                onClick={async () => {
+                                    if (paymentType === 'bank_transfer' && !receiptFile) {
+                                        setPaymentModalError('يلزم رفع صورة إشعار التحويل البنكي قبل تأكيد التسليم.');
+                                        return;
+                                    }
+                                    setBusy(true);
+                                    setPaymentModalError(null);
+                                    try {
+                                        let receiptPath: string | undefined;
+                                        if (paymentType === 'bank_transfer' && receiptFile) {
+                                            receiptPath = await uploadDriverCodReceipt(delivery.id, receiptFile);
+                                        }
+                                        await act('delivered', paymentType, receiptPath);
+                                    } catch (err) {
+                                        setPaymentModalError(errorMessage(err, 'تعذر تأكيد التسليم.'));
+                                        setBusy(false);
+                                    }
+                                }}
+                                className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold text-xs sm:text-sm rounded-lg flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                            >
+                                {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <PackageCheck className="w-4 h-4" />}
+                                تأكيد التسليم النهائي
+                            </button>
+                            <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => setPaymentModalOpen(false)}
+                                className="px-4 py-3 text-xs font-bold text-gray-600 hover:text-black hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                            >
+                                إلغاء
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
+

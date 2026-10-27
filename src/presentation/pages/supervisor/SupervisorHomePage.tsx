@@ -25,7 +25,6 @@ import {
     assignDriverToOrder,
     updateSupervisorOrderStatus,
     fetchWarehouseCashRemittances,
-    confirmDriverCashRemittance,
     type SupervisorProfile,
     type SupervisorOrder,
     type SupervisorInventoryRow,
@@ -221,18 +220,6 @@ export const SupervisorHomePage: React.FC = () => {
             setError(errorMessage(err, 'تعذر تحديث موعد التوصيل وملاحظات الطلب.'));
         } finally {
             setEtaModalBusy(false);
-        }
-    };
-
-    const handleConfirmRemittance = async (remittanceId: string) => {
-        setError(null);
-        try {
-            await confirmDriverCashRemittance(remittanceId);
-            setSuccess('تم تأكيد استلام العهدة النقدية بنجاح.');
-            const updated = await fetchWarehouseCashRemittances();
-            setRemittances(updated);
-        } catch (err) {
-            setError(errorMessage(err, 'تعذر تأكيد استلام العهدة.'));
         }
     };
 
@@ -796,14 +783,9 @@ export const SupervisorHomePage: React.FC = () => {
                                                         >
                                                             في الطريق
                                                         </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => void handleStatusTransition(o.id, 'delivered')}
-                                                            disabled={isBusy || o.status === 'delivered'}
-                                                            className="px-3 py-1 rounded-md border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 font-bold transition-colors disabled:opacity-40"
-                                                        >
-                                                            تم التسليم ✓
-                                                        </button>
+                                                        <span className="text-[11px] text-gray-400 font-medium mr-auto">
+                                                            (تأكيد التسليم محصور بالمندوب عبر مسح الباركود أو الكود)
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -945,14 +927,16 @@ export const SupervisorHomePage: React.FC = () => {
                                                 </p>
                                             </div>
 
-                                            {isPending && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void handleConfirmRemittance(rem.id)}
-                                                    className="py-2 px-4 rounded-md bg-black hover:bg-gray-800 text-white font-bold text-xs transition-colors"
-                                                >
-                                                    تأكيد الاستلام
-                                                </button>
+                                            {isPending ? (
+                                                <div className="text-right">
+                                                    <span className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-md font-bold block">
+                                                        بانتظار التحقق والتأكيد من المحاسب / الآدمن
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md font-bold">
+                                                    تم الاستلام والتأكيد ✓
+                                                </span>
                                             )}
                                         </div>
                                     </div>

@@ -6,7 +6,7 @@ export type { CheckoutInput, CheckoutItem, CheckoutResult, DeliveryView, ReturnR
 export { fetchNotifications, markNotificationRead, markAllNotificationsRead, subscribeToNotifications } from './notificationRepository';
 export { fetchProductReviews, fetchReviewableItems, submitReview } from './reviewRepository';
 export { askBeautyAdvice } from './aiRepository';
-export { fetchMyDeliveries, fetchMyDelivery as fetchDriverDelivery, fetchMyDriverProfile, setMyAvailability, updateMyDeliveryStatus, shareMyLocation, clearMyLocation, subscribeToMyDeliveries, fetchDriverCashDrawer, submitDriverCashRemittance } from './driverRepository';
+export { fetchMyDeliveries, fetchMyDelivery as fetchDriverDelivery, fetchMyDriverProfile, setMyAvailability, updateMyDeliveryStatus, uploadDriverCodReceipt, shareMyLocation, clearMyLocation, subscribeToMyDeliveries, fetchDriverCashDrawer, submitDriverCashRemittance } from './driverRepository';
 export type { Delivery, DeliveryItem, DeliveryStatus, DriverProfile, DriverCashDrawerSummary } from './driverRepository';
 export { fetchSupervisorProfile, fetchSupervisorOrders, fetchSupervisorInventory, fetchWarehouseDrivers, assignDriverToOrder, updateSupervisorOrderStatus, fetchWarehouseCashRemittances, confirmDriverCashRemittance } from './supervisorRepository';
 export type { SupervisorProfile, SupervisorOrder, SupervisorOrderItem, SupervisorInventoryRow, WarehouseDriverOption, DriverCashRemittance } from './supervisorRepository';
