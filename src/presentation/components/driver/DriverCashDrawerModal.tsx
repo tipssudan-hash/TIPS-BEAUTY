@@ -12,7 +12,7 @@ interface Props {
 
 const ENTRY_LABEL: Record<CashPositionEntry['entryType'], string> = {
     cod_collected: 'تحصيل نقدي',
-    remittance_confirmed: 'تسليم مؤكد للمشرف',
+    remittance_confirmed: 'تسليم مؤكد',
     adjustment: 'تعديل الإدارة',
 };
 
@@ -56,7 +56,7 @@ export const DriverCashDrawerModal: React.FC<Props> = ({ isOpen, onClose }) => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (hasPending) {
-            setError('توجد تسليمة بانتظار تأكيد المشرف، لا يمكن إرسال تسليمة أخرى الآن.');
+            setError('توجد تسليمة بانتظار تأكيد المحاسب أو المدير، لا يمكن إرسال تسليمة أخرى الآن.');
             return;
         }
         if (!amountValid) {
@@ -68,7 +68,7 @@ export const DriverCashDrawerModal: React.FC<Props> = ({ isOpen, onClose }) => {
         setError(null);
         try {
             await submitDriverCashRemittance(num, notes.trim() || undefined);
-            setSuccess('تم تسجيل تسليم المبلغ للمشرف بنجاح!');
+            setSuccess('تم تسجيل التسليم. يؤكده المحاسب أو المدير عند استلام المبلغ.');
             setNotes('');
             await load();
         } catch (err) {
@@ -89,7 +89,7 @@ export const DriverCashDrawerModal: React.FC<Props> = ({ isOpen, onClose }) => {
                         </div>
                         <div>
                             <h2 className="font-black text-lg text-white">صندوق النقدية (العهدة)</h2>
-                            <p className="text-xs text-gray-300 font-bold">متابعة المبالغ المحصلة وتسليمها للمستودع</p>
+                            <p className="text-xs text-gray-300 font-bold">متابعة المبالغ المحصلة وتسليمها للمحاسب أو المدير</p>
                         </div>
                     </div>
                     <button type="button" onClick={onClose} className="p-2 text-white hover:bg-white/20 rounded-md transition-colors">
@@ -111,7 +111,7 @@ export const DriverCashDrawerModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                     <p className="text-xs text-black font-bold mt-1">رصيد أول المدة {formatSDG(position.openingBalance)}</p>
                                 </div>
                                 <div className="p-4 rounded-md bg-blue-100 border-2 border-blue-400 text-black">
-                                    <p className="text-xs text-black font-black">المتبقي للتسليم للمشرف</p>
+                                    <p className="text-xs text-black font-black">المتبقي للتسليم</p>
                                     <p className="text-2xl font-black text-black mt-1 font-mono" dir="ltr">{formatSDG(position.closingBalance)}</p>
                                     <p className="text-xs text-black font-bold mt-1">مسلَّم ومؤكد {formatSDG(position.remittedConfirmed)}</p>
                                 </div>
@@ -120,7 +120,7 @@ export const DriverCashDrawerModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             {hasPending && (
                                 <div className="flex items-center gap-2.5 p-3.5 rounded-md bg-orange-100 border-2 border-orange-400 text-black text-xs font-black">
                                     <Clock className="w-4 h-4 shrink-0 text-black" />
-                                    <span>يوجد مبلغ {formatSDG(position.pendingSubmitted)} بانتظار تأكيد الاستلام من المشرف.</span>
+                                    <span>يوجد مبلغ {formatSDG(position.pendingSubmitted)} بانتظار تأكيد الاستلام من المحاسب أو المدير.</span>
                                 </div>
                             )}
 
@@ -155,7 +155,7 @@ export const DriverCashDrawerModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                         onChange={(e) => setNotes(e.target.value)}
                                         disabled={hasPending}
                                         className="w-full px-3.5 py-2.5 rounded-md border-2 border-gray-400 bg-white text-sm font-bold text-black focus:border-black outline-hidden disabled:opacity-50"
-                                        placeholder="مثال: تسليم كامل العهدة لمشرف الوردية"
+                                        placeholder="مثال: تسليم كامل العهدة للمحاسب"
                                     />
                                 </div>
                                 <button
