@@ -43,11 +43,11 @@ export interface AuditLogFilters {
 
 export async function fetchAuditLog(filters: AuditLogFilters): Promise<{ rows: AuditLogEntry[]; total: number }> {
     const { data, error } = await supabase.rpc('admin_get_audit_log', {
-        p_table: filters.table ?? null,
-        p_row_id: filters.rowId ?? null,
-        p_user: filters.userId ?? null,
-        p_from: filters.from ?? null,
-        p_to: filters.to ?? null,
+        p_table: filters.table ?? undefined,
+        p_row_id: filters.rowId ?? undefined,
+        p_user: filters.userId ?? undefined,
+        p_from: filters.from ?? undefined,
+        p_to: filters.to ?? undefined,
         p_limit: filters.pageSize,
         p_offset: filters.page * filters.pageSize,
     });

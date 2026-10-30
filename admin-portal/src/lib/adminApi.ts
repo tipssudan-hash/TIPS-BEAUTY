@@ -299,7 +299,7 @@ export async function setWarehouseManagerAccess(userId: string, warehouseIds: st
     const { error } = await supabase.rpc('admin_set_warehouse_manager_access', {
         p_user_id: userId,
         p_warehouse_ids: warehouseIds,
-        p_primary_warehouse_id: primaryWarehouseId,
+        p_primary_warehouse_id: primaryWarehouseId ?? undefined,
     });
     if (error) throw error;
 }
@@ -744,7 +744,7 @@ export async function countOrdersNeedingAction(): Promise<number> {
 export async function setOrderEta(orderId: string, estimatedDeliveryAt: string | null, note?: string): Promise<void> {
     const { error } = await supabase.rpc('staff_set_order_eta', {
         p_order_id: orderId,
-        p_estimated_delivery_at: estimatedDeliveryAt,
+        p_estimated_delivery_at: estimatedDeliveryAt as string,
         p_note: note?.trim() || undefined,
     });
     if (error) throw error;

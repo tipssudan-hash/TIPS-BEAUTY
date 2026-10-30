@@ -80,7 +80,7 @@ export async function fetchAdminProductsPage(params: { search: string; page: num
     const { data, error } = await supabase.rpc('get_admin_products', {
         p_limit: params.pageSize,
         p_offset: params.page * params.pageSize,
-        p_search: params.search.trim() || null,
+        p_search: params.search.trim() || undefined,
     });
     if (error) throw error;
     return { rows: ((data ?? []) as ProductRow[]).map(mapProduct), total: Number(data?.[0]?.total_count ?? 0) };
@@ -208,12 +208,12 @@ export async function fetchCategories(): Promise<Category[]> {
 export async function saveCategory(id: string | null, input: CategoryInput): Promise<string> {
     const { data, error } = await supabase.rpc('admin_save_category', {
         p_name_ar: input.name_ar.trim(),
-        p_id: id ?? null,
-        p_parent_id: input.parent_id,
-        p_name_en: input.name_en?.trim() || null,
-        p_slug: input.slug?.trim() || null,
-        p_image_url: input.image_url,
-        p_icon: input.icon,
+        p_id: id ?? undefined,
+        p_parent_id: input.parent_id ?? undefined,
+        p_name_en: input.name_en?.trim() || undefined,
+        p_slug: input.slug?.trim() || undefined,
+        p_image_url: input.image_url ?? undefined,
+        p_icon: input.icon ?? undefined,
         p_sort_order: input.sort_order,
         p_is_active: input.is_active,
     });
@@ -242,10 +242,10 @@ export async function fetchBrands(): Promise<Brand[]> {
 export async function saveBrand(id: string | null, input: BrandInput): Promise<string> {
     const { data, error } = await supabase.rpc('admin_save_brand', {
         p_name_ar: input.name_ar.trim(),
-        p_id: id ?? null,
-        p_name_en: input.name_en?.trim() || null,
-        p_slug: input.slug?.trim() || null,
-        p_logo_url: input.logo_url,
+        p_id: id ?? undefined,
+        p_name_en: input.name_en?.trim() || undefined,
+        p_slug: input.slug?.trim() || undefined,
+        p_logo_url: input.logo_url ?? undefined,
         p_sort_order: input.sort_order,
         p_is_active: input.is_active,
     });
@@ -520,7 +520,7 @@ export async function saveCollection(id: string | null, input: CollectionInput, 
         p_slug: input.slug.trim(),
         p_name_ar: input.name_ar.trim(),
         p_description_ar: input.description_ar?.trim() || undefined,
-        p_icon: input.icon,
+        p_icon: input.icon ?? undefined,
         p_rule_type: input.rule_type,
         p_rule_config: input.rule_type === 'manual' ? {} : (input.rule_config as Json),
         p_display_order: input.display_order,
@@ -763,23 +763,23 @@ export async function savePromotion(id: string | null, input: PromotionInput): P
         p_id: id ?? undefined,
         p_title: input.title.trim(),
         p_description: input.description?.trim() || undefined,
-        p_discount_type: isItem ? input.discount_type : null,
-        p_discount_value: isItem ? input.discount_value : null,
+        p_discount_type: (isItem ? input.discount_type : null) as string,
+        p_discount_value: (isItem ? input.discount_value : null) as number,
         p_target_kind: targetKind,
         p_target_value: input.target_value?.trim() || undefined,
         p_target_product_ids: isBundle ? (bundleItems ?? []).map((i) => i.product_id) : targetKind === 'products' ? input.target_product_ids : [],
         p_start_date: input.start_date,
         p_end_date: input.end_date ?? undefined,
         p_promotion_type: type,
-        p_buy_quantity: isBuyGet ? input.buy_quantity : null,
-        p_get_quantity: isBuyGet ? input.get_quantity : null,
-        p_get_discount_percent: isBuyGet ? input.get_discount_percent : null,
+        p_buy_quantity: isBuyGet ? input.buy_quantity ?? undefined : undefined,
+        p_get_quantity: isBuyGet ? input.get_quantity ?? undefined : undefined,
+        p_get_discount_percent: isBuyGet ? input.get_discount_percent ?? undefined : undefined,
         p_tiers: type === 'quantity_tier' ? input.tiers.map((t) => ({ min_quantity: t.min_quantity, percent: t.percent })) : null,
         p_bundle_items: bundleItems,
-        p_bundle_price: isBundle ? input.bundle_price : null,
-        p_max_applications_per_order: isBuyGet || isBundle ? input.max_applications_per_order : null,
-        p_target_category_id: targetKind === 'category' ? input.target_category_id : null,
-        p_target_brand_id: targetKind === 'brand' ? input.target_brand_id : null,
+        p_bundle_price: isBundle ? input.bundle_price ?? undefined : undefined,
+        p_max_applications_per_order: isBuyGet || isBundle ? input.max_applications_per_order ?? undefined : undefined,
+        p_target_category_id: targetKind === 'category' ? input.target_category_id ?? undefined : undefined,
+        p_target_brand_id: targetKind === 'brand' ? input.target_brand_id ?? undefined : undefined,
     });
     if (error) throw error;
     return data;
@@ -861,7 +861,7 @@ export async function fetchOrderReturns(params: { search: string; page: number; 
     const { data, error } = await supabase.rpc('admin_list_order_returns', {
         p_limit: params.pageSize,
         p_offset: params.page * params.pageSize,
-        p_search: params.search.trim() || null,
+        p_search: params.search.trim() || undefined,
     });
     if (error) throw error;
     const rows = (data ?? []).map((r) => ({

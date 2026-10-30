@@ -185,12 +185,36 @@ export async function previewCoupon(code: string, items: CheckoutItem[]): Promis
     };
 }
 
+type PromotionType = 'item_discount' | 'buy_x_get_y' | 'quantity_tier' | 'bundle';
+
+// The jsonb that preview_cart_pricing builds (20261021000200); generated types only know it as Json.
+type CartPricingRow = {
+    lines: {
+        line_index: number;
+        product_id: string;
+        variant_id?: string | null;
+        quantity: number;
+        unit_price: number;
+        line_total: number;
+        effective_unit_price: number;
+        pricing_rule_kind: 'discount' | 'promotion' | null;
+        promotion_id: string | null;
+        promotion_type: PromotionType | null;
+    }[];
+    base_subtotal: number;
+    line_reductions: number;
+    subtotal: number;
+    applied_promotions: { promotion_id: string; promotion_type: PromotionType; rule_label: string; reduction: number }[];
+    coupon: { code: string | null; reason: string | null; reduction: number } | null;
+};
+
 // What checkout will charge for the Cart's goods (promotions and the Coupon included), line by line.
 // Read-only and repeatable; the Order is still priced again at placement.
 export async function previewCartPricing(items: CheckoutItem[], couponCode?: string | null): Promise<CartPricing> {
-    const { data, error } = await supabase.rpc('preview_cart_pricing', { p_items: items, p_coupon_code: couponCode?.trim() || undefined });
+    const { data: raw, error } = await supabase.rpc('preview_cart_pricing', { p_items: items, p_coupon_code: couponCode?.trim() || undefined });
     if (error) throw error;
-    if (!data) throw new Error('Cart pricing preview returned nothing');
+    if (!raw) throw new Error('Cart pricing preview returned nothing');
+    const data = raw as unknown as CartPricingRow;
     // Lines cover every submitted item, so the smallest line_index is the first item's, whatever its base.
     const firstLineIndex = data.lines.reduce((min, l) => Math.min(min, l.line_index), Infinity);
     return {

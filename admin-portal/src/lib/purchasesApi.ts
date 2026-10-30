@@ -27,8 +27,8 @@ function related<T>(value: Related<T>): T | null {
     return value ?? null;
 }
 
-function optionalText(value: string | null | undefined): string | null {
-    return value?.trim() || null;
+function optionalText(value: string | null | undefined): string | undefined {
+    return value?.trim() || undefined;
 }
 
 export function isoDate(date: Date): string {
@@ -414,7 +414,7 @@ export async function saveSupplierReturnDraft(input: SupplierReturnDraftInput): 
         p_items: items,
         p_id: input.id ?? undefined,
         p_purchase_invoice_id: input.purchase_invoice_id ?? undefined,
-        p_notes: optionalText(input.notes) ?? undefined,
+        p_notes: optionalText(input.notes),
     });
     if (error) throw error;
     return data;
