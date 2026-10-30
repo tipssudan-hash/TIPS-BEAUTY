@@ -3,7 +3,8 @@ import { Outlet, Link, useLocation, Navigate } from 'react-router-dom';
 import {
     LayoutDashboard, Package, LogOut, Menu, X, Loader2,
     ShoppingBag, Settings, Truck, Boxes, Warehouse, MapPin, Image, MessageSquare, Radio, Layers, Ticket, Percent, Users, Megaphone, Gauge, Undo2, Banknote, FolderTree, Tag,
-    FileText, Building2, PackageX, TrendingUp, Bell, ClipboardList, MapPinned, ScrollText
+    FileText, Building2, PackageX, TrendingUp, Bell, ClipboardList, MapPinned, ScrollText,
+    BookOpen, HandCoins, Calculator
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useUnseenOrders } from '../hooks/useUnseenOrders';
@@ -25,15 +26,18 @@ function useIsBelowLg() {
     return isBelowLg;
 }
 
+// all: every portal user; staff: administrators and warehouse managers; finance: administrators and accountants.
+type MenuAccess = 'admin' | 'staff' | 'finance' | 'all';
+
 export const AdminLayout: React.FC = () => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const isBelowLg = useIsBelowLg();
     const closeSidebar = React.useCallback(() => setSidebarOpen(false), []);
     const sidebarRef = useFocusTrap<HTMLElement>(sidebarOpen && isBelowLg, closeSidebar);
     const location = useLocation();
-    const { user, isAdmin, isWarehouseManager, managedWarehouses, loading, signOut } = useAuth();
+    const { user, isAdmin, isWarehouseManager, isAccountant, hasPortalAccess, managedWarehouses, loading, signOut } = useAuth();
     const { count: unseenOrders } = useUnseenOrders();
-    const actionCount = useOrdersNeedingActionCount();
+    const actionCount = useOrdersNeedingActionCount(isAdmin || isWarehouseManager);
     const unreadNotifications = useUnreadStaffNotifications();
 
     if (loading) {
@@ -44,19 +48,23 @@ export const AdminLayout: React.FC = () => {
         );
     }
 
-    if (!user || !(isAdmin || isWarehouseManager)) {
+    if (!user || !hasPortalAccess) {
         return <Navigate to="/login" replace />;
     }
 
-    const menuItems: { path: string; icon: typeof LayoutDashboard; label: string; badge: string | null; access: 'admin' | 'staff' }[] = [
+    const menuItems: { path: string; icon: typeof LayoutDashboard; label: string; badge: string | null; access: MenuAccess }[] = [
         { path: '/dashboard', icon: LayoutDashboard, label: 'لوحة التحكم', badge: null, access: 'admin' },
         { path: '/reports/profit', icon: TrendingUp, label: 'تقرير الأرباح', badge: null, access: 'admin' },
-        { path: '/orders', icon: ShoppingBag, label: 'الطلبات', badge: unseenOrders > 0 ? String(unseenOrders) : null, access: 'staff' },
+        { path: '/orders', icon: ShoppingBag, label: 'الطلبات', badge: unseenOrders > 0 ? String(unseenOrders) : null, access: 'all' },
         { path: '/orders?view=action', icon: ClipboardList, label: 'يحتاج إجراء', badge: actionCount > 0 ? String(actionCount) : null, access: 'staff' },
         { path: '/drivers/map', icon: MapPinned, label: 'خريطة المناديب', badge: null, access: 'staff' },
         { path: '/notifications', icon: Bell, label: 'التنبيهات', badge: unreadNotifications > 0 ? String(unreadNotifications) : null, access: 'staff' },
-        { path: '/returns', icon: Undo2, label: 'المرتجعات', badge: null, access: 'admin' },
-        { path: '/customers', icon: Users, label: 'العملاء', badge: null, access: 'admin' },
+        { path: '/returns', icon: Undo2, label: 'المرتجعات', badge: null, access: 'finance' },
+        { path: '/customers', icon: Users, label: 'العملاء', badge: null, access: 'finance' },
+        { path: '/accounting/warehouse-performance', icon: TrendingUp, label: 'أداء المخازن', badge: null, access: 'finance' },
+        { path: '/accounting/custody', icon: HandCoins, label: 'العهد غير المسلّمة', badge: null, access: 'finance' },
+        { path: '/accounting/driver-accounts', icon: Truck, label: 'حسابات المندوبين', badge: null, access: 'finance' },
+        { path: '/accounting/marketer-accounts', icon: BookOpen, label: 'حسابات المسوقين', badge: null, access: 'finance' },
         { path: '/products', icon: Package, label: 'المنتجات', badge: null, access: 'admin' },
         { path: '/categories', icon: FolderTree, label: 'التصنيفات', badge: null, access: 'admin' },
         { path: '/brands', icon: Tag, label: 'العلامات التجارية', badge: null, access: 'admin' },
@@ -80,9 +88,12 @@ export const AdminLayout: React.FC = () => {
 { path: '/settings', icon: Settings, label: 'الإعدادات', badge: null, access: 'admin' },
     ];
 
-    const visibleMenuItems = menuItems.filter((item) => item.access === 'staff' || isAdmin);
+    const visibleMenuItems = menuItems.filter((item) => isAdmin
+        || item.access === 'all'
+        || (item.access === 'staff' && isWarehouseManager)
+        || (item.access === 'finance' && isAccountant));
     const warehouseNames = managedWarehouses.map((w) => w.name).join('، ');
-    const roleLabel = isAdmin ? 'مدير النظام' : 'مدير المستودع';
+    const roleLabel = isAdmin ? 'مدير النظام' : isAccountant ? 'محاسب' : 'مدير المستودع';
 
     const isActive = (path: string) => {
         const [pathname, query] = path.split('?');
@@ -122,7 +133,7 @@ export const AdminLayout: React.FC = () => {
                             <div>
                                 <h2 className="text-xl font-bold tracking-tight text-white">إدارة تيبس</h2>
                                 <p className="text-[10px] tracking-widest text-slate-400 font-bold truncate">
-                                    {isAdmin ? 'لوحة الإدارة' : `${roleLabel}: ${warehouseNames || '—'}`}
+                                    {isAdmin ? 'لوحة الإدارة' : isAccountant ? 'بوابة المحاسبة' : `${roleLabel}: ${warehouseNames || '—'}`}
                                 </p>
                             </div>
                         </div>
@@ -130,6 +141,13 @@ export const AdminLayout: React.FC = () => {
                             <X className="w-6 h-6" />
                         </button>
                     </div>
+
+                    {isAccountant && (
+                        <div className="mx-4 mt-3 px-3 py-2 rounded-xl bg-emerald-900/40 border border-emerald-800/50 flex items-center gap-2">
+                            <Calculator className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <span className="text-xs font-bold text-emerald-300">وضع المحاسبة</span>
+                        </div>
+                    )}
 
                     {/* Navigation */}
                     <nav className="flex-1 px-4 py-8 space-y-1 overflow-y-auto custom-scrollbar">

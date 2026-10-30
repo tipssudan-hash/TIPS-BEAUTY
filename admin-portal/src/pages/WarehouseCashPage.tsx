@@ -446,7 +446,9 @@ export const WarehouseCashPage: React.FC = () => {
                                         {!r.driver_notes && !r.supervisor_notes && '—'}
                                     </td>
                                     <td className="px-6 py-4">
-                                        {pending ? (
+                                        {pending && !isAdmin ? (
+                                            <span className="text-[11px] font-bold text-amber-800">بانتظار تأكيد المحاسب أو المدير</span>
+                                        ) : pending ? (
                                             <div className="flex gap-2">
                                                 <button
                                                     type="button"

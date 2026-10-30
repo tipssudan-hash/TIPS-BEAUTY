@@ -544,6 +544,7 @@ export interface StaffContext {
     role: string;
     is_admin: boolean;
     is_warehouse_manager: boolean;
+    is_accountant: boolean;
     warehouses: ManagedWarehouse[];
 }
 
@@ -555,6 +556,7 @@ export async function fetchStaffContext(): Promise<StaffContext> {
         role: raw.role ?? 'customer',
         is_admin: raw.is_admin === true,
         is_warehouse_manager: raw.is_warehouse_manager === true,
+        is_accountant: raw.is_accountant === true,
         warehouses: Array.isArray(raw.warehouses) ? raw.warehouses : [],
     };
 }
@@ -824,3 +826,111 @@ export async function markStaffNotificationsRead(ids: string[]): Promise<void> {
     if (error) throw error;
 }
 
+// Accountant -----------------------------------------------------------------------------
+
+export interface WarehouseSettlementSummary {
+    period: { start: string; end: string };
+    total_orders: number;
+    delivered_orders: number;
+    failed_orders: number;
+    cancelled_orders: number;
+    total_revenue: number;
+    cod_collected: number;
+    online_paid: number;
+    pending_payment: number;
+    paid_confirmed: number;
+    shipping_fees_collected: number;
+    cash_remittances: {
+        total_submitted: number;
+        total_confirmed: number;
+        pending_confirmation: number;
+        rejected: number;
+    };
+    driver_performance: Array<{
+        driver_id: string;
+        driver_name: string;
+        delivered: number;
+        failed: number;
+        cod_collected: number;
+        cash_submitted: number;
+        cash_confirmed: number;
+        outstanding_cod: number;
+    }>;
+}
+
+export async function fetchWarehouseSettlement(start: string, end: string): Promise<WarehouseSettlementSummary> {
+    const { data, error } = await supabase.rpc('get_warehouse_settlement_summary', { p_start: start, p_end: end });
+    if (error) throw error;
+    return data as unknown as WarehouseSettlementSummary;
+}
+
+export interface CashRemittanceRow {
+    id: string;
+    driver_id: string;
+    driver_name: string;
+    warehouse_id: string | null;
+    warehouse_name: string | null;
+    amount: number;
+    status: 'submitted' | 'confirmed' | 'rejected';
+    driver_notes: string | null;
+    supervisor_notes: string | null;
+    submitted_at: string;
+    confirmed_at: string | null;
+}
+
+export async function fetchPendingRemittances(): Promise<CashRemittanceRow[]> {
+    const { data, error } = await supabase.from('driver_cash_remittances')
+        .select('id,driver_id,warehouse_id,amount,status,driver_notes,supervisor_notes,submitted_at,confirmed_at,drivers(name),warehouses(name)')
+        .order('submitted_at', { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map((row) => ({
+        id: row.id,
+        driver_id: row.driver_id,
+        driver_name: row.drivers?.name ?? '—',
+        warehouse_id: row.warehouse_id,
+        warehouse_name: row.warehouses?.name ?? null,
+        amount: Number(row.amount),
+        status: row.status as CashRemittanceRow['status'],
+        driver_notes: row.driver_notes,
+        supervisor_notes: row.supervisor_notes,
+        submitted_at: row.submitted_at,
+        confirmed_at: row.confirmed_at,
+    }));
+}
+
+export async function confirmRemittanceAsAdmin(remittanceId: string, action: 'confirmed' | 'rejected', notes?: string): Promise<void> {
+    await confirmRemittance(remittanceId, action, notes);
+}
+
+export interface DriverAccountSummary {
+    driver_id: string;
+    driver_name: string;
+    warehouse_name: string | null;
+    total_delivered: number;
+    total_cod: number;
+    total_submitted: number;
+    total_confirmed: number;
+    pending_amount: number;
+}
+
+// Last 30 days of activity; pending_amount is the driver's live cash balance from the ledger.
+export async function fetchDriverAccountSummaries(): Promise<DriverAccountSummary[]> {
+    const today = new Date().toISOString().split('T')[0];
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const summary = await fetchWarehouseSettlement(thirtyDaysAgo, today);
+    return (summary?.driver_performance ?? []).map((d) => ({
+        driver_id: d.driver_id,
+        driver_name: d.driver_name,
+        warehouse_name: null,
+        total_delivered: Number(d.delivered),
+        total_cod: Number(d.cod_collected),
+        total_submitted: Number(d.cash_submitted),
+        total_confirmed: Number(d.cash_confirmed),
+        pending_amount: Number(d.outstanding_cod ?? 0),
+    }));
+}
+
+export async function setAccountant(userId: string, isAccountant: boolean): Promise<void> {
+    const { error } = await supabase.rpc('admin_set_accountant', { p_user_id: userId, p_is_accountant: isAccountant });
+    if (error) throw error;
+}

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { countOrdersNeedingAction, subscribeToOrders } from '../lib/adminApi';
 
-export function useOrdersNeedingActionCount(): number {
+export function useOrdersNeedingActionCount(enabled = true): number {
     const [count, setCount] = useState(0);
 
     useEffect(() => {
+        if (!enabled) return;
         let active = true;
         const load = () => {
             countOrdersNeedingAction()
@@ -17,7 +18,7 @@ export function useOrdersNeedingActionCount(): number {
             active = false;
             unsubscribe();
         };
-    }, []);
+    }, [enabled]);
 
-    return count;
+    return enabled ? count : 0;
 }

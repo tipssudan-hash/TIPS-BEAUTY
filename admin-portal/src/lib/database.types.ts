@@ -3647,6 +3647,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_set_accountant: {
+        Args: { p_is_accountant: boolean; p_user_id: string }
+        Returns: undefined
+      }
       admin_set_warehouse_supervisor: {
         Args: { p_user_id: string; p_warehouse_id: string }
         Returns: undefined
@@ -4269,8 +4273,10 @@ export type Database = {
         Args: { p_proof_id: string; p_review_note: string; p_status: string }
         Returns: string
       }
+      is_accountant: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       is_assigned_driver: { Args: { p_order_id: string }; Returns: boolean }
+      cod_receipt_order_id: { Args: { p_object_name: string }; Returns: string }
       is_driver: { Args: never; Returns: boolean }
       is_warehouse_manager: { Args: never; Returns: boolean }
       is_warehouse_supervisor: { Args: never; Returns: boolean }
@@ -4710,7 +4716,9 @@ export type Database = {
           p_failure_reason?: string
           p_note?: string
           p_order_id: string
+          p_payment_type?: string
           p_proof_path?: string
+          p_receipt_path?: string
           p_status: string
         }
         Returns: string

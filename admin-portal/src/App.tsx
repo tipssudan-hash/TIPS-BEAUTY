@@ -35,6 +35,10 @@ import { SupplierReturnFormPage } from './pages/purchases/SupplierReturnFormPage
 import { ProfitReportPage } from './pages/ProfitReportPage';
 import { DriversMapPage } from './pages/DriversMapPage';
 import { NotificationsPage } from './pages/NotificationsPage';
+import { WarehousePerformancePage } from './pages/accounting/WarehousePerformancePage';
+import { CustodyPage } from './pages/accounting/CustodyPage';
+import { DriverAccountsPage } from './pages/accounting/DriverAccountsPage';
+import { MarketerAccountsPage } from './pages/accounting/MarketerAccountsPage';
 import { useAuth } from './context/AuthContext';
 
 function StaffHome() {
@@ -44,7 +48,19 @@ function StaffHome() {
 
 function RequireAdmin() {
   const { isAdmin } = useAuth();
-  return isAdmin ? <Outlet /> : <Navigate to="/inventory" replace />;
+  return isAdmin ? <Outlet /> : <Navigate to="/orders" replace />;
+}
+
+// Warehouse work: administrators and warehouse managers.
+function RequireOperations() {
+  const { isAdmin, isWarehouseManager } = useAuth();
+  return isAdmin || isWarehouseManager ? <Outlet /> : <Navigate to="/orders" replace />;
+}
+
+// Accounts: administrators and accountants.
+function RequireFinance() {
+  const { isAdmin, isAccountant } = useAuth();
+  return isAdmin || isAccountant ? <Outlet /> : <Navigate to="/orders" replace />;
 }
 
 function App() {
@@ -55,22 +71,30 @@ function App() {
         <Route index element={<StaffHome />} />
         <Route path="orders" element={<OrderListPage />} />
         <Route path="orders/:id" element={<OrderDetailPage />} />
-        <Route path="inventory" element={<InventoryPage />} />
-        <Route path="warehouse-cash" element={<WarehouseCashPage />} />
-        <Route path="suppliers" element={<SuppliersPage />} />
-        <Route path="purchases" element={<PurchaseInvoiceListPage />} />
-        <Route path="purchases/new" element={<PurchaseInvoiceFormPage />} />
-        <Route path="purchases/:id" element={<PurchaseInvoiceFormPage />} />
-        <Route path="supplier-returns" element={<SupplierReturnListPage />} />
-        <Route path="supplier-returns/new" element={<SupplierReturnFormPage />} />
-        <Route path="supplier-returns/:id" element={<SupplierReturnFormPage />} />
-        <Route path="drivers/map" element={<DriversMapPage />} />
-        <Route path="notifications" element={<NotificationsPage />} />
+        <Route element={<RequireOperations />}>
+          <Route path="inventory" element={<InventoryPage />} />
+          <Route path="warehouse-cash" element={<WarehouseCashPage />} />
+          <Route path="suppliers" element={<SuppliersPage />} />
+          <Route path="purchases" element={<PurchaseInvoiceListPage />} />
+          <Route path="purchases/new" element={<PurchaseInvoiceFormPage />} />
+          <Route path="purchases/:id" element={<PurchaseInvoiceFormPage />} />
+          <Route path="supplier-returns" element={<SupplierReturnListPage />} />
+          <Route path="supplier-returns/new" element={<SupplierReturnFormPage />} />
+          <Route path="supplier-returns/:id" element={<SupplierReturnFormPage />} />
+          <Route path="drivers/map" element={<DriversMapPage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
+        </Route>
+        <Route element={<RequireFinance />}>
+          <Route path="returns" element={<ReturnsPage />} />
+          <Route path="customers" element={<CustomersPage />} />
+          <Route path="accounting/warehouse-performance" element={<WarehousePerformancePage />} />
+          <Route path="accounting/custody" element={<CustodyPage />} />
+          <Route path="accounting/driver-accounts" element={<DriverAccountsPage />} />
+          <Route path="accounting/marketer-accounts" element={<MarketerAccountsPage />} />
+        </Route>
         <Route element={<RequireAdmin />}>
           <Route path="reports/profit" element={<ProfitReportPage />} />
           <Route path="dashboard" element={<AdminDashboard />} />
-          <Route path="returns" element={<ReturnsPage />} />
-          <Route path="customers" element={<CustomersPage />} />
           <Route path="products" element={<ProductListPage />} />
           <Route path="products/new" element={<ProductFormPage />} />
           <Route path="products/edit/:id" element={<ProductFormPage />} />

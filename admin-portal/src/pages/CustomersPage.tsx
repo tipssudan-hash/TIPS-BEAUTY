@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, Search, Sparkles, Award, ShoppingBag, ExternalLink, X, Loader2, Warehouse } from 'lucide-react';
+import { Users, Search, Sparkles, Award, ShoppingBag, ExternalLink, X, Loader2, Warehouse, Calculator } from 'lucide-react';
 import type { CustomerProfile } from '../types';
 import type { WarehouseOption } from '../lib/adminApi';
 import {
@@ -9,11 +9,13 @@ import {
     fetchCustomers,
     fetchActiveWarehouses,
     fetchWarehouseManagers,
+    setAccountant,
     setWarehouseManagerAccess,
     type CustomerDetailData,
     type CustomerFilters,
 } from '../lib/adminApi';
 import { resolvePrimaryWarehouse } from '../lib/warehouseAccess';
+import { useAuth } from '../context/AuthContext';
 import { errorMessage } from '../lib/errors';
 import { csvFileName, downloadCsv, toCsv, type CsvColumn } from '../lib/csv';
 import { fetchAllPages } from '../lib/pagination';
@@ -43,9 +45,11 @@ const ROLE_LABELS: Record<string, string> = {
     admin: 'مدير',
     driver: 'مندوب',
     warehouse_supervisor: 'مدير مستودع',
+    accountant: 'محاسب',
 };
 
 export const CustomersPage: React.FC = () => {
+    const { isAdmin } = useAuth();
     const [customers, setCustomers] = useState<CustomerProfile[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -139,7 +143,11 @@ export const CustomersPage: React.FC = () => {
         setPointsDelta(0);
         setPointsNote('');
         try {
-            const [data, wh, managers] = await Promise.all([fetchCustomerDetail(cust.id), fetchActiveWarehouses(), fetchWarehouseManagers()]);
+            const [data, wh, managers] = await Promise.all([
+                fetchCustomerDetail(cust.id),
+                isAdmin ? fetchActiveWarehouses() : Promise.resolve([]),
+                isAdmin ? fetchWarehouseManagers() : Promise.resolve([]),
+            ]);
             const access = managers.find((m) => m.user_id === cust.id);
             setManagerWarehouseIds(access?.warehouse_ids ?? []);
             setManagerPrimaryId(access?.primary_warehouse_id ?? null);
@@ -212,6 +220,24 @@ export const CustomersPage: React.FC = () => {
                 ? { ...prev, role: warehouseIds.length ? 'warehouse_supervisor' : 'customer', assigned_warehouse_id: primaryId }
                 : prev
             );
+        } catch (err) {
+            setDetailError(errorMessage(err));
+        } finally {
+            setAssigningManager(false);
+        }
+    };
+
+    const toggleAccountant = async () => {
+        if (!selectedCustomer) return;
+        const makeAccountant = selectedCustomer.role !== 'accountant';
+        setAssigningManager(true);
+        setDetailError(null);
+        setPointsSuccess(null);
+        try {
+            await setAccountant(selectedCustomer.id, makeAccountant);
+            setPointsSuccess(makeAccountant ? 'تم منح الحساب دور المحاسب.' : 'تم إلغاء دور المحاسب وإعادة الحساب لدور عميل.');
+            setSelectedCustomer((prev) => (prev ? { ...prev, role: makeAccountant ? 'accountant' : 'customer' } : prev));
+            void loadCustomers();
         } catch (err) {
             setDetailError(errorMessage(err));
         } finally {
@@ -426,6 +452,7 @@ export const CustomersPage: React.FC = () => {
                                     </Card>
                                 </div>
 
+                                {isAdmin && (<>
                                 {/* Points Adjustment Form */}
                                 <Card className="p-5 border-amber-200 bg-amber-50/40">
                                     <h4 className="font-black text-slate-900 text-sm mb-3 flex items-center gap-2">
@@ -522,6 +549,28 @@ export const CustomersPage: React.FC = () => {
                                         </div>
                                     </Card>
                                 )}
+
+                                {(selectedCustomer.role === 'customer' || selectedCustomer.role === 'accountant') && (
+                                    <Card className="p-5 border-emerald-200 bg-emerald-50/40 flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                            <h4 className="font-black text-slate-900 text-sm mb-1 flex items-center gap-2">
+                                                <Calculator className="w-4 h-4 text-emerald-600" /> دور المحاسب
+                                            </h4>
+                                            <p className="text-xs text-slate-500 font-bold">
+                                                يرى المحاسب الطلبات والمرتجعات والعملاء وحسابات المندوبين والمسوقين، ويستلم العهد النقدية.
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => void toggleAccountant()}
+                                            disabled={assigningManager}
+                                            className="px-4 py-2 rounded-xl text-sm font-black border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                                        >
+                                            {selectedCustomer.role === 'accountant' ? 'إلغاء دور المحاسب' : 'تعيين محاسباً'}
+                                        </button>
+                                    </Card>
+                                )}
+                                </>)}
 
                                 {/* Customer Orders History */}
                                 <div className="space-y-3">

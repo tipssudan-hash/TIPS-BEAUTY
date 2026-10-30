@@ -7,18 +7,20 @@ interface StaffState {
     role: string | null;
     isAdmin: boolean;
     isWarehouseManager: boolean;
+    isAccountant: boolean;
     managedWarehouses: ManagedWarehouse[];
 }
 
 interface AuthContextType extends StaffState {
     session: Session | null;
     user: User | null;
+    hasPortalAccess: boolean;
     loading: boolean;
     signOut: () => Promise<void>;
     checkStaffAccess: () => Promise<boolean>;
 }
 
-const NO_STAFF_ACCESS: StaffState = { role: null, isAdmin: false, isWarehouseManager: false, managedWarehouses: [] };
+const NO_STAFF_ACCESS: StaffState = { role: null, isAdmin: false, isWarehouseManager: false, isAccountant: false, managedWarehouses: [] };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -35,10 +37,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 role: context.role,
                 isAdmin: context.is_admin,
                 isWarehouseManager: context.is_warehouse_manager,
+                isAccountant: context.is_accountant,
                 managedWarehouses: context.warehouses,
             };
             setStaff(next);
-            return next.isAdmin || next.isWarehouseManager;
+            return next.isAdmin || next.isWarehouseManager || next.isAccountant;
         } catch (error) {
             console.error('Error checking staff access:', error);
             setStaff(NO_STAFF_ACCESS);
@@ -81,7 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     return (
-        <AuthContext.Provider value={{ session, user, ...staff, loading, signOut, checkStaffAccess }}>
+        <AuthContext.Provider value={{ session, user, ...staff, hasPortalAccess: staff.isAdmin || staff.isWarehouseManager || staff.isAccountant, loading, signOut, checkStaffAccess }}>
             {children}
         </AuthContext.Provider>
     );

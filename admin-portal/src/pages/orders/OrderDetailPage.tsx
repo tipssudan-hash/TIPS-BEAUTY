@@ -23,7 +23,7 @@ const PROOF_STATUS_LABELS: Record<string, string> = { pending: 'بانتظار �
 
 export const OrderDetailPage: React.FC = () => {
     const { id } = useParams();
-    const { isAdmin, managedWarehouses } = useAuth();
+    const { isAdmin, isWarehouseManager, managedWarehouses } = useAuth();
     const [order, setOrder] = useState<AdminOrder | null>(null);
     const [history, setHistory] = useState<OrderHistoryEntry[]>([]);
     const [proof, setProof] = useState<PaymentProof | null>(null);
@@ -137,13 +137,28 @@ export const OrderDetailPage: React.FC = () => {
             return;
         }
         if (status === 'cancelled' && !window.confirm('هل تريد إلغاء هذا الطلب؟ سيتم إرجاع المخزون والنقاط المستخدمة.')) return;
-        if (status === 'delivered' && !paymentReady) {
-            setError('لا يمكن تسليم الطلب قبل تأكيد الدفع. يرجى تأكيد استلام المبلغ أولاً.');
+        if (status === 'delivered') {
+            setError('لا يمكن للآدمن تأكيد التسليم. تأكيد التسليم يتم حصرياً بواسطة مندوب التوصيل عبر كود التحقق أو الباركود.');
             return;
         }
-        void run(() => (isAdmin
-            ? updateOrderOperation({ orderId: order.id, expectedStatus: order.status, status, note })
-            : supervisorUpdateOrder({ orderId: order.id, expectedStatus: order.status, status, note })));
+        if (!isAdmin) {
+            void run(() => supervisorUpdateOrder({ orderId: order.id, expectedStatus: order.status, status, note }));
+            return;
+        }
+        if (order.status !== 'new' && order.status !== 'delivery_failed') {
+            setError('لا يمكن تغيير حالة الطلب من لوحة الإدارة بعد التأكيد. الطلب الآن بعهدة المستودع.');
+            return;
+        }
+        void run(async () => {
+            const targetWarehouseId = warehouseId || order.fulfillment_warehouse_id || (warehouses.length > 0 ? warehouses[0].id : null);
+            await updateOrderOperation({
+                orderId: order.id,
+                expectedStatus: order.status,
+                status,
+                warehouseId: targetWarehouseId || undefined,
+                note,
+            });
+        });
     };
 
     const handleConfirmCod = () => {
@@ -221,7 +236,7 @@ export const OrderDetailPage: React.FC = () => {
         );
     }
 
-    const statusTransitions: Partial<Record<OrderStatus, OrderStatus[]>> = isAdmin ? ALLOWED_TRANSITIONS : MANAGER_TRANSITIONS;
+    const statusTransitions: Partial<Record<OrderStatus, OrderStatus[]>> = isAdmin ? ALLOWED_TRANSITIONS : isWarehouseManager ? MANAGER_TRANSITIONS : {};
     const transitions = statusTransitions[order.status as OrderStatus] ?? [];
     const assignmentLocked = !['new', 'confirmed', 'preparing', 'delivery_failed'].includes(order.status);
     const canReviewProof = isAdmin && proof?.status === 'pending';
@@ -369,25 +384,40 @@ export const OrderDetailPage: React.FC = () => {
                         )}
 
                         {transitions.length === 0 ? (
-                            <p className="text-sm text-slate-400 font-bold">لا توجد إجراءات متاحة لهذه الحالة.</p>
+                            <div className="p-4 bg-sky-50 border border-sky-100 rounded-xl text-sky-950 text-xs space-y-1.5">
+                                <div className="flex items-center gap-2 font-bold text-sky-900">
+                                    <Warehouse className="w-4 h-4 text-brand-blue" />
+                                    <span>الطلب بعهدة المستودع وفريق التوصيل</span>
+                                </div>
+                                <p className="text-slate-600 leading-relaxed font-medium">
+                                    تم تأكيد الطلب وانتقاله لعمليات المستودع. لا يمكن تعديل الحالة من لوحة الإدارة بعد التأكيد لضمان تدفق الشحنات، وتأكيد التسليم محصور بالمندوب عبر كود التحقق.
+                                </p>
+                            </div>
                         ) : (
-                            <div className="flex flex-wrap gap-2">
-                                {transitions.map((next) => {
-                                    const isDelivered = next === 'delivered';
-                                    const blockedByPayment = isDelivered && !paymentReady;
-                                    const blocked = blockedByPayment || (next === 'cancelled' && cancelBlockedByReturn);
-                                    return (
-                                        <button
-                                            key={next}
-                                            disabled={busy || blocked}
-                                            onClick={() => changeStatus(next)}
-                                            title={blocked ? (blockedByPayment ? 'يرجى تأكيد الدفع أولاً' : 'يجب استلام المرتجع في المستودع أولاً') : undefined}
-                                            className={`px-4 py-2 rounded-xl text-sm font-black border transition-colors disabled:opacity-50 ${next === 'cancelled' ? 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100' : blocked ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-brand-blue text-white border-brand-blue hover:bg-blue-700'}`}
-                                        >
-                                            {next === 'cancelled' ? 'إلغاء الطلب' : `→ ${orderStatusLabel(next)}`}
-                                        </button>
-                                    );
-                                })}
+                            <div className="space-y-3">
+                                {isAdmin && order.status === 'new' && (
+                                    <p className="text-xs text-slate-500 font-medium">
+                                        تأكيد الطلب سينقله مباشرة إلى المستودع المحدد لبدء التجهيز والإسناد للمندوب.
+                                    </p>
+                                )}
+                                <div className="flex flex-wrap gap-2">
+                                    {transitions.map((next) => {
+                                        const isDelivered = next === 'delivered';
+                                        const blockedByPayment = isDelivered && !paymentReady;
+                                        const blocked = blockedByPayment || (next === 'cancelled' && cancelBlockedByReturn);
+                                        return (
+                                            <button
+                                                key={next}
+                                                disabled={busy || blocked}
+                                                onClick={() => changeStatus(next)}
+                                                title={blocked ? (blockedByPayment ? 'يرجى تأكيد الدفع أولاً' : 'يجب استلام المرتجع في المستودع أولاً') : undefined}
+                                                className={`px-4 py-2 rounded-xl text-sm font-black border transition-colors disabled:opacity-50 ${next === 'cancelled' ? 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100' : blocked ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-brand-blue text-white border-brand-blue hover:bg-blue-700'}`}
+                                            >
+                                                {next === 'cancelled' ? 'إلغاء الطلب' : isAdmin && next === 'confirmed' && order.status === 'new' ? 'تأكيد الطلب ونقله للمخزن ←' : `→ ${orderStatusLabel(next)}`}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         )}
 

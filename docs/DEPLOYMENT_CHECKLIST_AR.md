@@ -36,7 +36,7 @@ SELECT version FROM supabase_migrations.schema_migrations ORDER BY version DESC 
 
 ---
 
-## 1. قاعدة البيانات (32 ترحيلاً)
+## 1. قاعدة البيانات (33 ترحيلاً)
 
 طبّق الترحيلات بهذا الترتيب بالضبط، على staging أولاً ثم على الإنتاج:
 
@@ -73,6 +73,7 @@ SELECT version FROM supabase_migrations.schema_migrations ORDER BY version DESC 
 20261024000100_admin_audit_log.sql
 20261024000200_admin_paginated_lists_bulk_actions.sql
 20261025000100_deployment_decisions.sql
+20261028000100_accountant_role.sql
 ```
 
 - [ ] **قبل `20261019000200`:** راجع أسماء الأقسام والعلامات التجارية المكررة التي تختلف فقط في الأحرف الكبيرة والصغيرة أو في المسافات. الترحيل سيدمجها تلقائياً في صف واحد ويختار التهجئة الأكثر استخداماً. تأكد أن هذا الدمج مقبول:
@@ -100,7 +101,7 @@ npx supabase db push
 
 ```bash
 npx supabase migration repair --status applied 20261018000100 --project-ref <PROJECT_REF>
-# كرّر الأمر لكل رقم من الأرقام الـ 32
+# كرّر الأمر لكل رقم من الأرقام الـ 33
 ```
 
 - [ ] **بعد `20261018000400` (دفتر نقد السائقين):** اقرأ رسائل `NOTICE`، فهي تخبرك بعدد تسويات السائقين المكررة التي رُفضت تلقائياً وعدد السائقين الذين يختلف رصيدهم عن المعادلة القديمة. لن ترى هذه الرسائل في SQL Editor، فاستخرج النتيجة بهذين الاستعلامين:

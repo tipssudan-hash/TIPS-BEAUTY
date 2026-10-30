@@ -127,7 +127,17 @@ export async function setMyAvailability(status: 'active' | 'offline'): Promise<v
 // shipped = picked up; delivered / delivery_failed close the delivery (reason required on failure).
 // delivered is verified server-side: the code the customer shows must match, or the call is refused.
 // proofPath is a delivery-proofs object under `${orderId}/`; repeating the current status is not an error.
-export async function updateMyDeliveryStatus(orderId: string, status: 'shipped' | 'delivered' | 'delivery_failed', failureReason?: string, note?: string, deliveryCode?: string, proofPath?: string): Promise<void> {
+// A COD order paid by bank transfer carries its receipt (uploadDriverCodReceipt) and stays out of the cash drawer.
+export async function updateMyDeliveryStatus(
+    orderId: string,
+    status: 'shipped' | 'delivered' | 'delivery_failed',
+    failureReason?: string,
+    note?: string,
+    deliveryCode?: string,
+    proofPath?: string,
+    paymentType: 'cash' | 'bank_transfer' = 'cash',
+    receiptPath?: string,
+): Promise<void> {
     const { data, error } = await supabase.rpc('update_driver_order_status', {
         p_order_id: orderId,
         p_status: status,
@@ -135,6 +145,8 @@ export async function updateMyDeliveryStatus(orderId: string, status: 'shipped' 
         p_note: note,
         p_delivery_code: deliveryCode,
         p_proof_path: proofPath,
+        p_payment_type: paymentType,
+        p_receipt_path: receiptPath,
     });
     if (error) throw translatedError(error);
     const refusal = deliveryCodeRefusalMessage(data);
@@ -145,6 +157,15 @@ export async function updateMyDeliveryStatus(orderId: string, status: 'shipped' 
 export async function uploadDeliveryProof(orderId: string, photo: Blob): Promise<string> {
     const path = `${orderId}/${Date.now()}.jpg`;
     const { error } = await supabase.storage.from('delivery-proofs').upload(path, photo, { contentType: 'image/jpeg', upsert: false });
+    if (error) throw error;
+    return path;
+}
+
+// payment-proofs bucket; the assigned driver may INSERT only under `cod-receipts/${orderId}/`.
+export async function uploadDriverCodReceipt(orderId: string, file: File): Promise<string> {
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const path = `cod-receipts/${orderId}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from('payment-proofs').upload(path, file, { upsert: false, contentType: file.type || undefined });
     if (error) throw error;
     return path;
 }

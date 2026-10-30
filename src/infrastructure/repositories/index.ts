@@ -7,7 +7,7 @@ export { fetchNotifications, markNotificationRead, markAllNotificationsRead, sub
 export { fetchProductReviews, fetchReviewableItems, submitReview, REVIEW_PAGE_SIZE } from './reviewRepository';
 export type { ReviewPage } from './reviewRepository';
 export { askBeautyAdvice } from './aiRepository';
-export { fetchMyDeliveries, fetchMyDelivery as fetchDriverDelivery, fetchMyDriverProfile, setMyAvailability, updateMyDeliveryStatus, uploadDeliveryProof, fetchPickupChecks, driverSetPickupCheck, fetchMyDriverSummary, shareMyLocation, clearMyLocation, subscribeToMyDeliveries, fetchMyCashPosition, submitDriverCashRemittance } from './driverRepository';
+export { fetchMyDeliveries, fetchMyDelivery as fetchDriverDelivery, fetchMyDriverProfile, setMyAvailability, updateMyDeliveryStatus, uploadDeliveryProof, uploadDriverCodReceipt, fetchPickupChecks, driverSetPickupCheck, fetchMyDriverSummary, shareMyLocation, clearMyLocation, subscribeToMyDeliveries, fetchMyCashPosition, submitDriverCashRemittance } from './driverRepository';
 export type { Delivery, DeliveryItem, DeliveryStatus, DriverProfile, DriverSummary, PickupCheck, CashPosition, CashPositionEntry } from './driverRepository';
 export { fetchLoyaltyProfile, subscribeRestock } from './loyaltyRepository';
 export { fetchMyAddresses, saveMyAddress } from './addressRepository';

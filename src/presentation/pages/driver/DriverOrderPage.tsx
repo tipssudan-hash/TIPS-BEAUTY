@@ -19,9 +19,11 @@ import {
     Check,
     ChevronDown,
     ChevronUp,
+    UploadCloud,
+    X,
 } from 'lucide-react';
 import { useDriver } from './DriverContext';
-import { fetchDriverDelivery as fetchMyDelivery, fetchPickupChecks, updateMyDeliveryStatus, uploadDeliveryProof, type Delivery, type DeliveryStatus, type PickupCheck } from '@infrastructure/repositories';
+import { fetchDriverDelivery as fetchMyDelivery, fetchPickupChecks, updateMyDeliveryStatus, uploadDeliveryProof, uploadDriverCodReceipt, type Delivery, type DeliveryStatus, type PickupCheck } from '@infrastructure/repositories';
 import type { QueuedAction } from '@infrastructure/offline/driverActionQueue';
 import { errorMessage } from '@application/errors';
 import { formatSDG, formatDateTime } from '@application/services/format';
@@ -75,6 +77,8 @@ export const DriverOrderPage: React.FC = () => {
     const [reason, setReason] = useState(FAILURE_REASONS[0]);
     const [note, setNote] = useState('');
     const [photo, setPhoto] = useState<Blob | null>(null);
+    const [paymentType, setPaymentType] = useState<'cash' | 'bank_transfer'>('cash');
+    const [receipt, setReceipt] = useState<File | null>(null);
     const [barcodeModalOpen, setBarcodeModalOpen] = useState(false);
     const [copied, setCopied] = useState<string | null>(null);
     const [showAllProducts, setShowAllProducts] = useState(false);
@@ -193,9 +197,18 @@ export const DriverOrderPage: React.FC = () => {
 
     const openScanner = async () => {
         const cod = delivery.codAmount != null && delivery.codAmount > 0;
+        if (cod && paymentType === 'bank_transfer' && !receipt) {
+            setError('أرفقي صورة إشعار التحويل البنكي قبل التسليم.');
+            return;
+        }
+        setError(null);
         const confirmed = await confirmation.ask({
             title: 'تأكيد التسليم',
-            body: cod ? `تأكيد تسليم الطلب وتحصيل مبلغ ${formatSDG(delivery.codAmount ?? 0)} نقداً من العميل؟` : 'تأكيد تسليم الطلب للعميل؟',
+            body: !cod
+                ? 'تأكيد تسليم الطلب للعميل؟'
+                : paymentType === 'bank_transfer'
+                    ? `تأكيد تسليم الطلب واستلام مبلغ ${formatSDG(delivery.codAmount ?? 0)} بتحويل بنكي (الإشعار مرفق)؟`
+                    : `تأكيد تسليم الطلب وتحصيل مبلغ ${formatSDG(delivery.codAmount ?? 0)} نقداً من العميل؟`,
             confirmLabel: 'متابعة إلى رمز التسليم',
         });
         if (confirmed) setBarcodeModalOpen(true);
@@ -204,10 +217,15 @@ export const DriverOrderPage: React.FC = () => {
     const deliverWithCode = async (deliveryCode: string) => {
         setBusy(true);
         try {
+            const cod = delivery.codAmount != null && delivery.codAmount > 0;
+            const payType = cod ? paymentType : 'cash';
             const proofPath = photo ? await uploadDeliveryProof(delivery.id, photo) : undefined;
-            await updateMyDeliveryStatus(delivery.id, 'delivered', undefined, note.trim() || undefined, deliveryCode, proofPath);
+            const receiptPath = payType === 'bank_transfer' && receipt ? await uploadDriverCodReceipt(delivery.id, receipt) : undefined;
+            await updateMyDeliveryStatus(delivery.id, 'delivered', undefined, note.trim() || undefined, deliveryCode, proofPath, payType, receiptPath);
             setBarcodeModalOpen(false);
             setPhoto(null);
+            setReceipt(null);
+            setPaymentType('cash');
             setNote('');
             await refreshAll();
         } finally {
@@ -553,6 +571,54 @@ export const DriverOrderPage: React.FC = () => {
                     </button>
                 )}
             </div>
+
+            {onTheRoad && !failing && delivery.codAmount != null && delivery.codAmount > 0 && (
+                <div className="bg-white rounded-lg border border-gray-200 shadow-xs p-4 sm:p-5 space-y-3">
+                    <div>
+                        <h2 className="text-sm font-bold text-gray-900">طريقة دفع العميل</h2>
+                        <p className="text-xs text-gray-500 mt-0.5">المبلغ المستحق {formatSDG(delivery.codAmount)}. التحويل البنكي لا يدخل في عهدتك النقدية.</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        {([['cash', 'نقداً'], ['bank_transfer', 'تحويل بنكي']] as const).map(([value, label]) => (
+                            <button
+                                key={value}
+                                type="button"
+                                onClick={() => setPaymentType(value)}
+                                disabled={busy}
+                                aria-pressed={paymentType === value}
+                                className={cn(
+                                    'min-h-10 rounded-lg border px-3 text-xs font-bold transition-all',
+                                    paymentType === value ? 'border-black bg-black text-white' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                                )}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+                    {paymentType === 'bank_transfer' && (
+                        receipt ? (
+                            <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">
+                                <span className="truncate">{receipt.name}</span>
+                                <button type="button" onClick={() => setReceipt(null)} disabled={busy} aria-label="إزالة الإشعار" className="p-1 text-emerald-800 hover:text-emerald-950">
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+                        ) : (
+                            <label className="flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 text-xs font-bold text-gray-700 hover:bg-gray-100">
+                                <UploadCloud className="w-4 h-4" />
+                                إرفاق صورة إشعار التحويل
+                                <input
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                                    className="hidden"
+                                    disabled={busy}
+                                    onChange={(e) => setReceipt(e.target.files?.[0] ?? null)}
+                                />
+                            </label>
+                        )
+                    )}
+                </div>
+            )}
 
             {onTheRoad && (
                 <div className="bg-white rounded-lg border border-gray-200 shadow-xs p-4 sm:p-5 space-y-3">
