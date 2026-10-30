@@ -1,10 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Undo2, CheckCircle2, X, Loader2, Package, Wallet, ShieldAlert } from 'lucide-react';
 import type { OrderReturn, ReturnStatus } from '../types';
 import { fetchOrderReturns, reviewOrderReturn } from '../lib/catalogApi';
 import { errorMessage } from '../lib/errors';
 import { formatDateTime, formatSDG } from '../lib/format';
-import { Card, Field, Notice, PageHeader, Spinner, StatusPill, Table, inputClass, secondaryButtonClass, smallButtonClass } from '../components/ui';
+import { csvFileName, downloadCsv, toCsv, type CsvColumn } from '../lib/csv';
+import { PAGE_SIZE, fetchAllPages } from '../lib/pagination';
+import { Card, Field, Notice, PageHeader, Spinner, StatusPill, Table, inputClass, secondaryButtonClass, smallButtonClass, primaryButtonClass } from '../components/ui';
+import { Pagination } from '../components/Pagination';
 
 const STATUS_LABELS: Record<ReturnStatus, string> = {
     requested: 'قيد المراجعة',
@@ -35,28 +38,80 @@ type ReviewModal = {
 
 export const ReturnsPage: React.FC = () => {
     const [returns, setReturns] = useState<OrderReturn[]>([]);
+    const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [filter, setFilter] = useState<'all' | ReturnStatus>('all');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [search, setSearch] = useState('');
+    const [page, setPage] = useState(0);
+    const [reloadKey, setReloadKey] = useState(0);
+    const [exporting, setExporting] = useState(false);
     const [modal, setModal] = useState<ReviewModal | null>(null);
     const [submitting, setSubmitting] = useState(false);
+    const searchTimer = useRef<number | undefined>(undefined);
 
-    const load = async () => {
+    useEffect(() => {
+        let cancelled = false;
         setLoading(true);
-        setError(null);
-        try {
-            setReturns(await fetchOrderReturns());
-        } catch (err) {
-            setError(errorMessage(err, 'تعذر تحميل طلبات الإرجاع.'));
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => { void load(); }, []);
+        fetchOrderReturns({ search, page, pageSize: PAGE_SIZE })
+            .then((result) => {
+                if (cancelled) return;
+                setReturns(result.rows);
+                setTotal(result.total);
+                setError(null);
+            })
+            .catch((err) => {
+                if (!cancelled) setError(errorMessage(err, 'تعذر تحميل طلبات الإرجاع.'));
+            })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [search, page, reloadKey]);
 
     const visible = useMemo(() => returns.filter((r) => filter === 'all' || r.status === filter), [returns, filter]);
+
+    const onSearchInput = (value: string) => {
+        setSearchTerm(value);
+        window.clearTimeout(searchTimer.current);
+        searchTimer.current = window.setTimeout(() => {
+            setPage(0);
+            setSearch(value.trim());
+        }, 300);
+    };
+
+    const exportCsv = async () => {
+        setExporting(true);
+        setError(null);
+        try {
+            const all = await fetchAllPages((offset, limit) => fetchOrderReturns({ search, page: offset / limit, pageSize: limit }));
+            const columns: CsvColumn<OrderReturn>[] = [
+                { header: 'رقم الطلب', value: (r) => r.order_number ?? r.order_id },
+                { header: 'العميلة', value: (r) => r.customer_name },
+                { header: 'الهاتف', value: (r) => r.phone },
+                { header: 'المحلية', value: (r) => r.city },
+                { header: 'السبب', value: (r) => r.reason },
+                { header: 'طريقة الاسترداد المطلوبة', value: (r) => r.requested_resolution },
+                { header: 'الحالة', value: (r) => STATUS_LABELS[r.status] },
+                { header: 'حالة دفع الطلب', value: (r) => r.order_payment_status },
+                { header: 'إجمالي الطلب', value: (r) => r.order_total },
+                { header: 'قيمة المرتجع', value: (r) => r.returned_items_value },
+                { header: 'الحد الأقصى للاسترداد', value: (r) => r.refundable_cap },
+                { header: 'مبلغ الاسترداد', value: (r) => r.refund_amount },
+                { header: 'مرجع الاسترداد', value: (r) => r.refund_reference },
+                { header: 'تاريخ الطلب', value: (r) => r.created_at },
+            ];
+            downloadCsv(csvFileName('returns'), toCsv(all, columns));
+        } catch (err) {
+            setError(errorMessage(err, 'تعذر تصدير المرتجعات.'));
+        } finally {
+            setExporting(false);
+        }
+    };
 
     const openModal = (ret: OrderReturn, nextStatus: ReturnStatus, restock = false) => {
         setModal({
@@ -64,7 +119,7 @@ export const ReturnsPage: React.FC = () => {
             nextStatus,
             note: '',
             restock,
-            refundAmount: ret.order_total != null ? String(ret.order_total) : '',
+            refundAmount: String(Math.min(ret.returned_items_value, ret.refundable_cap)),
             refundReference: '',
         });
     };
@@ -90,8 +145,8 @@ export const ReturnsPage: React.FC = () => {
                 setError('يرجى إدخال مبلغ استرداد صحيح أكبر من الصفر.');
                 return;
             }
-            if (modal.ret.order_total != null && parsedRefundAmount > modal.ret.order_total) {
-                setError('مبلغ الاسترداد لا يمكن أن يتجاوز إجمالي قيمة الطلب.');
+            if (parsedRefundAmount > modal.ret.refundable_cap) {
+                setError(`مبلغ الاسترداد يتجاوز الحد المسموح (${formatSDG(modal.ret.refundable_cap)}).`);
                 return;
             }
             if (!modal.refundReference.trim()) {
@@ -114,7 +169,7 @@ export const ReturnsPage: React.FC = () => {
             setModal(null);
             setSuccessMessage(modal.nextStatus === 'refunded' ? 'تم تأكيد الاسترداد المالي وتحديث مالية الطلب وتوثيق العملية بنجاح.' : 'تم تحديث حالة طلب الإرجاع بنجاح.');
             setTimeout(() => setSuccessMessage(null), 5000);
-            await load();
+            setReloadKey((k) => k + 1);
         } catch (err) {
             setError(errorMessage(err));
         } finally {
@@ -122,7 +177,7 @@ export const ReturnsPage: React.FC = () => {
         }
     };
 
-    if (loading) return <Spinner />;
+    if (loading && returns.length === 0) return <Spinner />;
 
     return (
         <div className="space-y-8">
@@ -130,13 +185,15 @@ export const ReturnsPage: React.FC = () => {
                 title="المرتجعات"
                 subtitle="إدارة طلبات المرتجعات: اعتماد أو رفض الطلبات، تسجيل استلام البضائع بالمستودع، وحماية الاسترداد المالي الموثق."
                 icon={<Undo2 className="w-8 h-8 text-brand-blue" />}
+                actions={<button type="button" disabled={exporting} onClick={() => void exportCsv()} className={primaryButtonClass}>{exporting ? 'جاري التصدير...' : 'تصدير CSV'}</button>}
             />
 
             {error && <Notice kind="error">{error}</Notice>}
             {successMessage && <Notice kind="success">{successMessage}</Notice>}
 
             <Card className="overflow-hidden">
-                <div className="p-5 border-b border-slate-50 flex gap-2 flex-wrap bg-slate-50/30">
+                <div className="p-5 border-b border-slate-50 flex gap-2 flex-wrap items-center bg-slate-50/30">
+                    <input type="search" value={searchTerm} onChange={(e) => onSearchInput(e.target.value)} placeholder="بحث برقم الطلب أو العميلة أو الهاتف..." className={`${inputClass} max-w-xs py-2 text-sm`} />
                     {([['all', 'الكل'], ['requested', 'قيد المراجعة'], ['approved', 'معتمد'], ['received', 'تم الاستلام'], ['refunded', 'تم الاسترداد'], ['rejected', 'مرفوض'], ['closed', 'مغلق']] as const).map(([value, label]) => (
                         <button key={value} type="button" onClick={() => setFilter(value)} className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${filter === value ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>{label}</button>
                     ))}
@@ -211,6 +268,7 @@ export const ReturnsPage: React.FC = () => {
                         );
                     })}
                 </Table>
+                <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} loading={loading} />
             </Card>
 
             {modal && (
@@ -252,13 +310,22 @@ export const ReturnsPage: React.FC = () => {
                                                     <span className="font-black text-slate-900">{formatSDG(modal.ret.order_total)}</span>
                                                 </div>
                                             )}
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-slate-600 font-bold">قيمة البنود المرتجعة:</span>
+                                                <span className="font-black text-slate-900">{formatSDG(modal.ret.returned_items_value)}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-slate-600 font-bold">الحد الأقصى للاسترداد:</span>
+                                                <span className="font-black text-slate-900">{formatSDG(modal.ret.refundable_cap)}</span>
+                                            </div>
                                         </div>
                                     )}
 
-                                    <Field label="المبلغ المسترد للعميل (ج.س)" required hint="القيمة المالية التي تم تحويلها وإرجاعها للعميل">
+                                    <Field label="المبلغ المسترد للعميل (ج.س)" required hint="القيمة المالية التي تم تحويلها وإرجاعها للعميل، ولا تتجاوز الحد الأقصى أعلاه">
                                         <input
                                             type="number"
                                             min="1"
+                                            max={modal.ret.refundable_cap}
                                             step="any"
                                             disabled={modal.ret.order_payment_status !== 'paid'}
                                             value={modal.refundAmount}

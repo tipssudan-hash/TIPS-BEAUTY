@@ -1,12 +1,20 @@
-import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ShoppingBag, DollarSign, PackageCheck, Clock, Plus, AlertTriangle, MapPin } from 'lucide-react';
 import { fetchBusinessReport, type BusinessReport } from '../lib/adminApi';
 import { formatNumber, formatSDG } from '../lib/format';
 import { errorMessage } from '../lib/errors';
-import { Card, Notice, Spinner } from '../components/ui';
+import { Card, Notice, Spinner, inputClass } from '../components/ui';
 
-const DAYS = 30;
+type RangeKey = 'today' | '7' | '30' | '90' | 'custom';
+
+const RANGE_OPTIONS: { key: RangeKey; label: string; days: number | null }[] = [
+    { key: 'today', label: 'اليوم', days: 1 },
+    { key: '7', label: '7 أيام', days: 7 },
+    { key: '30', label: '30 يوماً', days: 30 },
+    { key: '90', label: '90 يوماً', days: 90 },
+    { key: 'custom', label: 'مخصص', days: null },
+];
 
 const KPI_STYLES = {
     blue: { blob: 'bg-blue-50', icon: 'bg-blue-50 text-blue-600 border-blue-100' },
@@ -15,23 +23,124 @@ const KPI_STYLES = {
     purple: { blob: 'bg-purple-50', icon: 'bg-purple-50 text-purple-600 border-purple-100' },
 } as const;
 
+function pad(n: number): string {
+    return String(n).padStart(2, '0');
+}
+
+function toDateInput(date: Date): string {
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function parseDateInput(value: string): Date {
+    const [y, m, d] = value.split('-').map(Number);
+    return new Date(y, m - 1, d);
+}
+
+function addDays(date: Date, days: number): Date {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+}
+
+function isValidDateInput(value: string | null): value is string {
+    return !!value && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(parseDateInput(value).getTime());
+}
+
+function resolveDashboardRange(rangeParam: string | null, fromParam: string | null, toParam: string | null, today = new Date()) {
+    const key: RangeKey = RANGE_OPTIONS.some((o) => o.key === rangeParam) ? (rangeParam as RangeKey) : '30';
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    let from: Date;
+    let to: Date;
+    if (key === 'custom') {
+        const fallbackTo = todayStart;
+        const fallbackFrom = addDays(todayStart, -29);
+        to = isValidDateInput(toParam) ? parseDateInput(toParam) : fallbackTo;
+        from = isValidDateInput(fromParam) ? parseDateInput(fromParam) : fallbackFrom;
+        if (from > to) [from, to] = [to, from];
+    } else {
+        const days = RANGE_OPTIONS.find((o) => o.key === key)?.days ?? 30;
+        to = todayStart;
+        from = addDays(todayStart, -(days - 1));
+    }
+    const days = Math.round((to.getTime() - from.getTime()) / 86400000) + 1;
+    const previousTo = addDays(from, -1);
+    const previousFrom = addDays(previousTo, -(days - 1));
+    return { key, from, to, previousFrom, previousTo, days };
+}
+
+function changeLabel(current: number, previous: number): { text: string; tone: 'up' | 'down' | 'flat' } {
+    if (previous === 0) return current === 0 ? { text: 'بلا تغيير', tone: 'flat' } : { text: 'جديد مقارنةً بالفترة السابقة', tone: 'up' };
+    const pct = Math.round(((current - previous) / Math.abs(previous)) * 100);
+    if (pct === 0) return { text: 'بلا تغيير', tone: 'flat' };
+    return { text: `${pct > 0 ? '+' : ''}${pct}% مقارنةً بالفترة السابقة`, tone: pct > 0 ? 'up' : 'down' };
+}
+
+const TONE_CLASS = { up: 'text-emerald-600', down: 'text-red-600', flat: 'text-slate-400' } as const;
+
 export const AdminDashboard: React.FC = () => {
+    const [params, setParams] = useSearchParams();
+    const range = useMemo(
+        () => resolveDashboardRange(params.get('range'), params.get('from'), params.get('to')),
+        [params],
+    );
+    const fromText = toDateInput(range.from);
+    const toText = toDateInput(range.to);
+    const previousFromText = toDateInput(range.previousFrom);
+    const previousToText = toDateInput(range.previousTo);
+
     const [report, setReport] = useState<BusinessReport | null>(null);
+    const [previous, setPrevious] = useState<BusinessReport | null>(null);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        const end = new Date();
-        const start = new Date(end.getTime() - DAYS * 24 * 60 * 60 * 1000);
-        fetchBusinessReport(start, end)
-            .then(setReport)
-            .catch((err) => setError(errorMessage(err, 'تعذر تحميل التقرير.')));
-    }, []);
+        let cancelled = false;
+        setLoading(true);
+        Promise.all([
+            fetchBusinessReport(parseDateInput(fromText), parseDateInput(toText)),
+            fetchBusinessReport(parseDateInput(previousFromText), parseDateInput(previousToText)),
+        ])
+            .then(([current, prior]) => {
+                if (cancelled) return;
+                setReport(current);
+                setPrevious(prior);
+                setError(null);
+            })
+            .catch((err) => {
+                if (!cancelled) setError(errorMessage(err, 'تعذر تحميل التقرير.'));
+            })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [fromText, toText, previousFromText, previousToText]);
 
-    const kpiCards = report ? [
-        { label: 'الإيرادات (غير الملغاة)', value: formatSDG(report.revenue), icon: DollarSign, color: 'blue' as const },
-        { label: 'الإيرادات المدفوعة', value: formatSDG(report.paid_revenue), icon: PackageCheck, color: 'emerald' as const },
-        { label: 'عدد الطلبات', value: formatNumber(report.orders), icon: ShoppingBag, color: 'purple' as const },
-        { label: 'مدفوعات بانتظار المراجعة', value: formatNumber(report.pending_payments), icon: Clock, color: 'amber' as const },
+    const selectRange = (key: RangeKey) => {
+        const next = new URLSearchParams(params);
+        next.set('range', key);
+        if (key !== 'custom') {
+            next.delete('from');
+            next.delete('to');
+        } else {
+            next.set('from', fromText);
+            next.set('to', toText);
+        }
+        setParams(next, { replace: true });
+    };
+
+    const setCustomDate = (name: 'from' | 'to', value: string) => {
+        if (!isValidDateInput(value)) return;
+        const next = new URLSearchParams(params);
+        next.set('range', 'custom');
+        next.set(name, value);
+        setParams(next, { replace: true });
+    };
+
+    const kpiCards = report && previous ? [
+        { label: 'الإيرادات (غير الملغاة)', value: formatSDG(report.revenue), current: report.revenue, prior: previous.revenue, icon: DollarSign, color: 'blue' as const },
+        { label: 'الإيرادات المدفوعة', value: formatSDG(report.paid_revenue), current: report.paid_revenue, prior: previous.paid_revenue, icon: PackageCheck, color: 'emerald' as const },
+        { label: 'عدد الطلبات', value: formatNumber(report.orders), current: report.orders, prior: previous.orders, icon: ShoppingBag, color: 'purple' as const },
+        { label: 'مدفوعات بانتظار المراجعة', value: formatNumber(report.pending_payments), current: report.pending_payments, prior: previous.pending_payments, icon: Clock, color: 'amber' as const },
     ] : [];
 
     return (
@@ -39,29 +148,52 @@ export const AdminDashboard: React.FC = () => {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight">نظرة عامة على العمل</h1>
-                    <p className="text-slate-500 font-medium mt-1">آخر {DAYS} يوماً</p>
+                    <p className="text-slate-500 font-medium mt-1" dir="ltr">{fromText} → {toText}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2" role="group" aria-label="نطاق التاريخ">
+                    {RANGE_OPTIONS.map((option) => (
+                        <button
+                            key={option.key}
+                            type="button"
+                            onClick={() => selectRange(option.key)}
+                            aria-pressed={range.key === option.key}
+                            className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${range.key === option.key ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}
+                        >
+                            {option.label}
+                        </button>
+                    ))}
+                    {range.key === 'custom' && (
+                        <>
+                            <input type="date" aria-label="من" value={fromText} onChange={(e) => setCustomDate('from', e.target.value)} className={`${inputClass} w-auto py-2 text-sm`} dir="ltr" />
+                            <input type="date" aria-label="إلى" value={toText} onChange={(e) => setCustomDate('to', e.target.value)} className={`${inputClass} w-auto py-2 text-sm`} dir="ltr" />
+                        </>
+                    )}
                 </div>
             </div>
 
             {error && <Notice kind="error">{error}</Notice>}
 
-            {!report && !error && <Spinner />}
+            {loading && !report && !error && <Spinner />}
 
             {report && (
                 <>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {kpiCards.map((card) => (
-                            <Card key={card.label} className="p-6 hover:shadow-md transition-shadow relative overflow-hidden group">
-                                <div className={`absolute top-0 right-0 w-24 h-24 ${KPI_STYLES[card.color].blob} rounded-full -mr-12 -mt-12 opacity-50 group-hover:scale-110 transition-transform`}></div>
-                                <div className="relative">
-                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 border ${KPI_STYLES[card.color].icon}`}>
-                                        <card.icon className="w-6 h-6" />
+                        {kpiCards.map((card) => {
+                            const change = changeLabel(card.current, card.prior);
+                            return (
+                                <Card key={card.label} className="p-6 hover:shadow-md transition-shadow relative overflow-hidden group">
+                                    <div className={`absolute top-0 right-0 w-24 h-24 ${KPI_STYLES[card.color].blob} rounded-full -mr-12 -mt-12 opacity-50 group-hover:scale-110 transition-transform`}></div>
+                                    <div className="relative">
+                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 border ${KPI_STYLES[card.color].icon}`}>
+                                            <card.icon className="w-6 h-6" />
+                                        </div>
+                                        <p className="text-sm font-bold text-slate-500 mb-1">{card.label}</p>
+                                        <h3 className="text-2xl font-black text-slate-900">{card.value}</h3>
+                                        <p className={`mt-2 text-xs font-black ${TONE_CLASS[change.tone]}`}>{change.text}</p>
                                     </div>
-                                    <p className="text-sm font-bold text-slate-500 mb-1">{card.label}</p>
-                                    <h3 className="text-2xl font-black text-slate-900">{card.value}</h3>
-                                </div>
-                            </Card>
-                        ))}
+                                </Card>
+                            );
+                        })}
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

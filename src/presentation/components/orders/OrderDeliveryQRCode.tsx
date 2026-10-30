@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
-import { QrCode, ShieldCheck, Copy, Check, Info, PackageCheck, ReceiptText } from 'lucide-react';
+import { QrCode, ShieldCheck, Copy, Check, Info, PackageCheck, ReceiptText, RefreshCw } from 'lucide-react';
 import { Card } from '../ui';
 import { formatSDG, formatDateTime } from '@application/services/format';
+import { errorMessage } from '@application/errors';
+import { issueDeliveryCode } from '@infrastructure/repositories';
 import type { Order } from '@domain/entities';
 
 interface Props {
@@ -10,43 +12,80 @@ interface Props {
     customerName?: string;
 }
 
-/**
- * Generates a deterministic 12-character alphanumeric code (XXXX-XXXX-XXXX)
- * using an unambiguous Base32 alphabet (no 0/O or 1/I).
- */
-export function generate12DigitDeliveryCode(orderId: string, orderNumber: string): string {
-    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-    const seedString = `${orderId}:${orderNumber}:tips-beauty`;
-    let hash1 = 5381;
-    let hash2 = 52711;
+// Only the shipped state needs a code, and a new one voids the previous: issuing earlier would leave a stale code on screen.
+const ISSUABLE_STATUSES: string[] = ['shipped'];
+const PRE_SHIPMENT_STATUSES: string[] = ['confirmed', 'preparing'];
+const CODE_ERROR = 'تعذر إصدار رمز التسليم، حاولي مرة أخرى بعد دقيقة.';
 
-    for (let i = 0; i < seedString.length; i++) {
-        const char = seedString.charCodeAt(i);
-        hash1 = ((hash1 << 5) + hash1) ^ char;
-        hash2 = ((hash2 << 5) + hash2) ^ (char * 31);
+const groupedCode = (code: string) => code.replace(/(\d{4})(?=\d)/g, '$1-');
+
+const storageKey = (orderId: string) => `delivery_code:${orderId}`;
+
+function readStoredCode(orderId: string): string | null {
+    try {
+        return sessionStorage.getItem(storageKey(orderId));
+    } catch {
+        return null;
     }
+}
 
-    let rawCode = '';
-    for (let i = 0; i < 12; i++) {
-        const seedVal = Math.abs(hash1 * (i + 1) + hash2 * (12 - i) + (orderId.charCodeAt(i % orderId.length) || 0) * 19);
-        rawCode += chars[seedVal % chars.length];
+function writeStoredCode(orderId: string, code: string): void {
+    try {
+        sessionStorage.setItem(storageKey(orderId), code);
+    } catch {
+        // Storage unavailable: the code is still shown for this render.
     }
+}
 
-    return `${rawCode.slice(0, 4)}-${rawCode.slice(4, 8)}-${rawCode.slice(8, 12)}`;
+// One request per order at a time: StrictMode mounts twice, and a second issue would void the first code.
+const pendingIssues = new Map<string, Promise<string>>();
+
+function issueCode(orderId: string): Promise<string> {
+    const pending = pendingIssues.get(orderId);
+    if (pending) return pending;
+    const request = issueDeliveryCode(orderId)
+        .then((code) => {
+            writeStoredCode(orderId, code);
+            return code;
+        })
+        .finally(() => pendingIssues.delete(orderId));
+    pendingIssues.set(orderId, request);
+    return request;
 }
 
 export const OrderDeliveryQRCode: React.FC<Props> = ({ order, customerName }) => {
+    const [verificationCode, setVerificationCode] = useState<string | null>(() => readStoredCode(order.id));
+    const [issuing, setIssuing] = useState(false);
+    const [codeError, setCodeError] = useState<string | null>(null);
     const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
 
-    // 12-character alphanumeric verification code
-    const verificationCode = useMemo(
-        () => generate12DigitDeliveryCode(order.id, order.orderNumber),
-        [order.id, order.orderNumber]
-    );
+    const issuable = ISSUABLE_STATUSES.includes(order.status);
+
+    useEffect(() => {
+        const stored = readStoredCode(order.id);
+        setVerificationCode(stored);
+        setCodeError(null);
+        if (stored || !issuable) return;
+        setIssuing(true);
+        issueCode(order.id)
+            .then(setVerificationCode)
+            .catch((err) => setCodeError(errorMessage(err, CODE_ERROR)))
+            .finally(() => setIssuing(false));
+    }, [order.id, issuable]);
+
+    const reissue = () => {
+        setIssuing(true);
+        setCodeError(null);
+        issueCode(order.id)
+            .then(setVerificationCode)
+            .catch((err) => setCodeError(errorMessage(err, CODE_ERROR)))
+            .finally(() => setIssuing(false));
+    };
 
     // Build rich, real order information payload for the QR Code
     const qrPayload = useMemo(() => {
+        if (!verificationCode) return null;
         const address = [order.shippingAddress, order.city, order.state].filter(Boolean).join('، ');
 
         return JSON.stringify({
@@ -79,6 +118,10 @@ export const OrderDeliveryQRCode: React.FC<Props> = ({ order, customerName }) =>
     }, [order, customerName, verificationCode]);
 
     useEffect(() => {
+        if (!qrPayload) {
+            setQrDataUrl(null);
+            return;
+        }
         QRCode.toDataURL(qrPayload, {
             width: 320,
             margin: 2,
@@ -93,6 +136,7 @@ export const OrderDeliveryQRCode: React.FC<Props> = ({ order, customerName }) =>
     }, [qrPayload]);
 
     const handleCopyCode = () => {
+        if (!verificationCode) return;
         navigator.clipboard.writeText(verificationCode);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
@@ -131,7 +175,7 @@ export const OrderDeliveryQRCode: React.FC<Props> = ({ order, customerName }) =>
                         />
                     ) : (
                         <div className="w-48 h-48 flex items-center justify-center text-gray-400 text-xs animate-pulse">
-                            جاري إنشاء الباركود...
+                            {codeError ? 'تعذر إنشاء الباركود' : 'جاري إنشاء الباركود...'}
                         </div>
                     )}
                     <span className="text-2xs font-mono text-gray-600 font-black mt-2 tracking-wider">
@@ -152,24 +196,46 @@ export const OrderDeliveryQRCode: React.FC<Props> = ({ order, customerName }) =>
 
                     {/* 12-Character Alphanumeric Code */}
                     <div className="p-3.5 bg-sky-50/90 rounded-2xl border border-sky-200 flex items-center justify-between gap-3 shadow-2xs">
-                        <div>
+                        <div className="min-w-0">
                             <p className="text-2xs text-sky-800 font-bold flex items-center gap-1">
                                 <PackageCheck className="w-3.5 h-3.5 text-brand-blue" />
                                 <span>رمز التحقق اليدوي (12 خانة):</span>
                             </p>
-                            <p className="text-base sm:text-lg font-black font-mono text-brand-blue tracking-widest mt-0.5" dir="ltr">
-                                {verificationCode}
-                            </p>
+                            {verificationCode ? (
+                                <p className="text-base sm:text-lg font-black font-mono text-brand-blue tracking-widest mt-0.5" dir="ltr">
+                                    {groupedCode(verificationCode)}
+                                </p>
+                            ) : (
+                                <p role={codeError ? 'alert' : undefined} className="text-xs font-bold text-sky-900 mt-1">
+                                    {issuing
+                                        ? 'جاري تجهيز الرمز...'
+                                        : codeError ?? (PRE_SHIPMENT_STATUSES.includes(order.status) ? 'يظهر رمز التسليم عند خروج الطلب للتوصيل.' : 'رمز التسليم غير متاح لهذه الحالة.')}
+                                </p>
+                            )}
                         </div>
+                        {verificationCode && (
+                            <button
+                                type="button"
+                                onClick={handleCopyCode}
+                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-sky-300 text-sky-900 hover:bg-sky-100 text-xs font-bold transition-all shadow-xs active:scale-95 shrink-0"
+                            >
+                                {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-brand-blue" />}
+                                <span>{copied ? 'تم النسخ' : 'نسخ الرمز'}</span>
+                            </button>
+                        )}
+                    </div>
+
+                    {issuable && (verificationCode || codeError) && (
                         <button
                             type="button"
-                            onClick={handleCopyCode}
-                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-sky-300 text-sky-900 hover:bg-sky-100 text-xs font-bold transition-all shadow-xs active:scale-95 shrink-0"
+                            onClick={reissue}
+                            disabled={issuing}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-bold transition-all disabled:opacity-50"
                         >
-                            {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-brand-blue" />}
-                            <span>{copied ? 'تم النسخ' : 'نسخ الرمز'}</span>
+                            <RefreshCw className={`w-3.5 h-3.5 ${issuing ? 'animate-spin' : ''}`} />
+                            <span>إصدار رمز جديد</span>
                         </button>
-                    </div>
+                    )}
 
                     {/* Order Financial & Items Summary Badge */}
                     <div className="grid grid-cols-2 gap-2 text-xs bg-gray-50 p-3 rounded-xl border border-gray-200">

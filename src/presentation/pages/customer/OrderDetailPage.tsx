@@ -7,9 +7,11 @@ import { errorMessage } from '@application/errors';
 import { orderUnitPrice } from '@domain/valueObjects';
 import { formatSDG, formatDateTime } from '@application/services/format';
 import { useAuth } from '../../context/AuthContext';
-import { useStore } from '../../context/StoreContext';
+import { useReorder } from '../../hooks/useReorder';
+import { usePageMeta } from '../../hooks/usePageMeta';
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_METHOD_LABELS, StatusBadge } from './MyOrdersPage';
 import { Card, Notice, StatusPill, inputClass, secondaryButtonClass } from '../../components/ui';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { OrderStepper } from '../../components/orders/OrderStepper';
 import { DeliveryCard } from '../../components/orders/DeliveryCard';
 import { ReturnSection } from '../../components/orders/ReturnSection';
@@ -17,12 +19,12 @@ import { OrderDeliveryQRCode } from '../../components/orders/OrderDeliveryQRCode
 
 const MAX_PROOF_BYTES = 5 * 1024 * 1024;
 
-type LocationState = { justOrdered?: boolean; orderNumber?: string; proofWarning?: string } | null;
+type LocationState = { justOrdered?: boolean; orderNumber?: string; proofWarning?: string; unconfirmedLocation?: boolean } | null;
 
 export const OrderDetailPage: React.FC = () => {
     const { id } = useParams();
     const { user } = useAuth();
-    const { products, addToCart } = useStore();
+    const reorder = useReorder();
     const location = useLocation();
     const state = (location.state ?? null) as LocationState;
 
@@ -41,6 +43,10 @@ export const OrderDetailPage: React.FC = () => {
     const [notice, setNotice] = useState<string | null>(state?.proofWarning ?? null);
     const [reviewable, setReviewable] = useState<ReviewableItem[]>([]);
     const [justReordered, setJustReordered] = useState(false);
+    const [confirmingCancel, setConfirmingCancel] = useState(false);
+    const closeCancelConfirm = useCallback(() => setConfirmingCancel(false), []);
+
+    usePageMeta({ title: order ? `طلب ${order.orderNumber} | Tips Beauty` : 'الطلب | Tips Beauty', noindex: true });
 
     const load = useCallback(async () => {
         if (!id) return;
@@ -83,16 +89,7 @@ export const OrderDetailPage: React.FC = () => {
 
     const handleReorder = () => {
         if (!order) return;
-        const live = new Map(products.map(p => [p.id, p]));
-        let added = 0;
-        let skipped = 0;
-        for (const item of order.items) {
-            const product = live.get(item.id);
-            const variant = item.variant_id ? product?.variants.find(v => v.id === item.variant_id) ?? null : null;
-            if (!product || (item.variant_id && !variant) || (!variant && product.stock <= 0)) { skipped++; continue; }
-            addToCart(product, variant, item.quantity);
-            added++;
-        }
+        const { added, skipped } = reorder(order.items);
         if (added === 0) {
             setNotice('عذراً، منتجات هذا الطلب لم تعد متوفرة حالياً.');
             return;
@@ -104,11 +101,12 @@ export const OrderDetailPage: React.FC = () => {
     };
 
     const handleCancel = async () => {
-        if (!order || !window.confirm('هل تريدين إلغاء هذا الطلب؟')) return;
+        if (!order) return;
         setCancelling(true);
         setError(null);
         try {
             await cancelMyOrder(order.id);
+            setConfirmingCancel(false);
             await load();
             setNotice('تم إلغاء الطلب.');
         } catch (err) {
@@ -174,6 +172,7 @@ export const OrderDetailPage: React.FC = () => {
                     <div>
                         <p className="font-bold">تم استلام طلبك بنجاح!</p>
                         <p className="text-sm mt-1">رقم الطلب: <span className="font-bold">{state.orderNumber ?? order.orderNumber}</span>. سنتواصل معك لتأكيده قريباً.</p>
+                        {state.unconfirmedLocation && <p className="text-sm mt-1">لم يُحدَّد موقعك بالخريطة، لذلك سيؤكد فريقنا العنوان معك هاتفياً قبل التوصيل.</p>}
                     </div>
                 </div>
             )}
@@ -263,6 +262,9 @@ export const OrderDetailPage: React.FC = () => {
                 <Card className="p-6 text-sm space-y-2">
                     <h2 className="font-bold text-gray-800 mb-3">التوصيل والدفع</h2>
                     <p><span className="text-gray-500">العنوان:</span> <span className="text-gray-800">{address}</span></p>
+                    {order.estimatedDeliveryAt && !['delivered', 'delivery_failed', 'cancelled'].includes(order.status) && (
+                        <p><span className="text-gray-500">الموعد المتوقع للتوصيل:</span> <span className="font-bold text-gray-800">{formatDateTime(order.estimatedDeliveryAt)}</span></p>
+                    )}
                     <p><span className="text-gray-500">طريقة الدفع:</span> <span className="text-gray-800">{method?.nameAr ?? PAYMENT_METHOD_LABELS[order.paymentMethod] ?? order.paymentMethod}</span></p>
                     <p className="flex items-center gap-2"><span className="text-gray-500">حالة الدفع:</span> <StatusPill tone={order.paymentStatus === 'paid' ? 'success' : order.paymentStatus === 'refunded' ? 'neutral' : 'attention'}>{PAYMENT_STATUS_LABELS[order.paymentStatus] ?? order.paymentStatus}</StatusPill></p>
                     {order.paymentStatus === 'proof_submitted' && <p className="text-xs text-gray-500">استلمنا إثبات الدفع وسنراجعه قريباً؛ سيصلك إشعار عند التأكيد.</p>}
@@ -271,7 +273,7 @@ export const OrderDetailPage: React.FC = () => {
                     {order.status === 'new' && (
                         <button
                             type="button"
-                            onClick={handleCancel}
+                            onClick={() => setConfirmingCancel(true)}
                             disabled={cancelling}
                             className="mt-4 w-full border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 font-bold py-2.5 rounded-xl transition-colors"
                         >
@@ -320,6 +322,18 @@ export const OrderDetailPage: React.FC = () => {
             )}
 
             {order.status === 'delivered' && <ReturnSection order={order} history={history} />}
+
+            {confirmingCancel && (
+                <ConfirmDialog
+                    title="هل تريدين إلغاء هذا الطلب؟"
+                    confirmLabel="نعم، إلغاء الطلب"
+                    cancelLabel="رجوع"
+                    tone="danger"
+                    busy={cancelling}
+                    onConfirm={() => void handleCancel()}
+                    onCancel={closeCancelConfirm}
+                />
+            )}
 
             {needsProof && (
                 <form onSubmit={handleProofSubmit} className="bg-white rounded-2xl shadow-sm border border-amber-200 p-6 space-y-3">

@@ -11,42 +11,57 @@ import { fetchBanners, fetchCollections, fetchOffers } from '@infrastructure/rep
 import { offerEndsLabel, offerValueLabel } from '@application/services/offers';
 import { Banner, Collection, Offer } from '@domain/entities';
 import { collectionIcon } from '@presentation/utils/collectionIcons';
-import { ALL_BRANDS, ALL_CATEGORIES, ProductSortBy, availableBrands, availableCategories, filterAndSortProducts } from '@application/services/productSearch';
+import { ALL_BRANDS, ProductSortBy, categoryIdForName, filterAndSortProducts, storefrontBrands } from '@application/services/productSearch';
 import { useIntersectionLoader } from '@presentation/hooks/useIntersectionLoader';
-import { getCached } from '@infrastructure/cache';
+import { useCatalogTaxonomy } from '@presentation/hooks/useCatalogTaxonomy';
+import { getCached, subscribeCache } from '@infrastructure/cache';
+import { usePageMeta } from '@presentation/hooks/usePageMeta';
 import { DiscountIcon } from '@presentation/components/ui/DiscountIcon';
+import { CategoryChips } from '@presentation/components/ui/CategoryChips';
 
 const PAGE_SIZE = 20;
 
 export const HomePage: React.FC = () => {
     const { user } = useAuth();
     const { products, productsLoading, productsError, reloadProducts, wishlist, favoriteProducts, addToCart, toggleWishlist } = useStore();
+    const { categories, brands: brandList } = useCatalogTaxonomy(products);
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeCategory, setActiveCategory] = useState(ALL_CATEGORIES);
+    const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
     const [activeBrand, setActiveBrand] = useState(ALL_BRANDS);
     const [sortBy, setSortBy] = useState<ProductSortBy>('newest');
     const [collections, setCollections] = useState<Collection[]>(() => getCached<Collection[]>('catalog:collections') ?? []);
     const [banners, setBanners] = useState<Banner[]>(() => getCached<Banner[]>('catalog:banners') ?? []);
     const [offers, setOffers] = useState<Offer[]>(() => getCached<Offer[]>('catalog:offers') ?? []);
+    const [catalogError, setCatalogError] = useState<string | null>(null);
     const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
     const navigate = useNavigate();
 
-    useEffect(() => {
-        let cancelled = false;
-        fetchCollections()
-            .then((data) => { if (!cancelled) setCollections(data); })
-            .catch((err) => console.error('Failed to load collections', err));
-        // Banners are decoration: a failure leaves the static hero in place.
-        fetchBanners()
-            .then((data) => { if (!cancelled) setBanners(data); })
-            .catch((err) => console.error('Failed to load banners', err));
-        fetchOffers()
-            .then((data) => { if (!cancelled) setOffers(data); })
-            .catch((err) => console.error('Failed to load offers', err));
-        return () => { cancelled = true; };
+    // A failed section keeps what it had (the static hero stands in for banners) and says so, with a retry.
+    const loadCatalog = useCallback(async () => {
+        setCatalogError(null);
+        const [c, b, o] = await Promise.allSettled([fetchCollections(), fetchBanners(), fetchOffers()]);
+        if (c.status === 'fulfilled') setCollections(c.value);
+        if (b.status === 'fulfilled') setBanners(b.value);
+        if (o.status === 'fulfilled') setOffers(o.value);
+        const failed = [c, b, o].filter((r) => r.status === 'rejected');
+        if (failed.length > 0) {
+            failed.forEach((r) => console.error('Failed to load storefront section', r.reason));
+            setCatalogError('تعذر تحميل بعض أقسام الصفحة، تحققي من الاتصال وحاولي مرة أخرى.');
+        }
     }, []);
 
-    const clearFilters = () => { setSearchQuery(''); setActiveCategory(ALL_CATEGORIES); setActiveBrand(ALL_BRANDS); };
+    useEffect(() => { void loadCatalog(); }, [loadCatalog]);
+    // Background refreshes (stale-while-revalidate) update the sections in place.
+    useEffect(() => subscribeCache<Collection[]>('catalog:collections', setCollections), []);
+    useEffect(() => subscribeCache<Banner[]>('catalog:banners', setBanners), []);
+    useEffect(() => subscribeCache<Offer[]>('catalog:offers', setOffers), []);
+    usePageMeta({
+        title: 'Tips Beauty | تيبس بيوتي',
+        description: 'متجر تيبس بيوتي لمستحضرات التجميل والعناية بالبشرة في السودان',
+        path: '/',
+    });
+
+    const clearFilters = () => { setSearchQuery(''); setActiveCategoryId(null); setActiveBrand(ALL_BRANDS); };
     const scrollToId = (id: string) => window.requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
 
     // Where a banner takes the customer; the admin stores the kind and the value it points at.
@@ -57,7 +72,7 @@ export const HomePage: React.FC = () => {
                 navigate(`/product/${value}`);
                 break;
             case 'category':
-                setSearchQuery(''); setActiveBrand(ALL_BRANDS); setActiveCategory(value);
+                setSearchQuery(''); setActiveBrand(ALL_BRANDS); setActiveCategoryId(categoryIdForName(categories, value));
                 scrollToId('products');
                 break;
             case 'collection':
@@ -73,7 +88,7 @@ export const HomePage: React.FC = () => {
         }
     };
 
-    const isFiltered = searchQuery.trim() !== '' || activeCategory !== ALL_CATEGORIES || activeBrand !== ALL_BRANDS;
+    const isFiltered = searchQuery.trim() !== '' || activeCategoryId !== null || activeBrand !== ALL_BRANDS;
 
     const productsById = useMemo(() => new Map(products.map(p => [p.id, p])), [products]);
     const collectionProducts = useMemo(
@@ -81,12 +96,11 @@ export const HomePage: React.FC = () => {
         [collections, productsById]
     );
 
-    const brands = useMemo(() => availableBrands(products), [products]);
-    const categories = useMemo(() => availableCategories(products), [products]);
+    const brands = useMemo(() => storefrontBrands(brandList), [brandList]);
 
     const sortedAndFilteredProducts = useMemo(
-        () => filterAndSortProducts(products, { query: searchQuery, category: activeCategory, brand: activeBrand, sortBy }),
-        [searchQuery, activeCategory, activeBrand, products, sortBy]
+        () => filterAndSortProducts(products, { query: searchQuery, categoryId: activeCategoryId, brand: activeBrand, sortBy }, categories),
+        [searchQuery, activeCategoryId, activeBrand, products, sortBy, categories]
     );
 
     const visibleProducts = sortedAndFilteredProducts.slice(0, visibleCount);
@@ -95,7 +109,7 @@ export const HomePage: React.FC = () => {
     const hasMore = visibleCount < sortedAndFilteredProducts.length;
     const loadMoreRef = useIntersectionLoader(loadMore, hasMore && !productsLoading);
 
-    useEffect(() => { setVisibleCount(PAGE_SIZE); }, [searchQuery, activeCategory, activeBrand, sortBy]);
+    useEffect(() => { setVisibleCount(PAGE_SIZE); }, [searchQuery, activeCategoryId, activeBrand, sortBy]);
 
     return (
         <div className="animate-fadeIn pb-20">
@@ -142,12 +156,7 @@ export const HomePage: React.FC = () => {
 
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
                     {/* Categories - Compact */}
-                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 flex-1">
-                        <button onClick={() => setActiveCategory(ALL_CATEGORIES)} className={`px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-bold whitespace-nowrap transition-colors ${activeCategory === ALL_CATEGORIES ? 'bg-brand-blue text-white shadow-sm' : 'bg-white border border-brand-blue-soft text-gray-600 hover:border-brand-blue'}`}>الكل</button>
-                        {categories.map(c => (
-                            <button key={c} onClick={() => setActiveCategory(c)} className={`px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-bold whitespace-nowrap transition-colors ${activeCategory === c ? 'bg-brand-blue text-white shadow-sm' : 'bg-white border border-brand-blue-soft text-gray-600 hover:border-brand-blue'}`}>{c}</button>
-                        ))}
-                    </div>
+                    <CategoryChips categories={categories} activeId={activeCategoryId} onSelect={setActiveCategoryId} showImages />
 
                     {/* Sort & Brand Filter */}
                     <div className="flex gap-2">
@@ -157,7 +166,7 @@ export const HomePage: React.FC = () => {
                             className="bg-white border border-brand-blue-soft text-gray-700 text-xs sm:text-sm rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-brand-blue font-medium"
                         >
                             <option value={ALL_BRANDS}>كل الماركات</option>
-                            {brands.map(b => <option key={b} value={b}>{b}</option>)}
+                            {brands.map(b => <option key={b.id} value={b.name_ar}>{b.name_ar}</option>)}
                         </select>
 
                         <select
@@ -173,6 +182,13 @@ export const HomePage: React.FC = () => {
                         </select>
                     </div>
                 </div>
+
+                {catalogError && (
+                    <div role="alert" className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">
+                        <span className="font-medium">{catalogError}</span>
+                        <button type="button" onClick={() => void loadCatalog()} className="shrink-0 font-bold text-brand-blue hover:underline">إعادة المحاولة</button>
+                    </div>
+                )}
 
                 {/* Offers strip: only when something is running (no empty section), only in the default state */}
                 {!isFiltered && offers.length > 0 && (
@@ -271,7 +287,7 @@ export const HomePage: React.FC = () => {
                 {!productsLoading && !productsError && sortedAndFilteredProducts.length === 0 && (
                     <div className="text-center py-20 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
                         <p className="text-gray-500 font-medium">لا توجد منتجات تطابق بحثك</p>
-                        <button onClick={() => { setSearchQuery(''); setActiveCategory(ALL_CATEGORIES); }} className="mt-4 text-brand-blue font-bold hover:underline">
+                        <button onClick={() => { setSearchQuery(''); setActiveCategoryId(null); }} className="mt-4 text-brand-blue font-bold hover:underline">
                             عرض كل المنتجات
                         </button>
                     </div>

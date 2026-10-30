@@ -1,21 +1,29 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowRight, Loader2, CheckCircle2, XCircle, Truck, MapPin, CreditCard, Clock, Warehouse, AlertTriangle, Zap, Banknote, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Loader2, CheckCircle2, XCircle, Truck, MapPin, CreditCard, Clock, Warehouse, AlertTriangle, Zap, Banknote, ShieldCheck, KeyRound, Undo2 } from 'lucide-react';
 import {
-    fetchActiveWarehouses, fetchDrivers, fetchOrder, fetchOrderHistory, fetchPaymentProof, markOrderViewed,
+    fetchActiveWarehouses, fetchOrder, fetchOrderHistory, fetchPaymentProof, markOrderViewed,
     reviewPaymentProof, signedProofUrl, updateOrderOperation, checkDuplicatePaymentReference, verifyAndAdvanceOrder,
-    confirmCodPayment, checkCreditCustomer, resolveOrderFulfillmentReview,
+    confirmCodPayment, checkCreditCustomer, resolveOrderFulfillmentReview, overrideDeliveryCode,
+    supervisorUpdateOrder, supervisorAssignDriver, fetchWarehouseDrivers, confirmFailedDeliveryReturn,
     type AdminOrder, type DriverOption, type OrderHistoryEntry, type PaymentProof, type WarehouseOption, type DuplicateProofWarning,
 } from '../../lib/adminApi';
-import { ALLOWED_TRANSITIONS, formatDateTime, formatSDG, orderStatusDot, orderStatusLabel, orderStatusStyle, paymentMethodLabel, paymentStatusLabel, paymentStatusStyle, type OrderStatus } from '../../lib/format';
+import { fetchDrivers } from '../../lib/catalogApi';
+import { ALLOWED_TRANSITIONS, MANAGER_TRANSITIONS, formatDateTime, formatSDG, orderStatusDot, orderStatusLabel, orderStatusStyle, paymentMethodLabel, paymentStatusLabel, paymentStatusStyle, type OrderStatus } from '../../lib/format';
 import { orderLineRuleLabel, orderUnitPrice } from '../../lib/pricing';
 import { errorMessage } from '../../lib/errors';
+import { useAuth } from '../../context/AuthContext';
 import { Card, Notice } from '../../components/ui';
+import { DeliveryScheduleCard } from './DeliveryScheduleCard';
+import { DeliveryProofCard } from './DeliveryProofCard';
+import { FulfillmentBreakdownCard } from './FulfillmentBreakdownCard';
+import { PackingChecklistCard } from './PackingChecklistCard';
 
 const PROOF_STATUS_LABELS: Record<string, string> = { pending: 'بانتظار المراجعة', verified: 'تم التحقق', rejected: 'مرفوض' };
 
 export const OrderDetailPage: React.FC = () => {
     const { id } = useParams();
+    const { isAdmin, isWarehouseManager, managedWarehouses } = useAuth();
     const [order, setOrder] = useState<AdminOrder | null>(null);
     const [history, setHistory] = useState<OrderHistoryEntry[]>([]);
     const [proof, setProof] = useState<PaymentProof | null>(null);
@@ -28,6 +36,11 @@ export const OrderDetailPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
     const [isCreditCustomer, setIsCreditCustomer] = useState(false);
+    const [creditCheckFailed, setCreditCheckFailed] = useState(false);
+    const [duplicateCheckFailed, setDuplicateCheckFailed] = useState(false);
+    const [allowDuplicate, setAllowDuplicate] = useState(false);
+    const [overrideOpen, setOverrideOpen] = useState(false);
+    const [overrideReason, setOverrideReason] = useState('');
 
     const [note, setNote] = useState('');
     const [reviewNote, setReviewNote] = useState('');
@@ -47,15 +60,25 @@ export const OrderDetailPage: React.FC = () => {
             setWarehouseId(orderData.fulfillment_warehouse_id ?? '');
             setProofUrl(proofData ? await signedProofUrl(proofData.proof_path) : null);
 
+            setCreditCheckFailed(false);
             if (orderData.customer_id) {
-                checkCreditCustomer(orderData.customer_id).then(setIsCreditCustomer).catch(() => setIsCreditCustomer(false));
+                checkCreditCustomer(orderData.customer_id)
+                    .then((value) => setIsCreditCustomer(value))
+                    .catch(() => {
+                        setIsCreditCustomer(false);
+                        setCreditCheckFailed(true);
+                    });
             }
 
+            setDuplicateWarning(null);
+            setDuplicateCheckFailed(false);
             if (proofData?.transaction_reference) {
-                const dup = await checkDuplicatePaymentReference(proofData.transaction_reference, id);
-                setDuplicateWarning(dup.found ? dup : null);
-            } else {
-                setDuplicateWarning(null);
+                try {
+                    const dup = await checkDuplicatePaymentReference(proofData.transaction_reference, id);
+                    setDuplicateWarning(dup.found ? dup : null);
+                } catch {
+                    setDuplicateCheckFailed(true);
+                }
             }
         } catch (err) {
             setError(errorMessage(err, 'تعذر تحميل الطلب.'));
@@ -69,10 +92,22 @@ export const OrderDetailPage: React.FC = () => {
     useEffect(() => {
         if (!id) return;
         markOrderViewed(id).catch(() => undefined);
+    }, [id]);
+
+    useEffect(() => {
+        if (!isAdmin) return;
         Promise.all([fetchDrivers(), fetchActiveWarehouses()])
             .then(([d, w]) => { setDrivers(d); setWarehouses(w); })
             .catch((err) => console.error('assignment options', err));
-    }, [id]);
+    }, [isAdmin]);
+
+    const managerWarehouseId = order?.fulfillment_warehouse_id ?? null;
+    useEffect(() => {
+        if (isAdmin || !managerWarehouseId) return;
+        fetchWarehouseDrivers(managerWarehouseId)
+            .then(setDrivers)
+            .catch((err) => console.error('assignment options', err));
+    }, [isAdmin, managerWarehouseId]);
 
     const run = async (action: () => Promise<void>) => {
         setBusy(true);
@@ -90,12 +125,24 @@ export const OrderDetailPage: React.FC = () => {
     };
 
     const paymentReady = order?.payment_status === 'paid' || isCreditCustomer;
+    const duplicateBlocked = duplicateCheckFailed || (duplicateWarning !== null && (!allowDuplicate || !reviewNote.trim()));
+    const canOverrideDeliveryCode = isAdmin || (managerWarehouseId !== null && managedWarehouses.some((w) => w.id === managerWarehouseId));
+
+    const cancelBlockedByReturn = order?.status === 'delivery_failed' && !order.returned_to_warehouse_at;
 
     const changeStatus = (status: OrderStatus) => {
         if (!order) return;
+        if (status === 'cancelled' && cancelBlockedByReturn) {
+            setError('يجب استلام المرتجع في المستودع قبل إلغاء الطلب المتعذر.');
+            return;
+        }
         if (status === 'cancelled' && !window.confirm('هل تريد إلغاء هذا الطلب؟ سيتم إرجاع المخزون والنقاط المستخدمة.')) return;
         if (status === 'delivered') {
             setError('لا يمكن للآدمن تأكيد التسليم. تأكيد التسليم يتم حصرياً بواسطة مندوب التوصيل عبر كود التحقق أو الباركود.');
+            return;
+        }
+        if (!isAdmin) {
+            void run(() => supervisorUpdateOrder({ orderId: order.id, expectedStatus: order.status, status, note }));
             return;
         }
         if (order.status !== 'new' && order.status !== 'delivery_failed') {
@@ -122,6 +169,11 @@ export const OrderDetailPage: React.FC = () => {
 
     const saveAssignment = () => {
         if (!order) return;
+        if (!isAdmin) {
+            if (!driverId) return;
+            void run(() => supervisorAssignDriver(order.id, driverId));
+            return;
+        }
         void run(() => updateOrderOperation({
             orderId: order.id,
             expectedStatus: order.status,
@@ -131,21 +183,34 @@ export const OrderDetailPage: React.FC = () => {
         }));
     };
 
-    const reviewProof = (status: 'verified' | 'rejected') => {
+    const rejectProof = () => {
         if (!proof) return;
-        void run(() => reviewPaymentProof(proof.id, status, reviewNote));
+        void run(() => reviewPaymentProof(proof.id, 'rejected', reviewNote));
     };
 
-    const verifyAndAdvance = () => {
+    const verifyProof = (advanceTo: string | null) => {
         if (!proof || !order) return;
-        const targetStatus = order.status === 'new' ? 'processing' : order.status;
         void run(() => verifyAndAdvanceOrder({
-            orderId: order.id,
             proofId: proof.id,
             expectedStatus: order.status,
-            targetStatus,
-            reviewNote: reviewNote || undefined,
+            targetStatus: advanceTo && advanceTo !== order.status ? advanceTo : null,
+            reviewNote,
+            allowDuplicateReference: allowDuplicate,
         }));
+    };
+
+    const submitDeliveryOverride = () => {
+        if (!order) return;
+        const reason = overrideReason.trim();
+        if (!reason) {
+            setError('سبب تجاوز رمز التسليم إلزامي.');
+            return;
+        }
+        void run(async () => {
+            await overrideDeliveryCode(order.id, reason);
+            setOverrideReason('');
+            setOverrideOpen(false);
+        });
     };
 
     const eligibleDrivers = useMemo(
@@ -171,9 +236,11 @@ export const OrderDetailPage: React.FC = () => {
         );
     }
 
-    const transitions = ALLOWED_TRANSITIONS[order.status as OrderStatus] ?? [];
+    const statusTransitions: Partial<Record<OrderStatus, OrderStatus[]>> = isAdmin ? ALLOWED_TRANSITIONS : isWarehouseManager ? MANAGER_TRANSITIONS : {};
+    const transitions = statusTransitions[order.status as OrderStatus] ?? [];
     const assignmentLocked = !['new', 'confirmed', 'preparing', 'delivery_failed'].includes(order.status);
-    const canReviewProof = proof?.status === 'pending';
+    const canReviewProof = isAdmin && proof?.status === 'pending';
+    const assignmentUnchanged = !isAdmin && (!driverId || driverId === (order.driver_id ?? ''));
     const needsPaymentBeforeDelivery = transitions.includes('delivered' as OrderStatus) && !paymentReady;
     const isCod = order.payment_method === 'COD';
     const codNeedsConfirmation = isCod && order.payment_status !== 'paid';
@@ -199,27 +266,34 @@ export const OrderDetailPage: React.FC = () => {
             {order.needs_fulfillment_review && (
                 <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 text-sm">
                     <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-                    <span className="flex-1">هذا الطلب يحتاج مراجعة التوصيل — لا يوجد مستودع واحد يغطي الكمية المطلوبة. يرجى ترتيب التحويل يدوياً ثم الضغط على "تم الحل".</span>
-                    <button
-                        type="button"
-                        disabled={busy}
-                        onClick={async () => {
-                            setBusy(true);
-                            setError(null);
-                            try { await resolveOrderFulfillmentReview(order.id); await load(); }
-                            catch (err) { setError(errorMessage(err)); }
-                            finally { setBusy(false); }
-                        }}
-                        className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 disabled:opacity-50"
-                    >
-                        {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-                        تم الحل
-                    </button>
+                    <span className="flex-1">
+                        {isAdmin
+                            ? 'هذا الطلب يحتاج مراجعة التوصيل — لا يوجد مستودع واحد يغطي الكمية المطلوبة. يرجى ترتيب التحويل يدوياً ثم الضغط على "تم الحل".'
+                            : 'هذا الطلب يحتاج مراجعة التوصيل — لا يوجد مستودع واحد يغطي الكمية المطلوبة. يرجى التنسيق مع الإدارة لترتيب التحويل.'}
+                    </span>
+                    {isAdmin && (
+                        <button
+                            type="button"
+                            disabled={busy}
+                            onClick={async () => {
+                                setBusy(true);
+                                setError(null);
+                                try { await resolveOrderFulfillmentReview(order.id); await load(); }
+                                catch (err) { setError(errorMessage(err)); }
+                                finally { setBusy(false); }
+                            }}
+                            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 disabled:opacity-50"
+                        >
+                            {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                            تم الحل
+                        </button>
+                    )}
                 </div>
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-8">
+                    {order.needs_fulfillment_review && <FulfillmentBreakdownCard orderId={order.id} />}
                     <Card className="overflow-hidden">
                         <h2 className="px-6 py-4 font-black text-slate-900 border-b border-slate-100">المنتجات</h2>
                         <table className="w-full text-right">
@@ -259,6 +333,10 @@ export const OrderDetailPage: React.FC = () => {
                         </table>
                     </Card>
 
+                    {(order.status === 'confirmed' || order.status === 'preparing' || order.packed_at) && (
+                        <PackingChecklistCard order={order} busy={busy} run={run} />
+                    )}
+
                     <Card className="p-6">
                         <h2 className="font-black text-slate-900 mb-4 flex items-center gap-2"><Clock className="w-5 h-5 text-brand-blue" /> تغيير الحالة</h2>
                         <textarea
@@ -282,7 +360,7 @@ export const OrderDetailPage: React.FC = () => {
                             </div>
                         )}
 
-                        {codNeedsConfirmation && order.status === 'shipped' && (
+                        {isAdmin && codNeedsConfirmation && order.status === 'shipped' && (
                             <button
                                 disabled={busy}
                                 onClick={handleConfirmCod}
@@ -290,6 +368,12 @@ export const OrderDetailPage: React.FC = () => {
                             >
                                 <Banknote className="w-4 h-4" /> تأكيد استلام المبلغ النقدي
                             </button>
+                        )}
+
+                        {creditCheckFailed && (
+                            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs font-black text-red-700 mb-4">
+                                تعذر التحقق من حالة العميل الآجل؛ لن يُسمح بالتسليم قبل تأكيد الدفع.
+                            </div>
                         )}
 
                         {isCreditCustomer && order.payment_status !== 'paid' && (
@@ -311,25 +395,97 @@ export const OrderDetailPage: React.FC = () => {
                             </div>
                         ) : (
                             <div className="space-y-3">
-                                {order.status === 'new' && (
+                                {isAdmin && order.status === 'new' && (
                                     <p className="text-xs text-slate-500 font-medium">
                                         تأكيد الطلب سينقله مباشرة إلى المستودع المحدد لبدء التجهيز والإسناد للمندوب.
                                     </p>
                                 )}
                                 <div className="flex flex-wrap gap-2">
                                     {transitions.map((next) => {
+                                        const isDelivered = next === 'delivered';
+                                        const blockedByPayment = isDelivered && !paymentReady;
+                                        const blocked = blockedByPayment || (next === 'cancelled' && cancelBlockedByReturn);
                                         return (
                                             <button
                                                 key={next}
-                                                disabled={busy}
+                                                disabled={busy || blocked}
                                                 onClick={() => changeStatus(next)}
-                                                className={`px-4 py-2 rounded-xl text-sm font-black border transition-colors disabled:opacity-50 ${next === 'cancelled' ? 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100' : 'bg-brand-blue text-white border-brand-blue hover:bg-blue-700'}`}
+                                                title={blocked ? (blockedByPayment ? 'يرجى تأكيد الدفع أولاً' : 'يجب استلام المرتجع في المستودع أولاً') : undefined}
+                                                className={`px-4 py-2 rounded-xl text-sm font-black border transition-colors disabled:opacity-50 ${next === 'cancelled' ? 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100' : blocked ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-brand-blue text-white border-brand-blue hover:bg-blue-700'}`}
                                             >
-                                                {next === 'cancelled' ? 'إلغاء الطلب' : `تأكيد الطلب ونقله للمخزن ←`}
+                                                {next === 'cancelled' ? 'إلغاء الطلب' : isAdmin && next === 'confirmed' && order.status === 'new' ? 'تأكيد الطلب ونقله للمخزن ←' : `→ ${orderStatusLabel(next)}`}
                                             </button>
                                         );
                                     })}
                                 </div>
+                            </div>
+                        )}
+
+                        {order.status === 'delivery_failed' && (
+                            <div className="mt-4 pt-4 border-t border-slate-100">
+                                {order.returned_to_warehouse_at ? (
+                                    <p className="text-xs font-black text-emerald-700 flex items-center gap-1.5">
+                                        <CheckCircle2 className="w-4 h-4" /> تم استلام المرتجع في المستودع {formatDateTime(order.returned_to_warehouse_at)}
+                                    </p>
+                                ) : (
+                                    <div className="space-y-2">
+                                        <p className="text-xs font-bold text-slate-600">
+                                            لم يُستلم الطلب المتعذر في المستودع بعد. لا يمكن إلغاء الطلب قبل تأكيد استلامه، وتُستخدم الملاحظة أعلاه في التأكيد.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            disabled={busy}
+                                            onClick={() => void run(() => confirmFailedDeliveryReturn(order.id, note))}
+                                            className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-black hover:bg-slate-800 disabled:opacity-50"
+                                        >
+                                            <Undo2 className="w-4 h-4" /> استلام المرتجع في المستودع
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {canOverrideDeliveryCode && transitions.includes('delivered' as OrderStatus) && (
+                            <div className="mt-4 pt-4 border-t border-slate-100">
+                                {overrideOpen ? (
+                                    <div className="space-y-2">
+                                        <p className="text-xs font-bold text-slate-600">تجاوز التحقق من رمز التسليم يُسجَّل في سجل الطلب، ويلزم ذكر السبب.</p>
+                                        <textarea
+                                            value={overrideReason}
+                                            onChange={(e) => setOverrideReason(e.target.value)}
+                                            rows={2}
+                                            placeholder="سبب التجاوز (إلزامي)"
+                                            className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-blue"
+                                        />
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                disabled={busy}
+                                                onClick={() => { setOverrideOpen(false); setOverrideReason(''); }}
+                                                className="flex-1 px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 disabled:opacity-50"
+                                            >
+                                                إلغاء
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={busy || !overrideReason.trim()}
+                                                onClick={submitDeliveryOverride}
+                                                className="flex-1 px-3 py-2 rounded-xl bg-amber-600 text-white text-xs font-black hover:bg-amber-700 disabled:opacity-50"
+                                            >
+                                                تأكيد التجاوز
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        disabled={busy}
+                                        onClick={() => setOverrideOpen(true)}
+                                        className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 text-sm font-black hover:bg-amber-100 disabled:opacity-50"
+                                    >
+                                        <KeyRound className="w-4 h-4" /> تجاوز رمز التسليم
+                                    </button>
+                                )}
                             </div>
                         )}
                     </Card>
@@ -368,7 +524,18 @@ export const OrderDetailPage: React.FC = () => {
                                 فتح موقع العميل على الخريطة
                             </a>
                         )}
-                        {order.notes && <p className="mt-3 text-slate-500 text-xs bg-slate-50 rounded-xl p-3">{order.notes}</p>}
+                        {order.notes && (
+                            <div className="mt-3 text-xs bg-slate-50 rounded-xl p-3">
+                                <p className="font-black text-slate-500 mb-1">ملاحظات العميل</p>
+                                <p className="text-slate-600">{order.notes}</p>
+                            </div>
+                        )}
+                        {order.staff_note && (
+                            <div className="mt-3 text-xs bg-amber-50 border border-amber-100 rounded-xl p-3">
+                                <p className="font-black text-amber-800 mb-1">ملاحظة داخلية للطاقم</p>
+                                <p className="text-amber-900">{order.staff_note}</p>
+                            </div>
+                        )}
                     </Card>
 
                     <Card className="p-6 text-sm">
@@ -413,24 +580,40 @@ export const OrderDetailPage: React.FC = () => {
                                 </dl>
                                 {canReviewProof && (
                                     <div className="mt-4 space-y-2">
+                                        {duplicateCheckFailed && (
+                                            <p className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs font-black text-red-700">
+                                                تعذر التحقق من تكرار الرقم المرجعي؛ التأكيد معطّل حتى يُعاد تحميل الطلب.
+                                            </p>
+                                        )}
+                                        {duplicateWarning && (
+                                            <label className="flex items-start gap-2 p-2.5 bg-red-50/60 border border-red-100 rounded-xl text-[11px] font-bold text-red-800">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={allowDuplicate}
+                                                    onChange={(e) => setAllowDuplicate(e.target.checked)}
+                                                    className="mt-0.5"
+                                                />
+                                                أؤكد أن الرقم المرجعي المكرر صحيح وأتحمّل مسؤولية التأكيد (تتطلب ملاحظة المراجعة).
+                                            </label>
+                                        )}
                                         <input
                                             value={reviewNote}
                                             onChange={(e) => setReviewNote(e.target.value)}
-                                            placeholder="ملاحظة مراجعة الدفع (اختياري)"
+                                            placeholder={duplicateWarning ? 'ملاحظة المراجعة (إلزامية عند تأكيد رقم مكرر)' : 'ملاحظة مراجعة الدفع (اختياري)'}
                                             className="w-full p-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-blue"
                                         />
                                         <button
-                                            disabled={busy}
-                                            onClick={verifyAndAdvance}
+                                            disabled={busy || duplicateBlocked}
+                                            onClick={() => verifyProof(order.status === 'new' ? 'processing' : null)}
                                             className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-black hover:bg-emerald-700 disabled:opacity-50 shadow-sm"
                                         >
                                             <Zap className="w-4 h-4" /> تأكيد الدفع ونقل للتجهيز (خطوة واحدة)
                                         </button>
                                         <div className="flex gap-2">
-                                            <button disabled={busy} onClick={() => reviewProof('verified')} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 disabled:opacity-50">
+                                            <button disabled={busy || duplicateBlocked} onClick={() => verifyProof(null)} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 disabled:opacity-50">
                                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> تأكيد فقط
                                             </button>
-                                            <button disabled={busy} onClick={() => reviewProof('rejected')} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-red-50 text-red-600 border border-red-100 text-xs font-black hover:bg-red-100 disabled:opacity-50">
+                                            <button disabled={busy} onClick={rejectProof} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-red-50 text-red-600 border border-red-100 text-xs font-black hover:bg-red-100 disabled:opacity-50">
                                                 <XCircle className="w-3.5 h-3.5" /> رفض
                                             </button>
                                         </div>
@@ -440,20 +623,29 @@ export const OrderDetailPage: React.FC = () => {
                         )}
                     </Card>
 
+                    <DeliveryScheduleCard order={order} busy={busy} run={run} />
+
                     <Card className="p-6 text-sm">
                         <h2 className="font-black text-slate-900 mb-4 flex items-center gap-2"><Truck className="w-5 h-5 text-brand-blue" /> التجهيز والتوصيل</h2>
-                        <label className="block mb-3">
-                            <span className="text-xs font-bold text-slate-500 flex items-center gap-1 mb-1"><Warehouse className="w-3 h-3" /> المخزن</span>
-                            <select
-                                value={warehouseId}
-                                disabled={assignmentLocked || busy}
-                                onChange={(e) => setWarehouseId(e.target.value)}
-                                className="w-full p-2.5 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-brand-blue disabled:opacity-60"
-                            >
-                                <option value="">— غير محدد —</option>
-                                {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name} ({w.city})</option>)}
-                            </select>
-                        </label>
+                        {isAdmin ? (
+                            <label className="block mb-3">
+                                <span className="text-xs font-bold text-slate-500 flex items-center gap-1 mb-1"><Warehouse className="w-3 h-3" /> المخزن</span>
+                                <select
+                                    value={warehouseId}
+                                    disabled={assignmentLocked || busy}
+                                    onChange={(e) => setWarehouseId(e.target.value)}
+                                    className="w-full p-2.5 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-brand-blue disabled:opacity-60"
+                                >
+                                    <option value="">— غير محدد —</option>
+                                    {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name} ({w.city})</option>)}
+                                </select>
+                            </label>
+                        ) : (
+                            <div className="mb-3">
+                                <span className="text-xs font-bold text-slate-500 flex items-center gap-1 mb-1"><Warehouse className="w-3 h-3" /> المخزن</span>
+                                <p className="font-bold text-slate-900">{managedWarehouses.find((w) => w.id === warehouseId)?.name ?? '—'}</p>
+                            </div>
+                        )}
                         <label className="block mb-4">
                             <span className="text-xs font-bold text-slate-500 mb-1 block">المندوب</span>
                             <select
@@ -468,7 +660,7 @@ export const OrderDetailPage: React.FC = () => {
                             {eligibleDrivers.length === 0 && <span className="text-[11px] text-amber-600 font-bold mt-1 block">لا يوجد مندوب متاح لهذا المخزن (يجب أن تكون حالة المندوب "نشط" أو "مشغول").</span>}
                         </label>
                         <button
-                            disabled={assignmentLocked || busy}
+                            disabled={assignmentLocked || busy || assignmentUnchanged}
                             onClick={saveAssignment}
                             className="w-full py-2.5 rounded-xl bg-slate-900 text-white text-sm font-black hover:bg-slate-800 disabled:opacity-50"
                         >
@@ -476,6 +668,8 @@ export const OrderDetailPage: React.FC = () => {
                         </button>
                         {assignmentLocked && <p className="text-[11px] text-slate-400 mt-2">لا يمكن تغيير التعيين بعد بدء التوصيل.</p>}
                     </Card>
+
+                    {order.delivery_proof_path && <DeliveryProofCard path={order.delivery_proof_path} />}
                 </div>
             </div>
         </div>

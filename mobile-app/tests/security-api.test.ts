@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 const baseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
 const key = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 const headers = { apikey: key!, Authorization: `Bearer ${key!}` };
+const liveTestsEnabled = Boolean(baseUrl) && process.env.RUN_LIVE_TESTS === "1";
 
-describe("TIPS Beauty public API security", () => {
+describe.skipIf(!liveTestsEnabled)("TIPS Beauty public API security", () => {
   it("exposes the customer catalog only through a limited RPC", async () => {
     const direct = await fetch(`${baseUrl}/rest/v1/products?select=*&limit=1`, { headers });
     const catalog = await fetch(`${baseUrl}/rest/v1/rpc/get_public_products`, {

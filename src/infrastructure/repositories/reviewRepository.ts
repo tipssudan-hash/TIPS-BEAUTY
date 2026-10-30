@@ -1,17 +1,33 @@
 import { supabase } from '../supabase/client';
 import type { Review, ReviewableItem } from '../../domain/entities';
 
-export async function fetchProductReviews(productId: string): Promise<Review[]> {
-    const { data, error } = await supabase.rpc('get_public_product_reviews', { p_product_id: productId });
+export const REVIEW_PAGE_SIZE = 10;
+
+export interface ReviewPage {
+    reviews: Review[];
+    total: number;
+}
+
+// A null limit returns the first 50 reviews (the server caps a page at 100); the total comes back with each page.
+export async function fetchProductReviews(productId: string, limit: number | null = null, offset = 0): Promise<ReviewPage> {
+    const { data, error } = await supabase.rpc('get_public_product_reviews', {
+        p_product_id: productId,
+        p_limit: limit ?? undefined,
+        p_offset: offset,
+    });
     if (error) throw error;
-    return (data ?? []).map((r) => ({
-        id: r.id,
-        rating: r.rating,
-        comment: r.comment ?? '',
-        reviewerLabel: r.reviewer_label ?? '',
-        createdAt: r.created_at,
-        verifiedPurchase: Boolean(r.verified_purchase),
-    }));
+    const rows = data ?? [];
+    return {
+        reviews: rows.map((r) => ({
+            id: r.id,
+            rating: r.rating,
+            comment: r.comment ?? '',
+            reviewerLabel: r.reviewer_label ?? '',
+            createdAt: r.created_at,
+            verifiedPurchase: Boolean(r.verified_purchase),
+        })),
+        total: Number(rows[0]?.total_count ?? 0),
+    };
 }
 
 export async function fetchReviewableItems(): Promise<ReviewableItem[]> {

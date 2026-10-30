@@ -5,17 +5,19 @@ import { DiscountIcon } from '../../components/ui/DiscountIcon';
 import { useStore } from '../../context/StoreContext';
 import { useAuth } from '../../context/AuthContext';
 import { fetchBanners, fetchOffers } from '@infrastructure/repositories';
-import { offerEndsLabel, offerScopeLabel, offerValueLabel } from '@application/services/offers';
+import { isCartOffer, offerEndsLabel, offerScopeLabel, offerValueLabel } from '@application/services/offers';
 import { ProductRow } from '../../components/ui/ProductRow';
 import { EmptyState, PageState } from '../../components/ui';
 import { errorMessage } from '@application/errors';
 import type { Banner, Offer } from '@domain/entities';
+import { usePageMeta } from '../../hooks/usePageMeta';
 
 // Everything on offer right now: each running Promotion with the Products it touches, then the
 // promotional banners, then the coupon hint. Prices on the cards are the backend's effective
 // prices, so what is shown here is exactly what checkout charges.
 
 export const OffersPage: React.FC = () => {
+    usePageMeta({ title: 'العروض | Tips Beauty', description: 'عروض وتخفيضات تيبس بيوتي على مستحضرات التجميل والعناية بالبشرة', path: '/offers' });
     const { products, wishlist, addToCart, toggleWishlist } = useStore();
     const { user } = useAuth();
     const [offers, setOffers] = useState<Offer[]>([]);
@@ -63,6 +65,7 @@ export const OffersPage: React.FC = () => {
                                         <p className="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-sm font-bold text-red-600">{offerValueLabel(offer)}</p>
                                         <h2 className="mt-2 text-lg font-bold text-gray-800">{offer.title}</h2>
                                         <p className="text-sm text-gray-600">{offerScopeLabel(offer)}{offer.description ? ` · ${offer.description}` : ''}</p>
+                                        {isCartOffer(offer) && <p className="text-xs text-gray-500 mt-1">يُحتسب في سلتك عند الكمية المطلوبة</p>}
                                     </div>
                                     <p className="text-xs font-bold text-gray-500 bg-gray-50 rounded-full px-3 py-1">{offerEndsLabel(offer)}</p>
                                 </div>

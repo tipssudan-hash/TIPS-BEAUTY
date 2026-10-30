@@ -138,4 +138,35 @@ suite('returns over request_order_return / review_order_return (T2-12)', () => {
         expect(notifications).toHaveLength(1);
         expect(notifications![0].body_ar).toContain(`${TEST_TAG} no fault found`);
     });
+
+    it('a partial return is valued by the returned quantity, and a refund above that value is refused', async () => {
+        const order = await createTestOrder(customer, zone, product.id, { p_items: [{ id: product.id, quantity: 2 }] });
+        await advanceToDelivered(order.order_id);
+        const { data: row, error: rowErr } = await admin.from('orders').select('items, total').eq('id', order.order_id).single();
+        if (rowErr) throw rowErr;
+        const line = (row!.items as unknown as { id: string; quantity: number; line_total: number }[]).find((i) => i.id === product.id)!;
+        const oneUnit = Math.round((Number(line.line_total) / Number(line.quantity)) * 100) / 100;
+
+        const req = await rpc(customer, 'request_order_return', {
+            p_order_id: order.order_id, p_items: [{ id: product.id, quantity: 1 }], p_reason: 'defective item', p_requested_resolution: 'refund',
+        });
+        if (req.error) throw req.error;
+        const returnId = req.data as unknown as string;
+        for (const status of ['approved', 'received']) {
+            const step = await rpc(admin, 'review_order_return', { p_return_id: returnId, p_status: status });
+            if (step.error) throw step.error;
+        }
+
+        const tooHigh = await rpc(admin, 'review_order_return', { p_return_id: returnId, p_status: 'refunded', p_refund_amount: oneUnit + 1 });
+        expect(tooHigh.error?.message).toMatch(/refundable cap/);
+
+        const refund = await rpc(admin, 'review_order_return', { p_return_id: returnId, p_status: 'refunded' });
+        expect(refund.error).toBeNull();
+
+        const { data: listed, error: listErr } = await rpc(admin, 'admin_list_order_returns');
+        expect(listErr).toBeNull();
+        const entry = (listed as unknown as { id: string; refund_amount: number; returned_items_value: number; refundable_cap: number }[]).find((r) => r.id === returnId);
+        expect(Number(entry?.returned_items_value)).toBe(oneUnit);
+        expect(Number(entry?.refund_amount)).toBe(oneUnit);
+    });
 });

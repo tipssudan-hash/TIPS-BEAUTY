@@ -1,21 +1,37 @@
+import { useEffect, useState } from "react";
 import { Alert, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { ScreenContainer } from "@/components/screen-container";
 import { useTipsStore } from "@/lib/tips-store";
 import { getCartItemCount } from "@/lib/cart-utils";
-import { getDiscountedPrice } from "@/lib/tips-api";
+import { getDiscountedPrice, previewCartPricing, previewLine, type CartItem, type CartPricingPreview } from "@/lib/tips-api";
 
 export default function CartScreen() {
   const { cart, setQuantity } = useTipsStore();
   const itemCount = getCartItemCount(cart);
-  const subtotal = cart.reduce((sum, item) => sum + getDiscountedPrice(item) * item.quantity, 0);
+  const cartKey = cart.map((item) => `${item.id}:${item.variantId ?? ""}:${item.quantity}`).join("|");
+  const [pricing, setPricing] = useState<{ key: string; data: CartPricingPreview | null; failed: boolean } | null>(null);
+  useEffect(() => {
+    if (!cart.length) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      previewCartPricing(cart)
+        .then((data) => { if (!cancelled) setPricing({ key: cartKey, data, failed: false }); })
+        .catch(() => { if (!cancelled) setPricing({ key: cartKey, data: null, failed: true }); });
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [cartKey]);
+  const current = pricing?.key === cartKey ? pricing : null;
+  const estimate = cart.reduce((sum, item) => sum + getDiscountedPrice(item) * item.quantity, 0);
+  const subtotal = current?.data ? current.data.subtotal : estimate;
+  const lineUnitPrice = (index: number, item: CartItem) => (current?.data && previewLine(current.data, index)?.effective_unit_price) || getDiscountedPrice(item);
   const removeItem = (id: string, name: string) => Alert.alert("حذف من السلة", `هل تريدين حذف ${name} من السلة؟`, [{ text: "إلغاء", style: "cancel" }, { text: "حذف", style: "destructive", onPress: () => void setQuantity(id, 0) }]);
 
   return <ScreenContainer edges={["top", "left", "right"]} containerClassName="bg-[#f7f8fc]"><View style={styles.wrap}>
     <View style={styles.header}><Text style={styles.title}>سلة التسوق</Text><Text style={styles.subtitle}>{itemCount ? `${itemCount} قطعة في السلة` : "السلة فارغة"}</Text></View>
-    <FlatList data={cart} keyExtractor={(item) => item.id} contentContainerStyle={cart.length ? styles.list : styles.emptyList} ListEmptyComponent={<View style={styles.empty}><View style={styles.emptyIcon}><MaterialIcons name="shopping-cart" size={43} color="#1e5fa8" /></View><Text style={styles.emptyTitle}>سلتك فارغة</Text><Text style={styles.emptyText}>أضيفي المنتجات التي تريدينها من الصفحة الرئيسية.</Text><Pressable accessibilityRole="button" onPress={() => router.replace("/")} style={styles.browse}><Text style={styles.browseText}>تصفحي المنتجات</Text></Pressable></View>} renderItem={({ item }) => <View style={styles.item}>{item.image ? <Image source={{ uri: item.image }} style={styles.image} resizeMode="cover" /> : <View style={[styles.image, styles.placeholder]}><MaterialIcons name="auto-awesome" size={34} color="#1e5fa8" /></View>}<View style={styles.details}><View style={styles.itemTop}><Pressable accessibilityRole="button" accessibilityLabel={`حذف ${item.name_ar} من السلة`} onPress={() => removeItem(item.id, item.name_ar)} style={({ pressed }) => [styles.delete, pressed && styles.pressed]}><MaterialIcons name="delete-outline" size={22} color="#dc426d" /></Pressable><View style={styles.copy}><Text numberOfLines={2} style={styles.name}>{item.name_ar}</Text><Text numberOfLines={1} style={styles.brand}>{item.brand || "TIPS Beauty"}</Text></View></View><View style={styles.itemBottom}><Text style={styles.price}>{getDiscountedPrice(item).toLocaleString()} ج.س</Text><View style={styles.quantity}><Pressable accessibilityRole="button" accessibilityLabel={`تقليل كمية ${item.name_ar}`} onPress={() => void setQuantity(item.id, item.quantity - 1)} style={({ pressed }) => [styles.qtyButton, pressed && styles.pressed]}><MaterialIcons name="remove" size={19} color="#1e5fa8" /></Pressable><Text accessibilityLabel={`الكمية ${item.quantity}`} style={styles.qty}>{item.quantity}</Text><Pressable accessibilityRole="button" accessibilityLabel={`زيادة كمية ${item.name_ar}`} onPress={() => void setQuantity(item.id, item.quantity + 1)} style={({ pressed }) => [styles.qtyButton, pressed && styles.pressed]}><MaterialIcons name="add" size={19} color="#1e5fa8" /></Pressable></View></View></View></View>} />
-    {cart.length ? <View style={styles.footer}><View style={styles.totalRow}><Text style={styles.totalLabel}>الإجمالي التقديري</Text><Text style={styles.total}>{subtotal.toLocaleString()} ج.س</Text></View><Text style={styles.delivery}>رسوم التوصيل والخصومات تحسب عند التأكيد.</Text><Pressable accessibilityRole="button" onPress={() => router.push("/checkout")} style={({ pressed }) => [styles.checkout, pressed && styles.pressed]}><Text style={styles.checkoutText}>متابعة إلى إتمام الطلب</Text><MaterialIcons name="arrow-back" size={20} color="white"/></Pressable></View> : null}
+    <FlatList data={cart} keyExtractor={(item) => item.id} contentContainerStyle={cart.length ? styles.list : styles.emptyList} ListEmptyComponent={<View style={styles.empty}><View style={styles.emptyIcon}><MaterialIcons name="shopping-cart" size={43} color="#1e5fa8" /></View><Text style={styles.emptyTitle}>سلتك فارغة</Text><Text style={styles.emptyText}>أضيفي المنتجات التي تريدينها من الصفحة الرئيسية.</Text><Pressable accessibilityRole="button" onPress={() => router.replace("/")} style={styles.browse}><Text style={styles.browseText}>تصفحي المنتجات</Text></Pressable></View>} renderItem={({ item, index }) => <View style={styles.item}>{item.image ? <Image source={{ uri: item.image }} style={styles.image} resizeMode="cover" /> : <View style={[styles.image, styles.placeholder]}><MaterialIcons name="auto-awesome" size={34} color="#1e5fa8" /></View>}<View style={styles.details}><View style={styles.itemTop}><Pressable accessibilityRole="button" accessibilityLabel={`حذف ${item.name_ar} من السلة`} onPress={() => removeItem(item.id, item.name_ar)} style={({ pressed }) => [styles.delete, pressed && styles.pressed]}><MaterialIcons name="delete-outline" size={22} color="#dc426d" /></Pressable><View style={styles.copy}><Text numberOfLines={2} style={styles.name}>{item.name_ar}</Text><Text numberOfLines={1} style={styles.brand}>{item.brand || "TIPS Beauty"}</Text></View></View><View style={styles.itemBottom}><Text style={styles.price}>{lineUnitPrice(index, item).toLocaleString()} ج.س</Text><View style={styles.quantity}><Pressable accessibilityRole="button" accessibilityLabel={`تقليل كمية ${item.name_ar}`} onPress={() => void setQuantity(item.id, item.quantity - 1)} style={({ pressed }) => [styles.qtyButton, pressed && styles.pressed]}><MaterialIcons name="remove" size={19} color="#1e5fa8" /></Pressable><Text accessibilityLabel={`الكمية ${item.quantity}`} style={styles.qty}>{item.quantity}</Text><Pressable accessibilityRole="button" accessibilityLabel={`زيادة كمية ${item.name_ar}`} onPress={() => void setQuantity(item.id, item.quantity + 1)} style={({ pressed }) => [styles.qtyButton, pressed && styles.pressed]}><MaterialIcons name="add" size={19} color="#1e5fa8" /></Pressable></View></View></View></View>} />
+    {cart.length ? <View style={styles.footer}><View style={styles.totalRow}><Text style={styles.totalLabel}>{current?.data ? "الإجمالي" : "الإجمالي التقديري"}</Text><Text style={styles.total}>{subtotal.toLocaleString()} ج.س</Text></View><Text style={styles.delivery}>{current?.failed ? "تعذر حساب العروض، والمبلغ تقدير." : current?.data ? "رسوم التوصيل تحسب عند التأكيد." : "رسوم التوصيل والخصومات تحسب عند التأكيد."}</Text><Pressable accessibilityRole="button" onPress={() => router.push("/checkout")} style={({ pressed }) => [styles.checkout, pressed && styles.pressed]}><Text style={styles.checkoutText}>متابعة إلى إتمام الطلب</Text><MaterialIcons name="arrow-back" size={20} color="white"/></Pressable></View> : null}
   </View></ScreenContainer>;
 }
 

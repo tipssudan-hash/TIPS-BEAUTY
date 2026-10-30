@@ -9,6 +9,11 @@ interface HeaderProps {
 }
 
 const MOBILE_NAV_ID = 'mobile-nav-panel';
+const ACCOUNT_LINKS = [
+    { to: '/favorites', label: 'المفضلة' },
+    { to: '/loyalty', label: 'نقاط الجمال' },
+    { to: '/referrals', label: 'دعوة الأصدقاء' },
+];
 
 export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
     const location = useLocation();
@@ -67,6 +72,10 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
                             <Link to="/orders" className={`hover:text-brand-blue transition-colors ${currentPath.startsWith('/orders') ? 'text-brand-blue font-bold' : 'text-gray-600'}`}>طلباتي</Link>
                         )}
 
+                        {user && ACCOUNT_LINKS.map((link) => (
+                            <Link key={link.to} to={link.to} className={`hover:text-brand-blue transition-colors ${currentPath === link.to ? 'text-brand-blue font-bold' : 'text-gray-600'}`}>{link.label}</Link>
+                        ))}
+
                         {user ? (
                             <div className="flex items-center gap-4 border-r border-gray-100 pr-4 mr-1">
                                 <Link to="/settings" className={`flex items-center gap-2 hover:text-brand-blue transition-colors ${currentPath === '/settings' ? 'text-brand-blue font-bold' : 'text-gray-600'}`}>
@@ -109,6 +118,10 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
                         {user && (
                             <Link to="/orders" className={`p-2 rounded-lg ${currentPath.startsWith('/orders') ? 'bg-brand-blue-soft text-brand-blue font-bold' : 'text-gray-600'}`} onClick={() => setIsMenuOpen(false)}>طلباتي</Link>
                         )}
+
+                        {user && ACCOUNT_LINKS.map((link) => (
+                            <Link key={link.to} to={link.to} className={`p-2 rounded-lg ${currentPath === link.to ? 'bg-brand-blue-soft text-brand-blue font-bold' : 'text-gray-600'}`} onClick={() => setIsMenuOpen(false)}>{link.label}</Link>
+                        ))}
 
                         <div className="border-t border-gray-100 my-1"></div>
 

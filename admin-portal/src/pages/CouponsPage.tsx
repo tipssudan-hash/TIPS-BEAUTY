@@ -2,10 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { Ticket, Plus, Edit, Trash2, X, Loader2, Check, Megaphone, Share2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { Coupon, CouponInput, Affiliate } from '../types';
-import { deleteCoupon, fetchCoupons, fetchAffiliates, saveCoupon } from '../lib/catalogApi';
+import { bulkSetCouponsActive, deleteCoupon, fetchCoupons, fetchAffiliates, saveCoupon } from '../lib/catalogApi';
 import { errorMessage } from '../lib/errors';
 import { formatDateTime, formatNumber, formatSDG, fromLocalInput, toLocalInput } from '../lib/format';
+import { PAGE_SIZE } from '../lib/pagination';
 import { Card, Field, Notice, PageHeader, Spinner, StatusPill, Table, inputClass, primaryButtonClass, secondaryButtonClass, smallButtonClass } from '../components/ui';
+import { Pagination } from '../components/Pagination';
+import { BulkActionBar } from '../components/BulkActionBar';
+import { AuditHistory } from '../components/AuditHistory';
+import { useRowSelection } from '../hooks/useRowSelection';
 
 const emptyCoupon = (): CouponInput => ({
     code: '', name: '', description: null, discount_type: 'percentage', discount_value: 10, max_discount_amount: null,
@@ -24,6 +29,9 @@ export const CouponsPage: React.FC = () => {
     const [copiedCode, setCopiedCode] = useState<string | null>(null);
     const [editing, setEditing] = useState<{ id: string | null; data: CouponInput } | null>(null);
     const [saving, setSaving] = useState(false);
+    const [page, setPage] = useState(0);
+    const [busy, setBusy] = useState(false);
+    const selection = useRowSelection();
 
     const load = async () => {
         setLoading(true);
@@ -84,6 +92,29 @@ export const CouponsPage: React.FC = () => {
     };
 
     const edit = (coupon: Coupon) => setEditing({ id: coupon.id, data: toInput(coupon) });
+
+    const bulkSetActive = async (isActive: boolean) => {
+        setBusy(true);
+        setError(null);
+        try {
+            await bulkSetCouponsActive(selection.selectedIds, isActive);
+            selection.clear();
+            await load();
+        } catch (err) {
+            setError(errorMessage(err));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const changePage = (value: number) => {
+        selection.clear();
+        setPage(value);
+    };
+
+    const pageRows = coupons.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+    const pageIds = pageRows.map((c) => c.id);
+    const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selection.selected.has(id));
 
     const copyShareText = (c: Coupon) => {
         const valText = c.discount_type === 'percentage' ? `${c.discount_value}%` : `${formatSDG(c.discount_value)}`;
@@ -194,12 +225,33 @@ export const CouponsPage: React.FC = () => {
                 </Card>
             )}
 
+            {editing?.id && (
+                <Card className="p-6 space-y-3">
+                    <h3 className="font-black text-slate-900">السجل</h3>
+                    <AuditHistory table="coupons" rowId={editing.id} />
+                </Card>
+            )}
+
+            <BulkActionBar count={selection.selectedIds.length} onClear={selection.clear} busy={busy}>
+                <button type="button" disabled={busy} onClick={() => void bulkSetActive(true)} className={`${smallButtonClass} bg-emerald-50 text-emerald-700`}>تفعيل المحدد</button>
+                <button type="button" disabled={busy} onClick={() => void bulkSetActive(false)} className={`${smallButtonClass} bg-amber-50 text-amber-700`}>إيقاف المحدد</button>
+            </BulkActionBar>
+
             <Card className="overflow-hidden">
-                <Table headers={['الكود', 'الخصم للعميل', 'المسوق المرتبط', 'الشروط', 'الفترة', 'الاستخدام', 'الحالة', 'الإجراءات']} empty={coupons.length === 0} emptyText="لا توجد أكواد خصم بعد">
-                    {coupons.map((c) => {
+                <div className="p-4 border-b border-slate-50 bg-slate-50/30 flex justify-end">
+                    <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                        <input type="checkbox" checked={allPageSelected} disabled={pageIds.length === 0} onChange={(e) => selection.toggleAll(pageIds, e.target.checked)} />
+                        تحديد الصفحة
+                    </label>
+                </div>
+                <Table headers={['', 'الكود', 'الخصم للعميل', 'المسوق المرتبط', 'الشروط', 'الفترة', 'الاستخدام', 'الحالة', 'الإجراءات']} empty={coupons.length === 0} emptyText="لا توجد أكواد خصم بعد">
+                    {pageRows.map((c) => {
                         const linkedAffiliate = affiliates.find((a) => a.id === c.affiliate_id);
                         return (
                             <tr key={c.id} className="hover:bg-slate-50/50">
+                                <td className="px-4 py-4">
+                                    <input type="checkbox" aria-label="تحديد الكود" checked={selection.selected.has(c.id)} onChange={() => selection.toggle(c.id)} />
+                                </td>
                                 <td className="px-6 py-4">
                                     <div className="flex items-center gap-2">
                                         <p className="text-sm font-black text-slate-900 font-mono" dir="ltr">{c.code}</p>
@@ -251,6 +303,7 @@ export const CouponsPage: React.FC = () => {
                         );
                     })}
                 </Table>
+                <Pagination page={page} pageSize={PAGE_SIZE} total={coupons.length} onPageChange={changePage} />
             </Card>
         </div>
     );

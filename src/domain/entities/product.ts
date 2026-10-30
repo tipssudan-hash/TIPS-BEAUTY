@@ -27,6 +27,8 @@ export interface Product {
   pricingRule: PricingRule | null;
   category: string;
   brand: string;
+  categoryId?: string;
+  brandId?: string;
   image: string;
   images: string[];
   description: string;

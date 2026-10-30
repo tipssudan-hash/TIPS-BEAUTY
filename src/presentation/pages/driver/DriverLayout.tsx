@@ -18,7 +18,7 @@ const DriverGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 const Shell: React.FC = () => {
-    const { profile, error } = useDriver();
+    const { profile, error, queueNotice } = useDriver();
     const { signOut } = useAuth();
 
     return (
@@ -50,6 +50,7 @@ const Shell: React.FC = () => {
             </header>
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6">
                 {error && <p role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3.5 text-sm font-bold text-rose-900">{error}</p>}
+                {queueNotice && <p role="status" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm font-bold text-amber-900">{queueNotice}</p>}
                 <Outlet />
             </main>
         </div>

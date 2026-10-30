@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, Search, Sparkles, Award, ShoppingBag, ExternalLink, X, Loader2, Warehouse } from 'lucide-react';
+import { Users, Search, Sparkles, Award, ShoppingBag, ExternalLink, X, Loader2, Warehouse, Calculator } from 'lucide-react';
 import type { CustomerProfile } from '../types';
 import type { WarehouseOption } from '../lib/adminApi';
 import {
@@ -8,11 +8,17 @@ import {
     fetchCustomerDetail,
     fetchCustomers,
     fetchActiveWarehouses,
-    setWarehouseSupervisor,
+    fetchWarehouseManagers,
+    setAccountant,
+    setWarehouseManagerAccess,
     type CustomerDetailData,
     type CustomerFilters,
 } from '../lib/adminApi';
+import { resolvePrimaryWarehouse } from '../lib/warehouseAccess';
+import { useAuth } from '../context/AuthContext';
 import { errorMessage } from '../lib/errors';
+import { csvFileName, downloadCsv, toCsv, type CsvColumn } from '../lib/csv';
+import { fetchAllPages } from '../lib/pagination';
 import { formatDate, formatDateTime, formatNumber, formatSDG, orderStatusLabel, orderStatusStyle } from '../lib/format';
 import {
     Card,
@@ -38,10 +44,12 @@ const ROLE_LABELS: Record<string, string> = {
     customer: 'عميل',
     admin: 'مدير',
     driver: 'مندوب',
-    warehouse_supervisor: 'مشرف مستودع',
+    warehouse_supervisor: 'مدير مستودع',
+    accountant: 'محاسب',
 };
 
 export const CustomersPage: React.FC = () => {
+    const { isAdmin } = useAuth();
     const [customers, setCustomers] = useState<CustomerProfile[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -64,10 +72,43 @@ export const CustomersPage: React.FC = () => {
     const [adjusting, setAdjusting] = useState(false);
     const [pointsSuccess, setPointsSuccess] = useState<string | null>(null);
 
-    // Warehouse Supervisor Assignment State
+    // Warehouse Manager Assignment State
     const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
-    const [supervisorWarehouseId, setSupervisorWarehouseId] = useState<string>('');
-    const [assigningSupervisor, setAssigningSupervisor] = useState(false);
+    const [managerWarehouseIds, setManagerWarehouseIds] = useState<string[]>([]);
+    const [managerPrimaryId, setManagerPrimaryId] = useState<string | null>(null);
+    const [assigningManager, setAssigningManager] = useState(false);
+    const [exporting, setExporting] = useState(false);
+
+    const exportCsv = async () => {
+        setExporting(true);
+        setError(null);
+        try {
+            const rows = await fetchAllPages((offset, limit) => fetchCustomers({
+                search: search || undefined,
+                role: roleFilter || undefined,
+                tier: tierFilter || undefined,
+                page: offset / limit,
+                pageSize: limit,
+            }));
+            const columns: CsvColumn<CustomerProfile>[] = [
+                { header: 'الاسم', value: (c) => c.full_name },
+                { header: 'البريد الإلكتروني', value: (c) => c.email },
+                { header: 'الهاتف', value: (c) => c.phone },
+                { header: 'الدور', value: (c) => c.role },
+                { header: 'الفئة', value: (c) => c.loyalty_tier },
+                { header: 'نقاط الولاء', value: (c) => c.beauty_points },
+                { header: 'إجمالي النقاط المكتسبة', value: (c) => c.loyalty_lifetime_points },
+                { header: 'عدد الطلبات', value: (c) => c.orders_count ?? 0 },
+                { header: 'إجمالي المشتريات', value: (c) => c.total_spent ?? 0 },
+                { header: 'تاريخ التسجيل', value: (c) => c.created_at },
+            ];
+            downloadCsv(csvFileName('customers'), toCsv(rows, columns));
+        } catch (err) {
+            setError(errorMessage(err, 'تعذر تصدير العملاء.'));
+        } finally {
+            setExporting(false);
+        }
+    };
 
     const loadCustomers = useCallback(async () => {
         setLoading(true);
@@ -101,9 +142,15 @@ export const CustomersPage: React.FC = () => {
         setPointsSuccess(null);
         setPointsDelta(0);
         setPointsNote('');
-        setSupervisorWarehouseId(cust.assigned_warehouse_id ?? '');
         try {
-            const [data, wh] = await Promise.all([fetchCustomerDetail(cust.id), fetchActiveWarehouses()]);
+            const [data, wh, managers] = await Promise.all([
+                fetchCustomerDetail(cust.id),
+                isAdmin ? fetchActiveWarehouses() : Promise.resolve([]),
+                isAdmin ? fetchWarehouseManagers() : Promise.resolve([]),
+            ]);
+            const access = managers.find((m) => m.user_id === cust.id);
+            setManagerWarehouseIds(access?.warehouse_ids ?? []);
+            setManagerPrimaryId(access?.primary_warehouse_id ?? null);
             setCustomerDetail(data);
             setWarehouses(wh);
         } catch (err) {
@@ -146,30 +193,55 @@ export const CustomersPage: React.FC = () => {
         }
     };
 
-    const handleAssignSupervisor = async () => {
+    const toggleManagerWarehouse = (warehouseId: string) => {
+        setManagerWarehouseIds((prev) => (prev.includes(warehouseId) ? prev.filter((id) => id !== warehouseId) : [...prev, warehouseId]));
+    };
+
+    const handleAssignManager = async () => {
         if (!selectedCustomer) return;
-        setAssigningSupervisor(true);
+        setAssigningManager(true);
         setDetailError(null);
         setPointsSuccess(null);
         try {
-            const warehouseId = supervisorWarehouseId || null;
-            await setWarehouseSupervisor(selectedCustomer.id, warehouseId);
-            const label = warehouseId
-                ? `تم تعيين ${selectedCustomer.full_name ?? 'المستخدم'} مشرفاً للمستودع بنجاح.`
-                : `تم إلغاء تعيين المشرف وإعادة الحساب لدور عميل.`;
+            const warehouseIds = managerWarehouseIds;
+            const primaryId = resolvePrimaryWarehouse(warehouseIds, managerPrimaryId);
+            await setWarehouseManagerAccess(selectedCustomer.id, warehouseIds, primaryId);
+            const label = warehouseIds.length
+                ? `تم تعيين ${selectedCustomer.full_name ?? 'المستخدم'} مديراً لـ ${warehouseIds.length} مستودع بنجاح.`
+                : 'تم إلغاء تعيين مدير المستودع وإعادة الحساب لدور عميل.';
             setPointsSuccess(label);
+            setManagerWarehouseIds(warehouseIds);
+            setManagerPrimaryId(primaryId);
             // Refresh customer row so the role badge updates immediately.
             void loadCustomers();
             const refreshed = await fetchCustomerDetail(selectedCustomer.id);
             setCustomerDetail(refreshed);
             setSelectedCustomer(prev => prev
-                ? { ...prev, role: warehouseId ? 'warehouse_supervisor' : 'customer', assigned_warehouse_id: warehouseId }
+                ? { ...prev, role: warehouseIds.length ? 'warehouse_supervisor' : 'customer', assigned_warehouse_id: primaryId }
                 : prev
             );
         } catch (err) {
             setDetailError(errorMessage(err));
         } finally {
-            setAssigningSupervisor(false);
+            setAssigningManager(false);
+        }
+    };
+
+    const toggleAccountant = async () => {
+        if (!selectedCustomer) return;
+        const makeAccountant = selectedCustomer.role !== 'accountant';
+        setAssigningManager(true);
+        setDetailError(null);
+        setPointsSuccess(null);
+        try {
+            await setAccountant(selectedCustomer.id, makeAccountant);
+            setPointsSuccess(makeAccountant ? 'تم منح الحساب دور المحاسب.' : 'تم إلغاء دور المحاسب وإعادة الحساب لدور عميل.');
+            setSelectedCustomer((prev) => (prev ? { ...prev, role: makeAccountant ? 'accountant' : 'customer' } : prev));
+            void loadCustomers();
+        } catch (err) {
+            setDetailError(errorMessage(err));
+        } finally {
+            setAssigningManager(false);
         }
     };
 
@@ -213,7 +285,7 @@ export const CustomersPage: React.FC = () => {
                             <option value="customer">العملاء</option>
                             <option value="admin">المدراء</option>
                             <option value="driver">المندوبون</option>
-                            <option value="warehouse_supervisor">مشرفو المستودعات</option>
+                            <option value="warehouse_supervisor">مديرو المستودعات</option>
                         </select>
                     </div>
 
@@ -233,6 +305,7 @@ export const CustomersPage: React.FC = () => {
                             <option value="platinum">بلاتيني</option>
                         </select>
                     </div>
+                    <button type="button" disabled={exporting} onClick={() => void exportCsv()} className="bg-slate-900 text-white rounded-xl px-4 py-2.5 font-black text-sm disabled:opacity-50">{exporting ? 'جاري التصدير...' : 'تصدير CSV'}</button>
                 </div>
             </Card>
 
@@ -379,6 +452,7 @@ export const CustomersPage: React.FC = () => {
                                     </Card>
                                 </div>
 
+                                {isAdmin && (<>
                                 {/* Points Adjustment Form */}
                                 <Card className="p-5 border-amber-200 bg-amber-50/40">
                                     <h4 className="font-black text-slate-900 text-sm mb-3 flex items-center gap-2">
@@ -421,48 +495,82 @@ export const CustomersPage: React.FC = () => {
                                     </form>
                                 </Card>
 
-                                {/* Warehouse Supervisor Assignment — only for customer/warehouse_supervisor accounts */}
+                                {/* Warehouse Manager Assignment — only for customer/warehouse_supervisor accounts */}
                                 {(selectedCustomer.role === 'customer' || selectedCustomer.role === 'warehouse_supervisor') && (
                                     <Card className="p-5 border-sky-200 bg-sky-50/40">
-                                        <h4 className="font-black text-slate-900 text-sm mb-3 flex items-center gap-2">
-                                            <Warehouse className="w-4 h-4 text-sky-600" /> تعيين مشرف مستودع
+                                        <h4 className="font-black text-slate-900 text-sm mb-1 flex items-center gap-2">
+                                            <Warehouse className="w-4 h-4 text-sky-600" /> تعيين مدير مستودع
                                         </h4>
-                                        <div className="flex flex-col md:flex-row gap-3 items-end">
-                                            <div className="flex-1">
-                                                <label className="block text-xs font-bold text-slate-600 mb-1">المستودع المُعيَّن</label>
-                                                <select
-                                                    value={supervisorWarehouseId}
-                                                    onChange={(e) => setSupervisorWarehouseId(e.target.value)}
-                                                    className={inputClass}
-                                                >
-                                                    <option value="">— بدون تعيين (إلغاء دور المشرف) —</option>
-                                                    {warehouses.map((w) => (
-                                                        <option key={w.id} value={w.id}>
-                                                            {w.name} — {w.city}، {w.state}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            </div>
+                                        <p className="text-xs text-slate-500 font-bold mb-3">
+                                            اختاري المستودعات التي يديرها هذا الحساب وحددي المستودع الأساسي. بدون اختيار يُلغى دور مدير المستودع.
+                                        </p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                            {warehouses.map((w) => {
+                                                const checked = managerWarehouseIds.includes(w.id);
+                                                const primary = resolvePrimaryWarehouse(managerWarehouseIds, managerPrimaryId) === w.id;
+                                                return (
+                                                    <div key={w.id} className="flex items-center justify-between gap-2 p-3 rounded-xl bg-white border border-slate-200">
+                                                        <label className="flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer min-w-0">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={checked}
+                                                                disabled={assigningManager}
+                                                                onChange={() => toggleManagerWarehouse(w.id)}
+                                                                className="w-4 h-4 accent-brand-blue shrink-0"
+                                                            />
+                                                            <span className="truncate">{w.name} — {w.city}، {w.state}</span>
+                                                        </label>
+                                                        {checked && (
+                                                            <label className="flex items-center gap-1 text-[11px] font-bold text-slate-500 cursor-pointer shrink-0">
+                                                                <input
+                                                                    type="radio"
+                                                                    name="manager-primary-warehouse"
+                                                                    checked={primary}
+                                                                    disabled={assigningManager}
+                                                                    onChange={() => setManagerPrimaryId(w.id)}
+                                                                    className="accent-brand-blue"
+                                                                />
+                                                                أساسي
+                                                            </label>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        <div className="mt-3 flex justify-end">
                                             <button
                                                 type="button"
-                                                disabled={assigningSupervisor}
-                                                onClick={() => void handleAssignSupervisor()}
+                                                disabled={assigningManager}
+                                                onClick={() => void handleAssignManager()}
                                                 className={`${primaryButtonClass} shrink-0`}
                                             >
-                                                {assigningSupervisor ? <Loader2 className="w-4 h-4 animate-spin" /> : 'حفظ التعيين'}
+                                                {assigningManager ? <Loader2 className="w-4 h-4 animate-spin" /> : 'حفظ التعيين'}
                                             </button>
                                         </div>
-                                        {selectedCustomer.role === 'warehouse_supervisor' && (
-                                            <p className="text-xs text-sky-700 font-bold mt-2 flex items-center gap-1">
-                                                <Warehouse className="w-3 h-3" />
-                                                حالياً مشرف مستودع
-                                                {selectedCustomer.assigned_warehouse_id
-                                                    ? ` — ${warehouses.find(w => w.id === selectedCustomer.assigned_warehouse_id)?.name ?? selectedCustomer.assigned_warehouse_id}`
-                                                    : ' (بدون مستودع مُعيَّن)'}
-                                            </p>
-                                        )}
                                     </Card>
                                 )}
+
+                                {(selectedCustomer.role === 'customer' || selectedCustomer.role === 'accountant') && (
+                                    <Card className="p-5 border-emerald-200 bg-emerald-50/40 flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                            <h4 className="font-black text-slate-900 text-sm mb-1 flex items-center gap-2">
+                                                <Calculator className="w-4 h-4 text-emerald-600" /> دور المحاسب
+                                            </h4>
+                                            <p className="text-xs text-slate-500 font-bold">
+                                                يرى المحاسب الطلبات والمرتجعات والعملاء وحسابات المندوبين والمسوقين، ويستلم العهد النقدية.
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => void toggleAccountant()}
+                                            disabled={assigningManager}
+                                            className="px-4 py-2 rounded-xl text-sm font-black border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                                        >
+                                            {selectedCustomer.role === 'accountant' ? 'إلغاء دور المحاسب' : 'تعيين محاسباً'}
+                                        </button>
+                                    </Card>
+                                )}
+                                </>)}
 
                                 {/* Customer Orders History */}
                                 <div className="space-y-3">

@@ -2,11 +2,27 @@
 // English messages; anything not listed falls back to the caller's text.
 
 const backendMessages: [RegExp, string][] = [
+    [/outside your (warehouse )?scope/i, 'هذا الطلب أو المستودع خارج نطاق صلاحياتك.'],
+    [/Supervisor or admin access required|Administrator or warehouse manager access required/i, 'ليست لديك صلاحية تنفيذ هذا الإجراء.'],
+    [/not allowed for warehouse managers/i, 'هذا التغيير غير مسموح به لمدير المستودع.'],
+    [/Assign a driver before starting delivery/i, 'يجب إسناد مندوب للطلب قبل بدء التوصيل.'],
+    [/Paid orders must be refunded/i, 'لا يمكن إلغاء طلب مدفوع دون استرداد، تواصلي مع الإدارة.'],
+    [/updated by another user/i, 'تم تحديث هذا الطلب من مستخدم آخر، أعيدي التحميل وحاولي مرة أخرى.'],
+    [/Order not in assignable state/i, 'لا يمكن إسناد مندوب لهذا الطلب في حالته الحالية.'],
+    [/Selected driver is not available/i, 'المندوب المختار غير متاح حالياً.'],
+    [/Selected driver is assigned to another warehouse/i, 'المندوب المختار مسند إلى مستودع آخر.'],
+    [/Remittance not found or already processed/i, 'التسوية غير موجودة أو تمت معالجتها مسبقاً.'],
+    [/exceeds the driver outstanding COD/i, 'المبلغ المؤكد يتجاوز النقد المتوقع من المندوب.'],
+    [/note is required to confirm/i, 'أضيفي ملاحظة لتأكيد مبلغ يتجاوز النقد المتوقع من المندوب.'],
+    [/note is required for warehouse/i, 'يلزم إدخال ملاحظة لتعديل المخزون.'],
+    [/note is required for stock/i, 'يلزم إدخال ملاحظة لتحويل المخزون.'],
     [/No active warehouse/i, 'عذراً، لا يتوفر مستودع يخدم منطقتك حالياً. جربي لاحقاً أو تواصلي معنا.'],
     [/GPS coordinates/i, 'يرجى تحديد موقعك الجغرافي أولاً قبل إتمام الطلب.'],
     [/No delivery pricing configuration/i, 'تعذر حساب رسوم التوصيل لمنطقتك حالياً، يرجى المحاولة لاحقاً.'],
     [/Unsupported payment method/i, 'طريقة الدفع التي اخترتِها غير مدعومة حالياً.'],
     [/Only new orders can be cancelled/i, 'لا يمكن إلغاء الطلب بعد تأكيده، تواصلي مع خدمة العملاء.'],
+    [/IDEMPOTENCY_KEY_REUSED/, 'تغيّرت بيانات الطلب بعد محاولة سابقة، راجعي السلة وحاولي مرة أخرى.'],
+    [/IDEMPOTENCY_ORDER_CANCELLED/, 'تم إلغاء الطلب السابق لهذه المحاولة، أعيدي إرسال الطلب.'],
     [/Authentication required/i, 'انتهت جلستك، يرجى تسجيل الدخول مجدداً.'],
     [/delivered order/i, 'يمكن تقييم المنتجات المستلمة فقط.'],
     [/already/i, 'تم تنفيذ هذا الإجراء مسبقاً.'],
@@ -66,6 +82,10 @@ export function errorMessage(error: unknown, fallback = 'حدث خطأ غير م
     return fallback;
 }
 
+export function translatedError(error: unknown): Error {
+    return new Error(errorMessage(error), { cause: error });
+}
+
 export function loginErrorMessage(message: string): string {
     if (/email not confirmed/i.test(message)) return 'يرجى تأكيد البريد الإلكتروني أولاً';
     if (/invalid login credentials/i.test(message)) return 'رقم الهاتف/البريد أو كلمة المرور غير صحيحة';
@@ -85,6 +105,17 @@ export function resetPasswordErrorMessage(message: string): string {
     if (/password/i.test(message)) return 'كلمة المرور يجب أن تكون 6 أحرف على الأقل.';
     if (/expired|invalid.*token/i.test(message)) return 'انتهت صلاحية رابط إعادة التعيين أو أنه غير صالح. اطلبي رابطاً جديداً.';
     return 'تعذر إتمام طلب إعادة تعيين كلمة المرور، حاولي مرة أخرى.';
+}
+
+// update_driver_order_status answers a refused delivery code as its result, not as an error.
+const deliveryCodeRefusals = new Map<string, string>([
+    ['delivery_code_required', 'أدخلي رمز التسليم الذي يعرضه العميل.'],
+    ['delivery_code_invalid', 'رمز التسليم غير صحيح، تأكدي من الرمز مع العميل.'],
+    ['delivery_code_locked', 'قُفل رمز التسليم بعد عدة محاولات خاطئة، اطلبي من المشرف تجاوزه.'],
+]);
+
+export function deliveryCodeRefusalMessage(result: unknown): string | null {
+    return typeof result === 'string' ? deliveryCodeRefusals.get(result) ?? null : null;
 }
 
 // Why the backend refused a Coupon (preview_coupon reasons), in the customer's words.

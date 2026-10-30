@@ -1,15 +1,18 @@
-﻿import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search, X } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { ProductCard } from '../../components/ui/ProductCard';
+import { CategoryChips } from '../../components/ui/CategoryChips';
+import { useCatalogTaxonomy } from '@presentation/hooks/useCatalogTaxonomy';
+import { usePageMeta } from '../../hooks/usePageMeta';
 import {
     ALL_BRANDS,
     ALL_CATEGORIES,
     ProductSortBy,
-    availableBrands,
-    availableCategories,
+    categoryIdForName,
     filterAndSortProducts,
+    storefrontBrands,
 } from '@application/services/productSearch';
 
 const SORT_OPTIONS: { value: ProductSortBy; label: string }[] = [
@@ -28,7 +31,9 @@ function isSortBy(value: string): value is ProductSortBy {
 // filtering: shareable, bookmarkable, and reachable directly from the header search icon —
 // see the design-system audit's "no dedicated browse/search page" finding.
 export const SearchPage: React.FC = () => {
+    usePageMeta({ title: 'بحث المنتجات | Tips Beauty', description: 'ابحثي عن مستحضرات التجميل والعناية بالبشرة في تيبس بيوتي', path: '/search' });
     const { products, productsLoading, productsError, reloadProducts, wishlist, addToCart, toggleWishlist } = useStore();
+    const { categories, brands: brandList } = useCatalogTaxonomy(products);
     const [searchParams, setSearchParams] = useSearchParams();
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -51,12 +56,16 @@ export const SearchPage: React.FC = () => {
         setSearchParams(next, { replace: true });
     };
 
-    const brands = useMemo(() => availableBrands(products), [products]);
-    const categories = useMemo(() => availableCategories(products), [products]);
+    const brands = useMemo(() => storefrontBrands(brandList), [brandList]);
+    const categoryId = category === ALL_CATEGORIES ? null : categoryIdForName(categories, category);
+
+    const selectCategory = (id: string | null) => {
+        updateParam('category', categories.find((c) => c.id === id)?.name_ar ?? ALL_CATEGORIES, ALL_CATEGORIES);
+    };
 
     const results = useMemo(
-        () => filterAndSortProducts(products, { query, category, brand, sortBy }),
-        [products, query, category, brand, sortBy]
+        () => filterAndSortProducts(products, { query, categoryId, brand, sortBy }, categories),
+        [products, query, categoryId, brand, sortBy, categories]
     );
 
     const hasActiveFilters = query !== '' || category !== ALL_CATEGORIES || brand !== ALL_BRANDS;
@@ -82,23 +91,7 @@ export const SearchPage: React.FC = () => {
             </div>
 
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 flex-1">
-                    <button
-                        onClick={() => updateParam('category', ALL_CATEGORIES, ALL_CATEGORIES)}
-                        className={`px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-bold whitespace-nowrap transition-colors ${category === ALL_CATEGORIES ? 'bg-brand-blue text-white shadow-sm' : 'bg-white border border-brand-blue-soft text-gray-600 hover:border-brand-blue'}`}
-                    >
-                        الكل
-                    </button>
-                    {categories.map((c) => (
-                        <button
-                            key={c}
-                            onClick={() => updateParam('category', c, ALL_CATEGORIES)}
-                            className={`px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-bold whitespace-nowrap transition-colors ${category === c ? 'bg-brand-blue text-white shadow-sm' : 'bg-white border border-brand-blue-soft text-gray-600 hover:border-brand-blue'}`}
-                        >
-                            {c}
-                        </button>
-                    ))}
-                </div>
+                <CategoryChips categories={categories} activeId={categoryId} onSelect={selectCategory} />
 
                 <div className="flex gap-2">
                     <select
@@ -107,7 +100,7 @@ export const SearchPage: React.FC = () => {
                         className="bg-white border border-brand-blue-soft text-gray-700 text-xs sm:text-sm rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-brand-blue font-medium"
                     >
                         <option value={ALL_BRANDS}>كل الماركات</option>
-                        {brands.map((b) => <option key={b} value={b}>{b}</option>)}
+                        {brands.map((b) => <option key={b.id} value={b.name_ar}>{b.name_ar}</option>)}
                     </select>
 
                     <select

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { TEST_TAG, anonClient, creds, haveCreds, provisionProduct, rpc, signedInClient, type Client } from './helpers';
+import { TEST_TAG, anonClient, creds, haveCreds, loose, provisionProduct, rpc, signedInClient, type Client } from './helpers';
 
 // Collections (T2-06): staff write through the admin RPCs, the Storefront reads through
 // get_storefront_collections, and only sellable Products ever come back.
@@ -8,7 +8,7 @@ import { TEST_TAG, anonClient, creds, haveCreds, provisionProduct, rpc, signedIn
 const suite = haveCreds ? describe : describe.skip;
 
 type PublicCollection = { id: string; slug: string; product_ids: string[] };
-type AdminCollection = PublicCollection & { rule_type: string; is_active: boolean };
+type AdminCollection = PublicCollection & { rule_type: string; is_active: boolean; rule_config: { category?: string } };
 
 suite('collections over the backend RPCs', () => {
     let customer: Client;
@@ -129,5 +129,45 @@ suite('collections over the backend RPCs', () => {
         const row = (await adminCollections()).find((c) => c.id === created[0]);
         expect(row?.rule_type).toBe('discount');
         expect(row?.product_ids).toEqual([]);
+    });
+
+    it('a category rule by id covers the category and its subcategories, and keeps the name as the text fallback', async () => {
+        const { data: original, error: originalErr } = await loose(admin).from('products').select('category_id').eq('id', product.id).single();
+        expect(originalErr).toBeNull();
+        const rootName = `${TEST_TAG} ${slug} فئة`;
+        const childName = `${TEST_TAG} ${slug} فرعية`;
+        const root = (await rpc(admin, 'admin_save_category', { p_name_ar: rootName })).data as unknown as string;
+        const child = (await rpc(admin, 'admin_save_category', { p_name_ar: childName, p_parent_id: root })).data as unknown as string;
+        const unrelated = (await rpc(admin, 'admin_save_category', { p_name_ar: `${TEST_TAG} ${slug} أخرى` })).data as unknown as string;
+        const saved: string[] = [];
+        try {
+            const moved = await loose(admin).from('products').update({ category_id: child }).eq('id', product.id);
+            expect(moved.error).toBeNull();
+
+            const byRoot = await save(admin, { p_slug: `${slug}-by-root`, p_name_ar: `${TEST_TAG} by root`, p_rule_type: 'category', p_rule_config: { category_id: root } });
+            expect(byRoot.error).toBeNull();
+            saved.push(byRoot.data as unknown as string);
+            expect((await publicCollections(anon)).find((c) => c.id === saved[0])?.product_ids).toContain(product.id);
+            expect((await adminCollections()).find((c) => c.id === saved[0])?.rule_config.category).toBe(rootName);
+
+            const byOther = await save(admin, { p_slug: `${slug}-by-other`, p_name_ar: `${TEST_TAG} by other`, p_rule_type: 'category', p_rule_config: { category_id: unrelated } });
+            expect(byOther.error).toBeNull();
+            saved.push(byOther.data as unknown as string);
+            expect((await publicCollections(anon)).find((c) => c.id === saved[1])?.product_ids).not.toContain(product.id);
+
+            const byName = await save(admin, { p_slug: `${slug}-by-name`, p_name_ar: `${TEST_TAG} by name`, p_rule_type: 'category', p_rule_config: { category: childName } });
+            expect(byName.error).toBeNull();
+            saved.push(byName.data as unknown as string);
+            expect((await publicCollections(anon)).find((c) => c.id === saved[2])?.product_ids).toContain(product.id);
+
+            const unknown = await save(admin, { p_slug: `${slug}-unknown`, p_rule_type: 'category', p_rule_config: { category_id: randomUUID() } });
+            expect(unknown.error?.message ?? '').toMatch(/category not found/i);
+        } finally {
+            await loose(admin).from('products').update({ category_id: original?.category_id ?? null }).eq('id', product.id);
+            for (const id of saved) await rpc(admin, 'admin_delete_collection', { p_id: id });
+            await rpc(admin, 'admin_delete_category', { p_id: child });
+            await rpc(admin, 'admin_delete_category', { p_id: root });
+            await rpc(admin, 'admin_delete_category', { p_id: unrelated });
+        }
     });
 });

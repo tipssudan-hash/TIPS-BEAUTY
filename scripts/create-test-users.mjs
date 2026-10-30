@@ -21,6 +21,25 @@ const accounts = [
   { email: 'youssifshmo2311@gmail.com', password: '1234abcd', role: 'warehouse_supervisor', name: 'Youssif Supervisor' }
 ];
 
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+async function syncWarehouseManagerAccess(email, userId, warehouseId) {
+  if (!serviceRoleKey) {
+    console.log(`- Skipped warehouse_manager_access for ${email}: set SUPABASE_SERVICE_ROLE_KEY or run scripts/assign-test-roles.sql`);
+    return;
+  }
+  const service = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { error: deleteError } = await service.from('warehouse_manager_access').delete().eq('user_id', userId);
+  const { error: insertError } = deleteError
+    ? { error: deleteError }
+    : await service.from('warehouse_manager_access').insert({ user_id: userId, warehouse_id: warehouseId, is_primary: true });
+  if (insertError) {
+    console.error(`❌ warehouse_manager_access for ${email}:`, insertError.message);
+  } else {
+    console.log(`✅ warehouse_manager_access set for ${email}`);
+  }
+}
+
 async function main() {
   console.log('=== TIPS BEAUTY TEST ACCOUNT CREATOR ===\n');
 
@@ -80,6 +99,9 @@ async function main() {
       console.error(`❌ Error fetching profile for ${acc.email}:`, profileError.message);
     } else {
       console.log(`- Current Profile:`, JSON.stringify(profile, null, 2));
+      if (profile?.role === 'warehouse_supervisor' && profile.assigned_warehouse_id) {
+        await syncWarehouseManagerAccess(acc.email, userId, profile.assigned_warehouse_id);
+      }
     }
   }
 

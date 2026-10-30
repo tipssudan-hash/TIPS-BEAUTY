@@ -1,16 +1,12 @@
 import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { Header } from '@presentation/components/layout/Header';
-import { Footer } from '@presentation/components/layout/Footer';
-import { BottomNav } from '@presentation/components/layout/BottomNav';
-import { ErrorBoundary } from '@presentation/components/layout/ErrorBoundary';
-import { VerifiedRoute } from '@presentation/components/layout/VerifiedRoute';
 import { NativeBridge } from '@presentation/components/layout/NativeBridge';
 import { OfflineBanner } from '@presentation/components/layout/OfflineBanner';
+import { CustomerLayout } from '@presentation/components/layout/CustomerLayout';
+import { ErrorBoundary } from '@presentation/components/layout/ErrorBoundary';
+import { VerifiedRoute } from '@presentation/components/layout/VerifiedRoute';
 import { Spinner } from '@presentation/components/ui';
-import { CartNotificationToast } from '@presentation/components/ui/CartNotificationToast';
 import { HomePage } from '@presentation/pages/customer/HomePage';
-import { useStore } from '@presentation/context/StoreContext';
 import { useAuth } from '@presentation/context/AuthContext';
 
 // Home ships in the main bundle (it is the landing page); every other route loads on demand so the
@@ -27,6 +23,9 @@ const DeleteProfilePage = lazy(() => import('@presentation/pages/customer/Delete
 const OffersPage = lazy(() => import('@presentation/pages/customer/OffersPage').then((m) => ({ default: m.OffersPage })));
 const NotificationsPage = lazy(() => import('@presentation/pages/customer/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
 const AIChatPage = lazy(() => import('@presentation/pages/customer/AIChatPage').then((m) => ({ default: m.AIChatPage })));
+const LoyaltyPage = lazy(() => import('@presentation/pages/customer/LoyaltyPage').then((m) => ({ default: m.LoyaltyPage })));
+const ReferralsPage = lazy(() => import('@presentation/pages/customer/ReferralsPage').then((m) => ({ default: m.ReferralsPage })));
+const FavoritesPage = lazy(() => import('@presentation/pages/customer/FavoritesPage').then((m) => ({ default: m.FavoritesPage })));
 const LoginPage = lazy(() => import('@presentation/pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
 const SignupPage = lazy(() => import('@presentation/pages/auth/SignupPage').then((m) => ({ default: m.SignupPage })));
 const ForgotPasswordPage = lazy(() => import('@presentation/pages/auth/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })));
@@ -36,8 +35,7 @@ const PrivacyPolicyPage = lazy(() => import('@presentation/pages/PrivacyPolicyPa
 const DriverLayout = lazy(() => import('@presentation/pages/driver/DriverLayout').then((m) => ({ default: m.DriverLayout })));
 const DriverHomePage = lazy(() => import('@presentation/pages/driver/DriverHomePage').then((m) => ({ default: m.DriverHomePage })));
 const DriverOrderPage = lazy(() => import('@presentation/pages/driver/DriverOrderPage').then((m) => ({ default: m.DriverOrderPage })));
-const SupervisorLayout = lazy(() => import('@presentation/pages/supervisor/SupervisorLayout').then((m) => ({ default: m.SupervisorLayout })));
-const SupervisorHomePage = lazy(() => import('@presentation/pages/supervisor/SupervisorHomePage').then((m) => ({ default: m.SupervisorHomePage })));
+const SupervisorNoticePage = lazy(() => import('@presentation/pages/supervisor/SupervisorNoticePage').then((m) => ({ default: m.SupervisorNoticePage })));
 const NotFoundPage = lazy(() => import('@presentation/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -51,7 +49,6 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 function App() {
-  const { cartCount } = useStore();
   const { user, role } = useAuth();
   const location = useLocation();
   const isDriverSurface = location.pathname.startsWith('/driver');
@@ -92,9 +89,7 @@ function App() {
         <OfflineBanner />
         <Suspense fallback={<Spinner />}>
           <Routes>
-            <Route path="/supervisor" element={<SupervisorLayout />}>
-              <Route index element={<SupervisorHomePage />} />
-            </Route>
+            <Route path="/supervisor" element={<SupervisorNoticePage />} />
             <Route path="*" element={<Navigate to="/supervisor" replace />} />
           </Routes>
         </Suspense>
@@ -103,48 +98,39 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50/50 pb-20 md:pb-10 font-sans text-gray-900 flex flex-col justify-between" dir="rtl">
-      <NativeBridge />
-      <OfflineBanner />
-      <Header cartCount={cartCount} />
-      <main className="flex-1">
-        <ErrorBoundary>
-          <Suspense fallback={<Spinner />}>
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/search" element={<SearchPage />} />
-              <Route path="/product/:id" element={<ProductDetailsPage />} />
-              <Route path="/cart" element={<CartPage />} />
-              <Route path="/offers" element={<OffersPage />} />
-              {/* Public: both app stores require a reachable privacy policy URL. */}
-              <Route path="/privacy" element={<PrivacyPolicyPage />} />
+    <Routes>
+      <Route element={<CustomerLayout />}>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/search" element={<SearchPage />} />
+        <Route path="/product/:id" element={<ProductDetailsPage />} />
+        <Route path="/cart" element={<CartPage />} />
+        <Route path="/offers" element={<OffersPage />} />
+        {/* Public: both app stores require a reachable privacy policy URL. */}
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
 
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/signup" element={<SignupPage />} />
-              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-              <Route path="/reset-password" element={<ResetPasswordPage />} />
-              {/* Google and Apple return web customers here; native builds never use it. */}
-              <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        {/* Google and Apple return web customers here; native builds never use it. */}
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
-              <Route path="/checkout" element={<ProtectedRoute><VerifiedRoute><CheckoutPage /></VerifiedRoute></ProtectedRoute>} />
-              <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
-              <Route path="/orders" element={<ProtectedRoute><MyOrdersPage /></ProtectedRoute>} />
-              <Route path="/orders/:id" element={<ProtectedRoute><OrderDetailPage /></ProtectedRoute>} />
-              <Route path="/ai-chat" element={<ProtectedRoute><AIChatPage /></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-              <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-              <Route path="/delete-profile" element={<ProtectedRoute><DeleteProfilePage /></ProtectedRoute>} />
+        <Route path="/checkout" element={<ProtectedRoute><VerifiedRoute><CheckoutPage /></VerifiedRoute></ProtectedRoute>} />
+        <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
+        <Route path="/orders" element={<ProtectedRoute><MyOrdersPage /></ProtectedRoute>} />
+        <Route path="/orders/:id" element={<ProtectedRoute><OrderDetailPage /></ProtectedRoute>} />
+        <Route path="/ai-chat" element={<ProtectedRoute><AIChatPage /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+        <Route path="/delete-profile" element={<ProtectedRoute><DeleteProfilePage /></ProtectedRoute>} />
+        <Route path="/loyalty" element={<ProtectedRoute><LoyaltyPage /></ProtectedRoute>} />
+        <Route path="/referrals" element={<ProtectedRoute><ReferralsPage /></ProtectedRoute>} />
+        <Route path="/favorites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
 
-              <Route path="/track-order" element={<Navigate to="/orders" replace />} />
-              <Route path="*" element={<NotFoundPage />} />
-            </Routes>
-          </Suspense>
-        </ErrorBoundary>
-      </main>
-      <Footer />
-      <CartNotificationToast />
-      <BottomNav cartCount={cartCount} />
-    </div>
+        <Route path="/track-order" element={<Navigate to="/orders" replace />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Route>
+    </Routes>
   );
 }
 

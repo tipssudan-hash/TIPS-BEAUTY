@@ -28,6 +28,8 @@ jobs:
           VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
           VITE_GOOGLE_IOS_CLIENT_ID: ${{ secrets.VITE_GOOGLE_IOS_CLIENT_ID }}
           VITE_HCAPTCHA_SITE_KEY: ${{ secrets.VITE_HCAPTCHA_SITE_KEY }}
+          VITE_ADMIN_PORTAL_URL: ${{ vars.VITE_ADMIN_PORTAL_URL || secrets.VITE_ADMIN_PORTAL_URL }}
+          SITE_URL: ${{ vars.SITE_URL || secrets.SITE_URL }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           ANDROID_CERT_SHA256: ${{ secrets.ANDROID_CERT_SHA256 }}
       - run: scripts/publish-build.sh dist deploy/beauty

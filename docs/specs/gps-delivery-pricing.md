@@ -1,6 +1,6 @@
 # GPS Delivery & Dynamic Pricing — Phase 1 (slim)
 
-Vocabulary: `CONTEXT.md`. Origin: product owner's `GPS_DELIVERY_PRICING_PLAN.md` (repo root), narrowed in a debate session between Claude Sonnet and Claude Opus on 2026-10-01 (see that session's transcript for the full back-and-forth). Decisions below are the outcome of that debate, not a straight implementation of the original plan — several of its items are deliberately deferred, with reasons, in Out of Scope.
+Vocabulary: `CONTEXT.md`. Origin: product owner's `docs/GPS_DELIVERY_PRICING_PLAN.md`, narrowed in a debate session between Claude Sonnet and Claude Opus on 2026-10-01 (see that session's transcript for the full back-and-forth). Decisions below are the outcome of that debate, not a straight implementation of the original plan — several of its items are deliberately deferred, with reasons, in Out of Scope.
 
 ## Problem Statement
 

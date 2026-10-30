@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-describe("Expo Push configuration", () => {
+const liveTestsEnabled = Boolean(process.env.EXPO_PUBLIC_SUPABASE_URL) && process.env.RUN_LIVE_TESTS === "1";
+
+describe.skipIf(!liveTestsEnabled)("Expo Push configuration", () => {
   it("has a UUID project id and retains access to the public store API", async () => {
     const projectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
     const baseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");

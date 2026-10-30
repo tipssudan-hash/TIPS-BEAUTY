@@ -62,11 +62,12 @@ $$\text{Total} = \text{Subtotal} - \text{Coupon Discount} - \text{Points Discoun
 
 ---
 
-### 2.5 العهد النقدية والمناديب والمشرف (`SupervisorHomePage` & `driverRepository`)
+### 2.5 العهد النقدية والمناديب ودفتر النقد (`WarehouseCashPage` & `driverRepository`)
 
 - **التحصيل النقدي اليومي (COD Collection):** يحسب المندوب إجمالي المبالغ المستلمة من الطلبات المسلمة التي تتطلب كاش (`codAmount`).
 - **تسليم العهدة للمستودع (Remittance Submission):** يرسل المندوب إشعار توريد كاش إلى المستودع.
-- **اعتماد المشرف (Supervisor Confirmation):** يظهر إشعار التوريد في تبويب "تسليم العهد النقدية" في لوحة المشرف ليقوم بمطابقة الكاش الفعلي واعتماده بضغطة زر.
+- **تسوية النقد (Cash Reconciliation):** تظهر إشعارات التوريد في صفحة تسويات النقد `WarehouseCashPage` (المسار `/warehouse-cash` في بوابة الإدارة)، حيث يطابق مدير المستودع أو الأدمن الكاش الفعلي بالمتوقع من الطلبات المسلمة ويعتمده.
+- **دفتر النقد (Driver Cash Ledger):** تُعرض حركات كل مندوب في دفتر النقد داخل `WarehouseCashPage` (`fetchDriverCashLedger`). أما `SupervisorHomePage` فمُلغى وفق الخطة (§8) ولم يعد المسار الإداري لهذه الدورة.
 
 ---
 

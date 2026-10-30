@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X, Banknote, Clock, Send, Check } from 'lucide-react';
-import { fetchDriverCashDrawer, submitDriverCashRemittance, type DriverCashDrawerSummary } from '@infrastructure/repositories';
+import { fetchMyCashPosition, submitDriverCashRemittance, type CashPosition, type CashPositionEntry } from '@infrastructure/repositories';
 import { formatSDG, formatRelative } from '@application/services/format';
 import { errorMessage } from '@application/errors';
 import { Notice, Spinner } from '../ui';
@@ -10,8 +10,14 @@ interface Props {
     onClose: () => void;
 }
 
+const ENTRY_LABEL: Record<CashPositionEntry['entryType'], string> = {
+    cod_collected: 'تحصيل نقدي',
+    remittance_confirmed: 'تسليم مؤكد للمشرف',
+    adjustment: 'تعديل الإدارة',
+};
+
 export const DriverCashDrawerModal: React.FC<Props> = ({ isOpen, onClose }) => {
-    const [summary, setSummary] = useState<DriverCashDrawerSummary | null>(null);
+    const [position, setPosition] = useState<CashPosition | null>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [amount, setAmount] = useState('');
@@ -23,11 +29,9 @@ export const DriverCashDrawerModal: React.FC<Props> = ({ isOpen, onClose }) => {
         setLoading(true);
         setError(null);
         try {
-            const data = await fetchDriverCashDrawer();
-            setSummary(data);
-            if (data.unremittedBalance > 0) {
-                setAmount(data.unremittedBalance.toString());
-            }
+            const data = await fetchMyCashPosition();
+            setPosition(data);
+            setAmount(data.closingBalance > 0 ? data.closingBalance.toString() : '');
         } catch (err) {
             setError(errorMessage(err, 'تعذر تحميل بيانات العهدة النقدية.'));
         } finally {
@@ -44,11 +48,19 @@ export const DriverCashDrawerModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
     if (!isOpen) return null;
 
+    const closing = position?.closingBalance ?? 0;
+    const hasPending = (position?.pendingSubmitted ?? 0) > 0;
+    const num = parseFloat(amount);
+    const amountValid = !Number.isNaN(num) && num > 0 && num <= closing;
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const num = parseFloat(amount);
-        if (isNaN(num) || num <= 0) {
-            setError('الرجاء إدخال مبلغ صحيح.');
+        if (hasPending) {
+            setError('توجد تسليمة بانتظار تأكيد المشرف، لا يمكن إرسال تسليمة أخرى الآن.');
+            return;
+        }
+        if (!amountValid) {
+            setError('الرجاء إدخال مبلغ صحيح لا يتجاوز الرصيد المستحق.');
             return;
         }
 
@@ -89,26 +101,26 @@ export const DriverCashDrawerModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 <div className="p-5 overflow-y-auto space-y-5 flex-1 text-black">
                     {loading ? (
                         <div className="py-12 flex justify-center"><Spinner /></div>
-                    ) : summary ? (
+                    ) : position ? (
                         <>
                             {/* Summary Cards */}
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="p-4 rounded-md bg-amber-100 border-2 border-amber-400 text-black">
                                     <p className="text-xs text-black font-black">العهد النقدية المحصلة اليوم</p>
-                                    <p className="text-2xl font-black text-black mt-1 font-mono" dir="ltr">{formatSDG(summary.collectedToday)}</p>
-                                    <p className="text-xs text-black font-bold mt-1">{summary.deliveredCount} طلبات مسلّمة (COD)</p>
+                                    <p className="text-2xl font-black text-black mt-1 font-mono" dir="ltr">{formatSDG(position.collected)}</p>
+                                    <p className="text-xs text-black font-bold mt-1">رصيد أول المدة {formatSDG(position.openingBalance)}</p>
                                 </div>
                                 <div className="p-4 rounded-md bg-blue-100 border-2 border-blue-400 text-black">
                                     <p className="text-xs text-black font-black">المتبقي للتسليم للمشرف</p>
-                                    <p className="text-2xl font-black text-black mt-1 font-mono" dir="ltr">{formatSDG(summary.unremittedBalance)}</p>
-                                    <p className="text-xs text-black font-bold mt-1">جاهز للتوريد</p>
+                                    <p className="text-2xl font-black text-black mt-1 font-mono" dir="ltr">{formatSDG(position.closingBalance)}</p>
+                                    <p className="text-xs text-black font-bold mt-1">مسلَّم ومؤكد {formatSDG(position.remittedConfirmed)}</p>
                                 </div>
                             </div>
 
-                            {summary.pendingRemittance > 0 && (
+                            {hasPending && (
                                 <div className="flex items-center gap-2.5 p-3.5 rounded-md bg-orange-100 border-2 border-orange-400 text-black text-xs font-black">
                                     <Clock className="w-4 h-4 shrink-0 text-black" />
-                                    <span>يوجد مبلغ {formatSDG(summary.pendingRemittance)} بانتظار تأكيد الاستلام من المشرف.</span>
+                                    <span>يوجد مبلغ {formatSDG(position.pendingSubmitted)} بانتظار تأكيد الاستلام من المشرف.</span>
                                 </div>
                             )}
 
@@ -129,7 +141,8 @@ export const DriverCashDrawerModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                         required
                                         value={amount}
                                         onChange={(e) => setAmount(e.target.value)}
-                                        className="w-full px-3.5 py-2.5 rounded-md border-2 border-gray-400 bg-white text-base font-black text-black focus:border-black outline-hidden"
+                                        disabled={hasPending}
+                                        className="w-full px-3.5 py-2.5 rounded-md border-2 border-gray-400 bg-white text-base font-black text-black focus:border-black outline-hidden disabled:opacity-50"
                                         placeholder="0.00"
                                         dir="ltr"
                                     />
@@ -140,13 +153,14 @@ export const DriverCashDrawerModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                         type="text"
                                         value={notes}
                                         onChange={(e) => setNotes(e.target.value)}
-                                        className="w-full px-3.5 py-2.5 rounded-md border-2 border-gray-400 bg-white text-sm font-bold text-black focus:border-black outline-hidden"
+                                        disabled={hasPending}
+                                        className="w-full px-3.5 py-2.5 rounded-md border-2 border-gray-400 bg-white text-sm font-bold text-black focus:border-black outline-hidden disabled:opacity-50"
                                         placeholder="مثال: تسليم كامل العهدة لمشرف الوردية"
                                     />
                                 </div>
                                 <button
                                     type="submit"
-                                    disabled={submitting || !amount || parseFloat(amount) <= 0}
+                                    disabled={submitting || hasPending || !amountValid}
                                     className="w-full flex items-center justify-center gap-2 py-3.5 rounded-md bg-black hover:bg-gray-800 text-white font-black text-sm shadow-xs transition-colors disabled:opacity-50"
                                 >
                                     {submitting ? <Spinner /> : <Check className="w-4 h-4 text-white" />}
@@ -154,27 +168,33 @@ export const DriverCashDrawerModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                 </button>
                             </form>
 
-                            {/* Orders Delivered Today Breakdown */}
+                            {/* Today's ledger entries */}
                             <div>
-                                <h4 className="text-xs font-black text-black uppercase tracking-wider mb-2">الطلبات المسلمة نقداً اليوم ({summary.deliveredOrders.length})</h4>
-                                {summary.deliveredOrders.length === 0 ? (
-                                    <p className="text-xs text-black font-bold py-3 text-center">لا توجد طلبات مسلّمة نقداً بعد.</p>
+                                <h4 className="text-xs font-black text-black uppercase tracking-wider mb-2">حركات اليوم ({position.entries.length})</h4>
+                                {position.entries.length === 0 ? (
+                                    <p className="text-xs text-black font-bold py-3 text-center">لا توجد حركات نقدية اليوم بعد.</p>
                                 ) : (
                                     <div className="divide-y-2 divide-gray-200 border-2 border-gray-300 rounded-md bg-white overflow-hidden text-xs text-black">
-                                        {summary.deliveredOrders.map((o: { id: string; orderNumber: string; customerName: string; codAmount: number; deliveredAt: string | null }) => (
-                                            <div key={o.id} className="p-3 flex items-center justify-between gap-2">
+                                        {position.entries.map((e, index) => (
+                                            <div key={`${e.createdAt}-${index}`} className="p-3 flex items-center justify-between gap-2">
                                                 <div>
-                                                    <span className="font-black text-black text-sm block">{o.customerName}</span>
-                                                    <span className="text-black font-bold text-xs">{o.orderNumber}{o.deliveredAt ? ` · ${formatRelative(o.deliveredAt)}` : ''}</span>
+                                                    <span className="font-black text-black text-sm block">{ENTRY_LABEL[e.entryType]}</span>
+                                                    <span className="text-black font-bold text-xs">
+                                                        {e.orderNumber ? `${e.orderNumber} · ` : ''}{formatRelative(e.createdAt)}
+                                                    </span>
                                                 </div>
-                                                <span className="font-black text-black font-mono text-sm" dir="ltr">+{formatSDG(o.codAmount)}</span>
+                                                <span className="font-black text-black font-mono text-sm" dir="ltr">
+                                                    {e.amount > 0 ? '+' : ''}{formatSDG(e.amount)}
+                                                </span>
                                             </div>
                                         ))}
                                     </div>
                                 )}
                             </div>
                         </>
-                    ) : null}
+                    ) : (
+                        error && <Notice kind="error">{error}</Notice>
+                    )}
                 </div>
 
                 <div className="p-4 border-t-2 border-gray-200 bg-gray-100 flex justify-end">

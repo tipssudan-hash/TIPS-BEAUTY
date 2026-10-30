@@ -1,5 +1,8 @@
 import { supabase } from './supabase';
-import type { CustomerProfile, DeliveryChannelStats, DeliveryFailure, DeliverySummary, LoyaltyLedgerEntry } from '../types';
+import type {
+    CustomerProfile, DeliveryChannelStats, DeliveryFailure, DeliverySummary, DriverLocation, FulfillmentBreakdownLine, LoyaltyLedgerEntry,
+    OrderItemCheck, OrderItemCheckStage, OrderNeedsAction, PromotionType, StaffNotification,
+} from '../types';
 
 // Orders / dashboard API. Product and catalogue CRUD live in catalogApi.ts.
 
@@ -16,6 +19,7 @@ export interface OrderItem {
     pricing_rule_kind?: 'discount' | 'promotion' | null;
     pricing_rule_label?: string | null;
     promotion_id?: string | null;
+    promotion_type?: PromotionType | null;
     line_total?: number;
 }
 
@@ -46,10 +50,19 @@ export interface AdminOrder {
     needs_fulfillment_review?: boolean;
     customer_lat?: number | null;
     customer_lng?: number | null;
+    // Staff-only: staff_note is the internal running note; notes stays the customer's text.
+    staff_note: string | null;
+    estimated_delivery_at: string | null;
+    packed_at: string | null;
+    packed_by: string | null;
+    handed_over_at: string | null;
+    delivery_proof_path: string | null;
+    returned_to_warehouse_at: string | null;
+    returned_received_by: string | null;
 }
 
 export const ORDER_LIST_COLUMNS = 'id,order_number,customer_name,phone,total,status,payment_method,payment_status,created_at,viewed_at,needs_fulfillment_review';
-const ORDER_DETAIL_COLUMNS = `${ORDER_LIST_COLUMNS},customer_id,items,shipping_fee,coupon_code,discount_amount,points_discount,payment_reference,shipping_address,city,state,notes,driver_id,fulfillment_warehouse_id,customer_lat,customer_lng`;
+const ORDER_DETAIL_COLUMNS = `${ORDER_LIST_COLUMNS},customer_id,items,shipping_fee,coupon_code,discount_amount,points_discount,payment_reference,shipping_address,city,state,notes,driver_id,fulfillment_warehouse_id,customer_lat,customer_lng,estimated_delivery_at,packed_at,packed_by,handed_over_at,delivery_proof_path,returned_to_warehouse_at,returned_received_by`;
 
 export type OrderListRow = Pick<AdminOrder, 'id' | 'order_number' | 'customer_name' | 'phone' | 'total' | 'status' | 'payment_method' | 'payment_status' | 'created_at' | 'viewed_at' | 'needs_fulfillment_review'>;
 
@@ -92,7 +105,7 @@ export async function countFulfillmentReviewOrders(): Promise<number> {
 }
 
 function normalizeOrder(data: unknown): AdminOrder {
-    const row = data as AdminOrder & { items: unknown };
+    const row = data as Omit<AdminOrder, 'staff_note'> & { items: unknown };
     return {
         ...row,
         items: Array.isArray(row.items) ? (row.items as OrderItem[]) : [],
@@ -101,13 +114,24 @@ function normalizeOrder(data: unknown): AdminOrder {
         coupon_code: row.coupon_code ?? null,
         discount_amount: Number(row.discount_amount ?? 0),
         points_discount: Number(row.points_discount ?? 0),
+        staff_note: null,
     };
 }
 
-export async function fetchOrder(id: string): Promise<AdminOrder | null> {
-    const { data, error } = await supabase.from('orders').select(ORDER_DETAIL_COLUMNS).eq('id', id).maybeSingle();
+// The internal note lives in order_staff_notes (staff-only RLS), not on the customer-readable orders row.
+export async function fetchOrderStaffNote(orderId: string): Promise<string | null> {
+    const { data, error } = await supabase.from('order_staff_notes').select('note').eq('order_id', orderId).maybeSingle();
     if (error) throw error;
-    return data ? normalizeOrder(data) : null;
+    return data?.note ?? null;
+}
+
+export async function fetchOrder(id: string): Promise<AdminOrder | null> {
+    const [{ data, error }, staffNote] = await Promise.all([
+        supabase.from('orders').select(ORDER_DETAIL_COLUMNS).eq('id', id).maybeSingle(),
+        fetchOrderStaffNote(id),
+    ]);
+    if (error) throw error;
+    return data ? { ...normalizeOrder(data), staff_note: staffNote } : null;
 }
 
 export async function fetchFulfillmentReviewOrders(): Promise<AdminOrder[]> {
@@ -191,13 +215,18 @@ export async function reviewPaymentProof(proofId: string, status: 'verified' | '
 }
 
 export async function confirmCodPayment(orderId: string): Promise<void> {
-    const { error } = await supabase.rpc('confirm_cod_payment' as any, { p_order_id: orderId } as any);
+    const { error } = await supabase.rpc('confirm_cod_payment', { p_order_id: orderId });
+    if (error) throw error;
+}
+
+export async function overrideDeliveryCode(orderId: string, reason: string): Promise<void> {
+    const { error } = await supabase.rpc('staff_override_delivery_code', { p_order_id: orderId, p_reason: reason.trim() });
     if (error) throw error;
 }
 
 export async function checkCreditCustomer(customerId: string): Promise<boolean> {
     const { data, error } = await supabase.from('profiles').select('is_credit_customer').eq('id', customerId).maybeSingle();
-    if (error) return false;
+    if (error) throw error;
     return (data as unknown as { is_credit_customer?: boolean })?.is_credit_customer ?? false;
 }
 
@@ -208,12 +237,6 @@ export interface DriverOption {
     status: string;
     warehouse_id: string | null;
     vehicle: string | null;
-}
-
-export async function fetchDrivers(): Promise<DriverOption[]> {
-    const { data, error } = await supabase.from('drivers').select('id,name,phone,status,warehouse_id,vehicle').order('name');
-    if (error) throw error;
-    return data ?? [];
 }
 
 export interface WarehouseOption {
@@ -240,14 +263,19 @@ export interface SupervisorUser {
     assigned_warehouse_id: string | null;
 }
 
-export async function fetchWarehouseSupervisors(): Promise<SupervisorUser[]> {
-    const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .in('role', ['warehouse_supervisor', 'admin'])
-        .order('created_at', { ascending: false });
+export interface WarehouseManager {
+    user_id: string;
+    full_name: string | null;
+    email: string | null;
+    phone: string | null;
+    warehouse_ids: string[];
+    primary_warehouse_id: string | null;
+}
+
+export async function fetchWarehouseManagers(): Promise<WarehouseManager[]> {
+    const { data, error } = await supabase.rpc('admin_list_warehouse_managers');
     if (error) throw error;
-    return (data ?? []) as unknown as SupervisorUser[];
+    return data ?? [];
 }
 
 export async function searchAssignableUsers(query: string): Promise<SupervisorUser[]> {
@@ -266,12 +294,13 @@ export async function searchAssignableUsers(query: string): Promise<SupervisorUs
     return (data ?? []) as unknown as SupervisorUser[];
 }
 
-// GPS-06: assign or remove a warehouse supervisor. Pass null warehouseId to demote back to customer.
-export async function setWarehouseSupervisor(userId: string, warehouseId: string | null): Promise<void> {
-    const { error } = await supabase.rpc('admin_set_warehouse_supervisor' as never, {
+// Replaces the user's full warehouse set. An empty list demotes the user back to customer.
+export async function setWarehouseManagerAccess(userId: string, warehouseIds: string[], primaryWarehouseId: string | null): Promise<void> {
+    const { error } = await supabase.rpc('admin_set_warehouse_manager_access', {
         p_user_id: userId,
-        p_warehouse_id: warehouseId,
-    } as never);
+        p_warehouse_ids: warehouseIds,
+        p_primary_warehouse_id: primaryWarehouseId ?? undefined,
+    });
     if (error) throw error;
 }
 
@@ -376,10 +405,11 @@ export async function fetchCustomers(filters: CustomerFilters): Promise<{ rows: 
     // Aggregate orders summary for these customers
     if (profiles.length > 0) {
         const customerIds = profiles.map((p) => p.id);
-        const { data: ordersData } = await supabase
+        const { data: ordersData, error: ordersError } = await supabase
             .from('orders')
             .select('customer_id,total,status')
             .in('customer_id', customerIds);
+        if (ordersError) throw ordersError;
 
         const statsMap = new Map<string, { count: number; spent: number }>();
         (ordersData ?? []).forEach((ord) => {
@@ -416,6 +446,8 @@ export async function fetchCustomerDetail(customerId: string): Promise<CustomerD
     ]);
 
     if (profileRes.error) throw profileRes.error;
+    if (ordersRes.error) throw ordersRes.error;
+    if (ledgerRes.error) throw ledgerRes.error;
     if (!profileRes.data) return null;
 
     const profile = profileRes.data as unknown as CustomerProfile;
@@ -468,8 +500,9 @@ export async function checkDuplicatePaymentReference(reference: string, currentO
         .neq('order_id', currentOrderId)
         .limit(1);
 
-    if (error || !data || data.length === 0) return { found: false };
-    const first = data[0] as unknown as { order_id: string; status: string; orders?: { order_number?: string } };
+    if (error) throw error;
+    const first = data?.[0] as unknown as { order_id: string; status: string; orders?: { order_number?: string } } | undefined;
+    if (!first) return { found: false };
     return {
         found: true,
         orderId: first.order_id,
@@ -478,30 +511,322 @@ export async function checkDuplicatePaymentReference(reference: string, currentO
     };
 }
 
+// One atomic RPC: verifies the proof and advances the order in the same transaction.
+// The server rejects a duplicate transaction reference unless allowDuplicateReference is set with a note.
 export async function verifyAndAdvanceOrder(params: {
-    orderId: string;
     proofId: string;
     expectedStatus: string;
-    targetStatus: string;
+    targetStatus?: string | null;
     reviewNote?: string;
+    allowDuplicateReference?: boolean;
 }): Promise<void> {
-    // 1. Verify payment proof
-    await reviewPaymentProof(params.proofId, 'verified', params.reviewNote);
-
-    // 2. Advance order status (e.g. from 'new' or 'payment_pending' to 'processing' or 'confirmed')
-    if (params.targetStatus && params.targetStatus !== params.expectedStatus) {
-        await updateOrderOperation({
-            orderId: params.orderId,
-            expectedStatus: params.expectedStatus,
-            status: params.targetStatus,
-            note: params.reviewNote ? `تأكيد الدفع التلقائي: ${params.reviewNote}` : 'تم تأكيد الدفع ونقل الطلب للتجهيز',
-        });
-    }
+    const { error } = await supabase.rpc('admin_verify_payment_and_advance', {
+        p_proof_id: params.proofId,
+        p_expected_status: params.expectedStatus,
+        p_target_status: params.targetStatus ?? undefined,
+        p_review_note: params.reviewNote?.trim() || undefined,
+        p_allow_duplicate_reference: params.allowDuplicateReference ?? false,
+    });
+    if (error) throw error;
 }
 
-// ============================================================================
-// Accountant API
-// ============================================================================
+// Staff access & warehouse cash -------------------------------------------------------
+// The RPCs below check access server-side (is_admin / can_manage_warehouse); the UI only shapes results.
+
+export interface ManagedWarehouse {
+    id: string;
+    name: string;
+    code: string;
+    is_primary: boolean;
+}
+
+export interface StaffContext {
+    role: string;
+    is_admin: boolean;
+    is_warehouse_manager: boolean;
+    is_accountant: boolean;
+    warehouses: ManagedWarehouse[];
+}
+
+export async function fetchStaffContext(): Promise<StaffContext> {
+    const { data, error } = await supabase.rpc('get_my_staff_context');
+    if (error) throw error;
+    const raw = (data ?? {}) as Partial<StaffContext>;
+    return {
+        role: raw.role ?? 'customer',
+        is_admin: raw.is_admin === true,
+        is_warehouse_manager: raw.is_warehouse_manager === true,
+        is_accountant: raw.is_accountant === true,
+        warehouses: Array.isArray(raw.warehouses) ? raw.warehouses : [],
+    };
+}
+
+export interface SupervisorOrderUpdate {
+    orderId: string;
+    expectedStatus: string;
+    status?: string;
+    note?: string;
+}
+
+export async function supervisorUpdateOrder(input: SupervisorOrderUpdate): Promise<void> {
+    const { error } = await supabase.rpc('supervisor_update_order', {
+        p_order_id: input.orderId,
+        p_expected_status: input.expectedStatus,
+        p_status: input.status,
+        p_notes: input.note?.trim() || undefined,
+    });
+    if (error) throw error;
+}
+
+export async function supervisorAssignDriver(orderId: string, driverId: string): Promise<void> {
+    const { error } = await supabase.rpc('supervisor_assign_driver', { p_order_id: orderId, p_driver_id: driverId });
+    if (error) throw error;
+}
+
+export async function fetchWarehouseDrivers(warehouseId: string): Promise<DriverOption[]> {
+    const { data, error } = await supabase.rpc('supervisor_get_warehouse_drivers', { p_warehouse_id: warehouseId });
+    if (error) throw error;
+    return (data ?? []).map((driver) => ({
+        id: driver.id,
+        name: driver.name,
+        phone: driver.phone,
+        status: driver.status,
+        warehouse_id: warehouseId,
+        vehicle: null,
+    }));
+}
+
+export interface WarehouseRemittance {
+    id: string;
+    driver_id: string;
+    warehouse_id: string | null;
+    amount: number;
+    status: string;
+    driver_notes: string | null;
+    supervisor_notes: string | null;
+    submitted_at: string;
+    confirmed_at: string | null;
+}
+
+export interface RemittanceFilters {
+    status?: string;
+    /** `null` selects remittances without a warehouse; `undefined` selects all. */
+    warehouseId?: string | null;
+    driverId?: string;
+}
+
+export async function fetchWarehouseRemittances(filters: RemittanceFilters): Promise<WarehouseRemittance[]> {
+    let query = supabase
+        .from('driver_cash_remittances')
+        .select('id,driver_id,warehouse_id,amount,status,driver_notes,supervisor_notes,submitted_at,confirmed_at')
+        .order('submitted_at', { ascending: false })
+        .limit(200);
+    if (filters.status) query = query.eq('status', filters.status);
+    if (filters.warehouseId === null) query = query.is('warehouse_id', null);
+    else if (filters.warehouseId) query = query.eq('warehouse_id', filters.warehouseId);
+    if (filters.driverId) query = query.eq('driver_id', filters.driverId);
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data ?? []).map((row) => ({ ...row, amount: Number(row.amount) }));
+}
+
+export async function confirmRemittance(remittanceId: string, action: 'confirmed' | 'rejected', note?: string): Promise<void> {
+    const { error } = await supabase.rpc('supervisor_confirm_cash_remittance', {
+        p_remittance_id: remittanceId,
+        p_action: action,
+        p_notes: note?.trim() || undefined,
+    });
+    if (error) throw error;
+}
+
+export interface DriverCashLedgerEntry {
+    id: string;
+    entry_type: string;
+    amount: number;
+    order_id: string | null;
+    remittance_id: string | null;
+    business_date: string;
+    note: string | null;
+    created_at: string;
+}
+
+export async function fetchDriverCashLedger(driverId: string, limit = 200): Promise<DriverCashLedgerEntry[]> {
+    const { data, error } = await supabase
+        .from('driver_cash_ledger')
+        .select('id,entry_type,amount,order_id,remittance_id,business_date,note,created_at')
+        .eq('driver_id', driverId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+    if (error) throw error;
+    return (data ?? []).map((row) => ({ ...row, amount: Number(row.amount) }));
+}
+
+export async function adjustDriverCash(driverId: string, amount: number, note: string): Promise<void> {
+    const { error } = await supabase.rpc('admin_adjust_driver_cash', { p_driver_id: driverId, p_amount: amount, p_note: note.trim() });
+    if (error) throw error;
+}
+
+export interface SettlementDriverRow {
+    driver_id: string;
+    driver_name: string;
+    delivered: number;
+    failed: number;
+    cod_collected: number;
+    cash_submitted: number;
+    cash_confirmed: number;
+    outstanding_cod: number;
+}
+
+export interface SettlementSummary {
+    total_orders: number;
+    delivered_orders: number;
+    failed_orders: number;
+    cancelled_orders: number;
+    total_revenue: number;
+    cod_collected: number;
+    online_paid: number;
+    pending_payment: number;
+    shipping_fees_collected: number;
+    cash_remittances: { total_submitted: number; total_confirmed: number; pending_confirmation: number; rejected: number };
+    driver_performance: SettlementDriverRow[];
+}
+
+export async function fetchSettlementSummary(start: string, end: string, warehouseId?: string | null): Promise<SettlementSummary> {
+    const { data, error } = await supabase.rpc('get_warehouse_settlement_summary', {
+        p_start: start,
+        p_end: end,
+        p_warehouse_id: warehouseId ?? undefined,
+    });
+    if (error) throw error;
+    const raw = (data ?? {}) as Partial<SettlementSummary>;
+    const cash = (raw.cash_remittances ?? {}) as Partial<SettlementSummary['cash_remittances']>;
+    const drivers = Array.isArray(raw.driver_performance) ? raw.driver_performance : [];
+    return {
+        total_orders: Number(raw.total_orders ?? 0),
+        delivered_orders: Number(raw.delivered_orders ?? 0),
+        failed_orders: Number(raw.failed_orders ?? 0),
+        cancelled_orders: Number(raw.cancelled_orders ?? 0),
+        total_revenue: Number(raw.total_revenue ?? 0),
+        cod_collected: Number(raw.cod_collected ?? 0),
+        online_paid: Number(raw.online_paid ?? 0),
+        pending_payment: Number(raw.pending_payment ?? 0),
+        shipping_fees_collected: Number(raw.shipping_fees_collected ?? 0),
+        cash_remittances: {
+            total_submitted: Number(cash.total_submitted ?? 0),
+            total_confirmed: Number(cash.total_confirmed ?? 0),
+            pending_confirmation: Number(cash.pending_confirmation ?? 0),
+            rejected: Number(cash.rejected ?? 0),
+        },
+        driver_performance: drivers.map((driver) => ({
+            driver_id: driver.driver_id,
+            driver_name: driver.driver_name ?? '',
+            delivered: Number(driver.delivered ?? 0),
+            failed: Number(driver.failed ?? 0),
+            cod_collected: Number(driver.cod_collected ?? 0),
+            cash_submitted: Number(driver.cash_submitted ?? 0),
+            cash_confirmed: Number(driver.cash_confirmed ?? 0),
+            outstanding_cod: Number(driver.outstanding_cod ?? 0),
+        })),
+    };
+}
+
+// Operations: needs-action queue, ETA, packing, hand-over and returns ---------------------
+// Every RPC below checks can_manage_warehouse / is_admin server-side; the UI only shapes results.
+
+export async function fetchOrdersNeedingAction(warehouseId?: string | null): Promise<OrderNeedsAction[]> {
+    const { data, error } = await supabase.rpc('staff_get_orders_needing_action', { p_warehouse_id: warehouseId ?? undefined });
+    if (error) throw error;
+    return (data ?? []) as OrderNeedsAction[];
+}
+
+export async function countOrdersNeedingAction(): Promise<number> {
+    return new Set((await fetchOrdersNeedingAction()).map((row) => row.order_id)).size;
+}
+
+export async function setOrderEta(orderId: string, estimatedDeliveryAt: string | null, note?: string): Promise<void> {
+    const { error } = await supabase.rpc('staff_set_order_eta', {
+        p_order_id: orderId,
+        p_estimated_delivery_at: estimatedDeliveryAt as string,
+        p_note: note?.trim() || undefined,
+    });
+    if (error) throw error;
+}
+
+export async function fetchOrderItemChecks(orderId: string, stage: OrderItemCheckStage): Promise<OrderItemCheck[]> {
+    const { data, error } = await supabase.rpc('staff_get_item_checks', { p_order_id: orderId });
+    if (error) throw error;
+    return ((data ?? []) as OrderItemCheck[]).filter((check) => check.stage === stage);
+}
+
+export async function setOrderItemCheck(orderId: string, lineNo: number, checkedQty: number): Promise<void> {
+    const { error } = await supabase.rpc('staff_set_item_check', { p_order_id: orderId, p_line_no: lineNo, p_checked_qty: checkedQty });
+    if (error) throw error;
+}
+
+export async function markOrderPacked(orderId: string): Promise<void> {
+    const { error } = await supabase.rpc('staff_mark_packed', { p_order_id: orderId });
+    if (error) throw error;
+}
+
+export async function confirmFailedDeliveryReturn(orderId: string, note?: string): Promise<void> {
+    const { error } = await supabase.rpc('staff_confirm_failed_delivery_return', { p_order_id: orderId, p_note: note?.trim() || undefined });
+    if (error) throw error;
+}
+
+export async function fetchFulfillmentBreakdown(orderId: string): Promise<FulfillmentBreakdownLine[]> {
+    const { data, error } = await supabase.rpc('staff_get_fulfillment_breakdown', { p_order_id: orderId });
+    if (error) throw error;
+    return (data ?? []).map((row) => ({
+        ...row,
+        quantity: Number(row.quantity),
+        available: Number(row.available),
+    }));
+}
+
+export async function fetchDriverLocations(warehouseId?: string | null): Promise<DriverLocation[]> {
+    const { data, error } = await supabase.rpc('staff_get_driver_locations', { p_warehouse_id: warehouseId ?? undefined });
+    if (error) throw error;
+    return (data ?? []).map((row) => ({
+        ...row,
+        latitude: Number(row.latitude),
+        longitude: Number(row.longitude),
+        accuracy_meters: row.accuracy_meters == null ? null : Number(row.accuracy_meters),
+        active_order_numbers: row.active_order_numbers ?? [],
+    }));
+}
+
+// Proof photos live in the private delivery-proofs bucket; only a short-lived signed URL is shown.
+export async function signedDeliveryProofUrl(path: string): Promise<string | null> {
+    const { data, error } = await supabase.storage.from('delivery-proofs').createSignedUrl(path, 600);
+    if (error) return null;
+    return data.signedUrl;
+}
+
+// Staff notifications -----------------------------------------------------------------
+
+export async function fetchStaffNotifications(limit = 100): Promise<StaffNotification[]> {
+    const { data, error } = await supabase
+        .from('staff_notifications')
+        .select('id,warehouse_id,kind,title,body,ref_type,ref_id,read_at,created_at')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+    if (error) throw error;
+    return (data ?? []) as StaffNotification[];
+}
+
+export async function countUnreadStaffNotifications(): Promise<number> {
+    const { count, error } = await supabase.from('staff_notifications').select('id', { count: 'exact', head: true }).is('read_at', null);
+    if (error) throw error;
+    return count ?? 0;
+}
+
+export async function markStaffNotificationsRead(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const { error } = await supabase.rpc('mark_staff_notifications_read', { p_ids: ids });
+    if (error) throw error;
+}
+
+// Accountant -----------------------------------------------------------------------------
 
 export interface WarehouseSettlementSummary {
     period: { start: string; end: string };
@@ -529,15 +854,12 @@ export interface WarehouseSettlementSummary {
         cod_collected: number;
         cash_submitted: number;
         cash_confirmed: number;
+        outstanding_cod: number;
     }>;
 }
 
 export async function fetchWarehouseSettlement(start: string, end: string): Promise<WarehouseSettlementSummary> {
-    // get_warehouse_settlement_summary is ahead of generated types — use `as any`
-    const { data, error } = await (supabase.rpc as any)('get_warehouse_settlement_summary', {
-        p_start: start,
-        p_end: end,
-    });
+    const { data, error } = await supabase.rpc('get_warehouse_settlement_summary', { p_start: start, p_end: end });
     if (error) throw error;
     return data as unknown as WarehouseSettlementSummary;
 }
@@ -557,37 +879,27 @@ export interface CashRemittanceRow {
 }
 
 export async function fetchPendingRemittances(): Promise<CashRemittanceRow[]> {
-    // driver_cash_remittances is ahead of generated types — use `as any`
-    const { data, error } = await (supabase.from as any)('driver_cash_remittances')
-        .select('id,driver_id,amount,status,driver_notes,supervisor_notes,submitted_at,confirmed_at,drivers(name),warehouses(name)')
+    const { data, error } = await supabase.from('driver_cash_remittances')
+        .select('id,driver_id,warehouse_id,amount,status,driver_notes,supervisor_notes,submitted_at,confirmed_at,drivers(name),warehouses(name)')
         .order('submitted_at', { ascending: false });
     if (error) throw error;
-    return ((data ?? []) as unknown[]).map((r: unknown) => {
-        const row = r as Record<string, unknown>;
-        return {
-            id: row.id as string,
-            driver_id: row.driver_id as string,
-            driver_name: (row.drivers as { name: string } | null)?.name ?? '—',
-            warehouse_id: (row.warehouse_id as string | null) ?? null,
-            warehouse_name: (row.warehouses as { name: string } | null)?.name ?? null,
-            amount: Number(row.amount),
-            status: row.status as CashRemittanceRow['status'],
-            driver_notes: (row.driver_notes as string | null) ?? null,
-            supervisor_notes: (row.supervisor_notes as string | null) ?? null,
-            submitted_at: row.submitted_at as string,
-            confirmed_at: (row.confirmed_at as string | null) ?? null,
-        };
-    });
+    return (data ?? []).map((row) => ({
+        id: row.id,
+        driver_id: row.driver_id,
+        driver_name: row.drivers?.name ?? '—',
+        warehouse_id: row.warehouse_id,
+        warehouse_name: row.warehouses?.name ?? null,
+        amount: Number(row.amount),
+        status: row.status as CashRemittanceRow['status'],
+        driver_notes: row.driver_notes,
+        supervisor_notes: row.supervisor_notes,
+        submitted_at: row.submitted_at,
+        confirmed_at: row.confirmed_at,
+    }));
 }
 
 export async function confirmRemittanceAsAdmin(remittanceId: string, action: 'confirmed' | 'rejected', notes?: string): Promise<void> {
-    // supervisor_confirm_cash_remittance is ahead of generated types — use `as any`
-    const { error } = await (supabase.rpc as any)('supervisor_confirm_cash_remittance', {
-        p_remittance_id: remittanceId,
-        p_action: action,
-        p_notes: notes ?? null,
-    });
-    if (error) throw error;
+    await confirmRemittance(remittanceId, action, notes);
 }
 
 export interface DriverAccountSummary {
@@ -601,25 +913,24 @@ export interface DriverAccountSummary {
     pending_amount: number;
 }
 
+// Last 30 days of activity; pending_amount is the driver's live cash balance from the ledger.
 export async function fetchDriverAccountSummaries(): Promise<DriverAccountSummary[]> {
     const today = new Date().toISOString().split('T')[0];
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    // get_warehouse_settlement_summary is ahead of generated types — use `as any`
-    const { data, error } = await (supabase.rpc as any)('get_warehouse_settlement_summary', {
-        p_start: thirtyDaysAgo,
-        p_end: today,
-    });
-    if (error) throw error;
-    const summary = data as unknown as WarehouseSettlementSummary;
+    const summary = await fetchWarehouseSettlement(thirtyDaysAgo, today);
     return (summary?.driver_performance ?? []).map((d) => ({
         driver_id: d.driver_id,
         driver_name: d.driver_name,
         warehouse_name: null,
-        total_delivered: d.delivered,
-        total_cod: d.cod_collected,
-        total_submitted: d.cash_submitted,
-        total_confirmed: d.cash_confirmed,
-        pending_amount: d.cash_submitted - d.cash_confirmed,
+        total_delivered: Number(d.delivered),
+        total_cod: Number(d.cod_collected),
+        total_submitted: Number(d.cash_submitted),
+        total_confirmed: Number(d.cash_confirmed),
+        pending_amount: Number(d.outstanding_cod ?? 0),
     }));
 }
 
+export async function setAccountant(userId: string, isAccountant: boolean): Promise<void> {
+    const { error } = await supabase.rpc('admin_set_accountant', { p_user_id: userId, p_is_accountant: isAccountant });
+    if (error) throw error;
+}

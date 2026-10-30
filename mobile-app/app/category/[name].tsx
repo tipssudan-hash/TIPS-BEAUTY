@@ -6,6 +6,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { CartFeedback } from "@/components/cart-feedback";
 import { useTipsStore } from "@/lib/tips-store";
 import { getCartItemCount } from "@/lib/cart-utils";
+import { filterProductsByCategory } from "@/lib/catalog-filters";
 import type { Product } from "@/lib/tips-api";
 
 function ProductCard({ item, onAdded }: { item: Product; onAdded: (product: Product, quantity: number) => void }) {
@@ -25,10 +26,10 @@ function ProductCard({ item, onAdded }: { item: Product; onAdded: (product: Prod
 
 export default function CategoryProducts() {
   const params = useLocalSearchParams<{ name: string }>();
-  const { products, cart } = useTipsStore();
+  const { products, categories, cart } = useTipsStore();
   const [feedback, setFeedback] = useState<{ message: string; id: number } | null>(null);
   const name = Array.isArray(params.name) ? params.name[0] : params.name || "";
-  const items = products.filter((item) => item.category === name);
+  const items = filterProductsByCategory(products, categories, name);
   const cartCount = getCartItemCount(cart);
   const added = (product: Product, quantity: number) => setFeedback({ message: quantity > 1 ? `تمت زيادة ${product.name_ar} إلى ${quantity}` : `تمت إضافة ${product.name_ar} إلى السلة`, id: Date.now() });
   return <ScreenContainer edges={["top", "left", "right"]} containerClassName="bg-[#f7f8fc]"><View style={styles.screen}><View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="رجوع" onPress={() => router.back()} style={styles.back}><MaterialIcons name="arrow-forward" size={23} color="#1e5fa8" /></Pressable><View style={styles.heading}><Text numberOfLines={1} style={styles.title}>{name}</Text><Text style={styles.sub}>{items.length} منتج متاح</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`السلة، ${cartCount} منتجات`} onPress={() => router.push("/cart" as never)} style={styles.cart}><MaterialIcons name="shopping-cart" size={21} color="#1e5fa8" />{cartCount ? <View style={styles.badge}><Text style={styles.badgeText}>{cartCount}</Text></View> : null}</Pressable></View><FlatList data={items} keyExtractor={(item) => item.id} numColumns={2} columnWrapperStyle={styles.row} contentContainerStyle={styles.list} renderItem={({ item }) => <ProductCard item={item} onAdded={added} />} ListEmptyComponent={<View style={styles.empty}><MaterialIcons name="inventory-2" size={40} color="#94a3b8" /><Text style={styles.emptyText}>لا توجد منتجات في هذا القسم حالياً.</Text></View>} /><CartFeedback key={feedback?.id} visible={Boolean(feedback)} message={feedback?.message || ""} onClose={() => setFeedback(null)} /></View></ScreenContainer>;

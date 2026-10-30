@@ -1,5 +1,27 @@
+import type { OrderNeedsActionReason, StaffNotificationKind } from '../types';
+
 export type OrderStatus = 'new' | 'confirmed' | 'preparing' | 'shipped' | 'delivered' | 'cancelled' | 'delivery_failed';
 export type PaymentStatus = 'pending' | 'proof_submitted' | 'paid' | 'refunded';
+
+export const NEEDS_ACTION_REASON_LABELS: Record<OrderNeedsActionReason, string> = {
+    delivery_failed: 'تعذر التسليم، بانتظار القرار',
+    needs_fulfillment_review: 'يحتاج مراجعة التوصيل',
+    stale: 'متأخر في التجهيز',
+    failed_return_pending: 'مرتجع بانتظار الاستلام في المستودع',
+};
+
+export const NEEDS_ACTION_REASON_STYLES: Record<OrderNeedsActionReason, string> = {
+    delivery_failed: 'bg-red-50 text-red-600 border-red-100',
+    needs_fulfillment_review: 'bg-amber-50 text-amber-700 border-amber-200',
+    stale: 'bg-orange-50 text-orange-700 border-orange-100',
+    failed_return_pending: 'bg-purple-50 text-purple-700 border-purple-100',
+};
+
+export const STAFF_NOTIFICATION_KIND_LABELS: Record<StaffNotificationKind, string> = {
+    low_stock: 'نقص مخزون',
+    delivery_failed: 'تعذر تسليم',
+    remittance_submitted: 'تسوية نقد مرسلة',
+};
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
     new: 'جديد',
@@ -61,6 +83,14 @@ export const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
     shipped: [],
     delivered: [],
     cancelled: [],
+    delivery_failed: ['confirmed', 'cancelled'],
+};
+
+// Warehouse managers may not mark an order delivered; the driver or an admin does that.
+export const MANAGER_TRANSITIONS: Partial<Record<OrderStatus, OrderStatus[]>> = {
+    new: ['confirmed', 'cancelled'],
+    confirmed: ['preparing', 'cancelled'],
+    preparing: ['shipped', 'cancelled'],
     delivery_failed: ['confirmed', 'cancelled'],
 };
 

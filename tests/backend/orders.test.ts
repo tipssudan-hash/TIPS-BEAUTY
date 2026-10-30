@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { anonClient, checkoutArgs, cleanupTestOrders, creds, haveCreds, pickZone, provisionProduct, publicStock, rpc, signedInClient, type Client } from './helpers';
+import { TEST_TAG, anonClient, checkoutArgs, cleanupTestOrders, creds, haveCreds, loose, pickZone, provisionProduct, publicStock, rpc, signedInClient, type Client } from './helpers';
 
 // Runs against the linked Supabase project with two auto-confirmed test accounts
 // (see .env.test.local). Orders are tagged with customer_name = TEST-AUTOMATED and deleted afterwards.
@@ -66,6 +66,34 @@ suite('order lifecycle against the live backend', () => {
         expect(items[0].name_ar).toBeTruthy();
         expect(items[0].unit_price).toBeGreaterThan(0);
         expect(row!.status).toBe('new');
+    });
+
+    it('a checkout key reused with a different payload is refused, and the same payload replays the order', async () => {
+        const key = randomUUID();
+        const first = await rpc(customer, 'checkout_order_safe', checkoutArgs(zone, [{ id: product.id, quantity: 1 }], key));
+        expect(first.error).toBeNull();
+        const orderId = (first.data as { order_id: string }[])[0].order_id;
+
+        const changed = await rpc(customer, 'checkout_order_safe', checkoutArgs(zone, [{ id: product.id, quantity: 2 }], key));
+        expect(changed.error?.message).toMatch(/IDEMPOTENCY_KEY_REUSED/);
+
+        const replay = await rpc(customer, 'checkout_order_safe', checkoutArgs(zone, [{ id: product.id, quantity: 1 }], key));
+        expect(replay.error).toBeNull();
+        expect((replay.data as { order_id: string }[])[0].order_id).toBe(orderId);
+    });
+
+    it('a checkout key whose order was cancelled is refused even with the same payload', async () => {
+        const key = randomUUID();
+        const args = checkoutArgs(zone, [{ id: product.id, quantity: 1 }], key);
+        const first = await rpc(customer, 'checkout_order_safe', args);
+        expect(first.error).toBeNull();
+        const orderId = (first.data as { order_id: string }[])[0].order_id;
+
+        const cancel = await rpc(customer, 'customer_cancel_order', { p_order_id: orderId });
+        expect(cancel.error).toBeNull();
+
+        const again = await rpc(customer, 'checkout_order_safe', args);
+        expect(again.error?.message).toMatch(/IDEMPOTENCY_ORDER_CANCELLED/);
     });
 
     it('two concurrent submissions with the same key create exactly one order', async () => {
@@ -189,6 +217,46 @@ suite('order lifecycle against the live backend', () => {
         const { data: row } = await admin.from('orders').select('status').eq('id', orderId).single();
         expect(row!.status).toBe('new');
         expect(await publicStock(customer, product.id)).toBe(before - 1);
+    });
+
+    it('redeeming beauty points from the web lowers the charged total by the points discount', async () => {
+        const { data: settings } = await loose(admin).from('loyalty_settings').select('minimum_redemption_points').eq('id', true).single();
+        const minimum = Number((settings as { minimum_redemption_points: number }).minimum_redemption_points);
+        const { data: user } = await customer.auth.getUser();
+        const grant = await rpc(admin, 'adjust_loyalty_points', { p_customer_id: user.user!.id, p_points_delta: minimum, p_note: `${TEST_TAG} web redemption` });
+        expect(grant.error).toBeNull();
+
+        const orderIds: string[] = [];
+        try {
+            const plain = await rpc(customer, 'checkout_order_safe', checkoutArgs(zone, [{ id: product.id, quantity: 2 }], randomUUID()));
+            expect(plain.error).toBeNull();
+            const redeemed = await rpc(customer, 'checkout_order_safe', { ...checkoutArgs(zone, [{ id: product.id, quantity: 2 }], randomUUID()), p_points_to_redeem: minimum });
+            expect(redeemed.error).toBeNull();
+            const plainRow = (plain.data as { order_id: string; total: number }[])[0];
+            const redeemedRow = (redeemed.data as { order_id: string; total: number; points_discount: number }[])[0];
+            orderIds.push(plainRow.order_id, redeemedRow.order_id);
+
+            expect(Number(redeemedRow.points_discount)).toBeGreaterThan(0);
+            expect(Number(redeemedRow.total)).toBeLessThan(Number(plainRow.total));
+            expect(Number(plainRow.total) - Number(redeemedRow.total)).toBeCloseTo(Number(redeemedRow.points_discount), 2);
+        } finally {
+            for (const orderId of orderIds) await rpc(customer, 'customer_cancel_order', { p_order_id: orderId });
+            const revoke = await rpc(admin, 'adjust_loyalty_points', { p_customer_id: user.user!.id, p_points_delta: -minimum, p_note: `${TEST_TAG} grant removed` });
+            expect(revoke.error).toBeNull();
+        }
+    });
+
+    it('a checkout without the GPS pin is accepted from the chosen zone and flagged for fulfilment review', async () => {
+        const created = await rpc(customer, 'checkout_order_safe', { ...checkoutArgs(zone, [{ id: product.id, quantity: 1 }], randomUUID()), p_customer_lat: null, p_customer_lng: null });
+        expect(created.error).toBeNull();
+        const orderId = (created.data as { order_id: string }[])[0].order_id;
+        const { data: row } = await loose(admin).from('orders').select('location_source,needs_fulfillment_review,customer_lat,customer_lng').eq('id', orderId).single();
+        expect(row).toMatchObject({ location_source: 'zone', needs_fulfillment_review: true, customer_lat: null, customer_lng: null });
+    });
+
+    it('a checkout that sends only one GPS coordinate is refused', async () => {
+        const { error } = await rpc(customer, 'checkout_order_safe', { ...checkoutArgs(zone, [{ id: product.id, quantity: 1 }], randomUUID()), p_customer_lng: null });
+        expect(error?.message ?? '').toMatch(/provided together/);
     });
 });
 

@@ -1,8 +1,8 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Star, User, Calendar, BadgeCheck } from 'lucide-react';
 import { Review, ReviewableItem } from '@domain/entities';
 import { useAuth } from '../../context/AuthContext';
-import { fetchProductReviews, fetchReviewableItems, submitReview } from '@infrastructure/repositories';
+import { fetchProductReviews, fetchReviewableItems, submitReview, REVIEW_PAGE_SIZE } from '@infrastructure/repositories';
 import { errorMessage } from '@application/errors';
 import { formatDate } from '@application/services/format';
 
@@ -15,6 +15,8 @@ const MAX_COMMENT = 1000;
 export const ReviewSection: React.FC<ReviewSectionProps> = ({ productId }) => {
     const { user } = useAuth();
     const [reviews, setReviews] = useState<Review[]>([]);
+    const [total, setTotal] = useState(0);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [loading, setLoading] = useState(true);
     const [eligible, setEligible] = useState<ReviewableItem | null>(null);
     const [rating, setRating] = useState(5);
@@ -25,13 +27,28 @@ export const ReviewSection: React.FC<ReviewSectionProps> = ({ productId }) => {
 
     const loadReviews = useCallback(async () => {
         try {
-            setReviews(await fetchProductReviews(productId));
+            const page = await fetchProductReviews(productId, REVIEW_PAGE_SIZE, 0);
+            setReviews(page.reviews);
+            setTotal(page.total);
         } catch (err) {
             console.error('Error fetching reviews:', err);
         } finally {
             setLoading(false);
         }
     }, [productId]);
+
+    const loadMoreReviews = async () => {
+        setLoadingMore(true);
+        try {
+            const page = await fetchProductReviews(productId, REVIEW_PAGE_SIZE, reviews.length);
+            setReviews(prev => [...prev, ...page.reviews.filter(r => !prev.some(p => p.id === r.id))]);
+            setTotal(page.total);
+        } catch (err) {
+            console.error('Error fetching more reviews:', err);
+        } finally {
+            setLoadingMore(false);
+        }
+    };
 
     const loadEligibility = useCallback(async () => {
         if (!user) {
@@ -72,7 +89,7 @@ export const ReviewSection: React.FC<ReviewSectionProps> = ({ productId }) => {
         <div className="mt-12">
             <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
                 تقييمات العملاء
-                <span className="text-sm font-normal text-gray-500">({reviews.length})</span>
+                <span className="text-sm font-normal text-gray-500">({total})</span>
             </h2>
 
             <div className="grid md:grid-cols-2 gap-8">
@@ -111,6 +128,16 @@ export const ReviewSection: React.FC<ReviewSectionProps> = ({ productId }) => {
                                 {review.comment && <p className="text-gray-600 text-sm whitespace-pre-wrap">{review.comment}</p>}
                             </div>
                         ))
+                    )}
+                    {!loading && reviews.length < total && (
+                        <button
+                            type="button"
+                            onClick={() => void loadMoreReviews()}
+                            disabled={loadingMore}
+                            className="w-full py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                        >
+                            {loadingMore ? 'جاري التحميل...' : `عرض المزيد من التقييمات (${total - reviews.length})`}
+                        </button>
                     )}
                 </div>
 
