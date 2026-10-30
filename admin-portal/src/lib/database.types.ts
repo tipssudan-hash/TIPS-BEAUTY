@@ -3635,6 +3635,10 @@ export type Database = {
         }
         Returns: string
       }
+      admin_set_accountant: {
+        Args: { p_is_accountant: boolean; p_user_id: string }
+        Returns: undefined
+      }
       admin_set_collection_products: {
         Args: { p_collection_id: string; p_product_ids: string[] }
         Returns: undefined
@@ -3645,10 +3649,6 @@ export type Database = {
           p_user_id: string
           p_warehouse_ids: string[]
         }
-        Returns: undefined
-      }
-      admin_set_accountant: {
-        Args: { p_is_accountant: boolean; p_user_id: string }
         Returns: undefined
       }
       admin_set_warehouse_supervisor: {
@@ -3844,6 +3844,7 @@ export type Database = {
         }[]
       }
       clear_driver_location: { Args: never; Returns: undefined }
+      cod_receipt_order_id: { Args: { p_object_name: string }; Returns: string }
       confirm_cod_payment: { Args: { p_order_id: string }; Returns: undefined }
       create_customer_notification: {
         Args: {
@@ -4276,7 +4277,6 @@ export type Database = {
       is_accountant: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       is_assigned_driver: { Args: { p_order_id: string }; Returns: boolean }
-      cod_receipt_order_id: { Args: { p_object_name: string }; Returns: string }
       is_driver: { Args: never; Returns: boolean }
       is_warehouse_manager: { Args: never; Returns: boolean }
       is_warehouse_supervisor: { Args: never; Returns: boolean }
