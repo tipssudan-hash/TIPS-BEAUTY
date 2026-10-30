@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import * as Location from "expo-location";
 import { ScreenContainer } from "@/components/screen-container";
 import { useTipsStore } from "@/lib/tips-store";
 import {
@@ -18,6 +19,8 @@ import {
   fetchDeliveryZones,
   fetchPaymentMethods,
   getDeliveryFee,
+  previewCartPricing,
+  type CartPricingPreview,
 } from "@/lib/tips-api";
 
 type Method = {
@@ -26,6 +29,22 @@ type Method = {
   description_ar: string | null;
   requires_proof: boolean;
 };
+
+async function getCustomerCoordinates() {
+  const { status } = await Location.requestForegroundPermissionsAsync();
+  if (status !== Location.PermissionStatus.GRANTED) {
+    throw new Error(
+      "لا يمكن إتمام الطلب بدون إذن الموقع. فعّلي إذن الموقع للتطبيق من إعدادات الجهاز ثم حاولي مرة أخرى."
+    );
+  }
+  const position = await Location.getCurrentPositionAsync({
+    accuracy: Location.Accuracy.Balanced,
+  });
+  return {
+    lat: position.coords.latitude,
+    lng: position.coords.longitude,
+  };
+}
 
 export default function CheckoutScreen() {
   const { session, cart, clearCart, preferences } = useTipsStore();
@@ -62,7 +81,21 @@ export default function CheckoutScreen() {
   }, []);
 
   const shippingFee = getDeliveryFee(zones, city);
-  const subtotal = cart.reduce(
+  const cartKey = cart.map((item) => `${item.id}:${item.variantId ?? ""}:${item.quantity}`).join("|");
+  const pricingKey = `${cartKey}#${coupon.trim()}`;
+  const [pricing, setPricing] = useState<{ key: string; data: CartPricingPreview | null; failed: boolean } | null>(null);
+  useEffect(() => {
+    if (!cart.length) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      previewCartPricing(cart, coupon.trim())
+        .then((data) => { if (!cancelled) setPricing({ key: pricingKey, data, failed: false }); })
+        .catch(() => { if (!cancelled) setPricing({ key: pricingKey, data: null, failed: true }); });
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [pricingKey]);
+  const current = pricing?.key === pricingKey ? pricing : null;
+  const estimate = cart.reduce(
     (sum, item) =>
       sum +
       Number(item.price) *
@@ -70,6 +103,9 @@ export default function CheckoutScreen() {
         item.quantity,
     0
   );
+  const couponReduction = current?.data?.coupon && !current.data.coupon.reason ? current.data.coupon.reduction : 0;
+  const goods = current?.data ? current.data.subtotal : estimate - couponReduction;
+  const couponRefused = Boolean(current?.data?.coupon?.reason);
 
   const submit = async () => {
     if (!session) {
@@ -84,6 +120,7 @@ export default function CheckoutScreen() {
     setLoading(true);
     setError("");
     try {
+      const coordinates = await getCustomerCoordinates();
       const result = await createOrder(session, {
         name: name.trim(),
         phone: phone.trim(),
@@ -96,6 +133,8 @@ export default function CheckoutScreen() {
         referralCode: referralCode.trim(),
         affiliateCode: affiliateCode.trim(),
         idempotencyKey: checkoutKey.current,
+        customerLat: coordinates.lat,
+        customerLng: coordinates.lng,
       });
       const created = Array.isArray(result) ? result[0] : result;
       await clearCart();
@@ -294,13 +333,19 @@ export default function CheckoutScreen() {
         />
 
         <View style={styles.summary}>
-          <Text style={styles.summaryLabel}>الإجمالي النهائي</Text>
+          <Text style={styles.summaryLabel}>الإجمالي النهائي{current?.data ? "" : " (تقدير)"}</Text>
           <Text style={styles.summaryTotal}>
-            {(subtotal + shippingFee).toLocaleString()} ج.س
+            {(goods + shippingFee).toLocaleString()} ج.س
           </Text>
           <Text style={styles.note}>
             رسوم توصيل {city}: {shippingFee.toLocaleString()} ج.س.
           </Text>
+          {current?.failed ? (
+            <Text style={styles.note}>تعذر حساب العروض من الخادم، والمبلغ تقدير.</Text>
+          ) : null}
+          {couponRefused ? (
+            <Text style={styles.note}>كود الخصم غير مطبّق على سلتك.</Text>
+          ) : null}
         </View>
 
         <Pressable

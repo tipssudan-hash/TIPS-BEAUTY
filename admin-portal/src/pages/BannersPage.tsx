@@ -1,8 +1,9 @@
 import { formatDate, fromLocalInput, toLocalInput } from '../lib/format';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Image as ImageIcon, Plus, Edit, Trash2, X, Upload, Loader2 } from 'lucide-react';
-import type { Banner, BannerActionType, Collection, Product } from '../types';
-import { BANNER_MAX_WIDTH, deleteBanner, downscaleImage, fetchAdminProducts, fetchBanners, fetchCollections, saveBanner, uploadPublicImage, validateImage, type BannerInput } from '../lib/catalogApi';
+import type { Banner, BannerActionType, Category, Collection, Product } from '../types';
+import { BANNER_MAX_WIDTH, deleteBanner, downscaleImage, fetchAdminProducts, fetchBanners, fetchCategories, fetchCollections, saveBanner, uploadPublicImage, validateImage, type BannerInput } from '../lib/catalogApi';
+import { categoryPathLabel } from '../lib/categoryTree';
 import { errorMessage } from '../lib/errors';
 import { Card, Field, Notice, PageHeader, Spinner, StatusPill, Table, inputClass, primaryButtonClass, secondaryButtonClass, smallButtonClass } from '../components/ui';
 
@@ -14,6 +15,7 @@ export const BannersPage: React.FC = () => {
     const [banners, setBanners] = useState<Banner[]>([]);
     const [collections, setCollections] = useState<Collection[]>([]);
     const [catalogue, setCatalogue] = useState<Product[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [editing, setEditing] = useState<{ id: string | null; data: BannerInput } | null>(null);
@@ -25,10 +27,11 @@ export const BannersPage: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            const [rows, cols, products] = await Promise.all([fetchBanners(), fetchCollections(), fetchAdminProducts()]);
+            const [rows, cols, products, categoryList] = await Promise.all([fetchBanners(), fetchCollections(), fetchAdminProducts(), fetchCategories()]);
             setBanners(rows);
             setCollections(cols);
             setCatalogue(products);
+            setCategories(categoryList);
         } catch (err) {
             setError(errorMessage(err, 'تعذر تحميل البانرات.'));
         } finally {
@@ -39,7 +42,6 @@ export const BannersPage: React.FC = () => {
     useEffect(() => { void load(); }, []);
 
     const update = (patch: Partial<BannerInput>) => editing && setEditing({ ...editing, data: { ...editing.data, ...patch } });
-    const categories = useMemo(() => Array.from(new Set(catalogue.map((p) => p.category).filter(Boolean))).sort(), [catalogue]);
     const collectionName = (slug: string) => collections.find((c) => c.slug === slug)?.name_ar ?? slug;
     const productName = (id: string) => catalogue.find((p) => p.id === id)?.name_ar ?? id;
     // What the customer app does with each action, in the admin's words.
@@ -145,7 +147,7 @@ export const BannersPage: React.FC = () => {
                                 <Field label="التصنيف" required>
                                     <select value={editing.data.action_value ?? ''} onChange={(e) => update({ action_value: e.target.value || null })} className={inputClass} required>
                                         <option value="">اختاري…</option>
-                                        {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                                        {categories.map((c) => <option key={c.id} value={c.name_ar}>{categoryPathLabel(c, categories)}</option>)}
                                     </select>
                                 </Field>
                             )}

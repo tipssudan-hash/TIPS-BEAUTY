@@ -139,4 +139,15 @@ suite('effective price over the backend', () => {
         expect(line.promotion_id).toBe(promotionIds[0]);
         expect(Number(line.line_total)).toBe(Number((Number(shown.effective_price) * 2).toFixed(2)));
     });
+
+    it('effective_price prices only item Promotions: buy X get Y and quantity tiers are left to the Cart', async () => {
+        await setDiscount(null);
+        await clearPromotions();
+        await addPromotion({ p_promotion_type: 'buy_x_get_y', p_discount_type: null, p_discount_value: null, p_buy_quantity: 1, p_get_quantity: 1, p_get_discount_percent: 100, p_title: `${TEST_TAG} cart only` });
+        await addPromotion({ p_promotion_type: 'quantity_tier', p_discount_type: null, p_discount_value: null, p_tiers: [{ min_quantity: 2, percent: 50 }], p_title: `${TEST_TAG} tier only` });
+        const p = await publicProduct();
+        expect(Number(p.effective_price)).toBe(basePrice);
+        expect(p.pricing_rule_kind).toBeNull();
+        await clearPromotions();
+    });
 });

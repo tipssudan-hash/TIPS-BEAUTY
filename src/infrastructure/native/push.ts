@@ -86,10 +86,12 @@ async function storeToken(token: string, platform: 'ios' | 'android'): Promise<v
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return; // registered before sign-in; the next call after login stores it
 
+    const { data: isDriver } = await supabase.rpc('is_driver');
     const { error } = await supabase.rpc('register_push_token', {
         p_token: token,
         p_provider: 'fcm',
         p_platform: platform,
+        p_app_audience: isDriver === true ? 'driver' : 'customer',
     });
     if (error) {
         console.error('register_push_token', error);

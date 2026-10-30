@@ -1,5 +1,6 @@
 import { supabase } from '../supabase/client';
 import type { OrderStatus } from '../../domain/entities';
+import { deliveryCodeRefusalMessage, translatedError } from '../../application/errors';
 
 // Driver surface (/driver/*): every read is an allow-listed RPC, every write an existing driver RPC.
 // Stock, prices, coupons and customer accounts never reach this side.
@@ -34,16 +35,20 @@ export interface Delivery {
     paymentMethod: string;
     // Cash to collect on the doorstep; null for paid or non-cash orders.
     codAmount: number | null;
+    codCollected: boolean;
     warehouseName: string | null;
     customerLat: number | null;
     customerLng: number | null;
+    // Promised arrival set by the warehouse; the internal note is for the driver only, never the customer's notes.
+    estimatedDeliveryAt: string | null;
+    staffNote: string | null;
 }
 
 type DeliveryRow = {
     id: string; order_number: string | null; status: string; created_at: string; status_changed_at: string | null;
     customer_name: string; phone: string; shipping_address: string; city: string | null; state: string | null; notes: string | null;
-    items: unknown; item_count: number; payment_method: string; cod_amount: number | null; warehouse_name: string | null;
-    customer_lat: number | null; customer_lng: number | null;
+    items: unknown; item_count: number; payment_method: string; cod_amount: number | null; cod_collected: boolean; warehouse_name: string | null;
+    customer_lat: number | null; customer_lng: number | null; estimated_delivery_at: string | null; staff_note: string | null;
 };
 
 function mapDelivery(row: DeliveryRow): Delivery {
@@ -75,9 +80,12 @@ function mapDelivery(row: DeliveryRow): Delivery {
         itemCount: items.reduce((sum, item) => sum + item.quantity, 0) || Number(row.item_count ?? 0),
         paymentMethod: row.payment_method,
         codAmount: row.cod_amount == null ? null : Number(row.cod_amount),
+        codCollected: Boolean(row.cod_collected),
         warehouseName: row.warehouse_name,
         customerLat: row.customer_lat == null ? null : Number(row.customer_lat),
         customerLng: row.customer_lng == null ? null : Number(row.customer_lng),
+        estimatedDeliveryAt: row.estimated_delivery_at ?? null,
+        staffNote: row.staff_note ?? null,
     };
 }
 
@@ -117,9 +125,64 @@ export async function setMyAvailability(status: 'active' | 'offline'): Promise<v
 }
 
 // shipped = picked up; delivered / delivery_failed close the delivery (reason required on failure).
-export async function updateMyDeliveryStatus(orderId: string, status: 'shipped' | 'delivered' | 'delivery_failed', failureReason?: string, note?: string): Promise<void> {
-    const { error } = await supabase.rpc('update_driver_order_status', { p_order_id: orderId, p_status: status, p_failure_reason: failureReason, p_note: note });
+// delivered is verified server-side: the code the customer shows must match, or the call is refused.
+// proofPath is a delivery-proofs object under `${orderId}/`; repeating the current status is not an error.
+export async function updateMyDeliveryStatus(orderId: string, status: 'shipped' | 'delivered' | 'delivery_failed', failureReason?: string, note?: string, deliveryCode?: string, proofPath?: string): Promise<void> {
+    const { data, error } = await supabase.rpc('update_driver_order_status', {
+        p_order_id: orderId,
+        p_status: status,
+        p_failure_reason: failureReason,
+        p_note: note,
+        p_delivery_code: deliveryCode,
+        p_proof_path: proofPath,
+    });
+    if (error) throw translatedError(error);
+    const refusal = deliveryCodeRefusalMessage(data);
+    if (refusal) throw new Error(refusal);
+}
+
+// Private bucket: only the assigned driver may INSERT, and the object name is the proof reference the status call carries.
+export async function uploadDeliveryProof(orderId: string, photo: Blob): Promise<string> {
+    const path = `${orderId}/${Date.now()}.jpg`;
+    const { error } = await supabase.storage.from('delivery-proofs').upload(path, photo, { contentType: 'image/jpeg', upsert: false });
     if (error) throw error;
+    return path;
+}
+
+export interface PickupCheck { lineNo: number; checkedQty: number }
+
+// The pickup checklist lives on the server so it survives a reload; line_no is the 1-based position in orders.items.
+export async function fetchPickupChecks(orderId: string): Promise<PickupCheck[]> {
+    const { data, error } = await supabase.rpc('staff_get_item_checks', { p_order_id: orderId });
+    if (error) throw translatedError(error);
+    return (data ?? [])
+        .filter((row) => row.stage === 'pickup')
+        .map((row) => ({ lineNo: Number(row.line_no), checkedQty: Number(row.checked_qty) }));
+}
+
+export async function driverSetPickupCheck(orderId: string, lineNo: number, checkedQty: number): Promise<void> {
+    const { error } = await supabase.rpc('driver_set_pickup_check', { p_order_id: orderId, p_line_no: lineNo, p_checked_qty: checkedQty });
+    if (error) throw translatedError(error);
+}
+
+export interface DriverSummary {
+    delivered: number;
+    failed: number;
+    cashCollected: number;
+    cashRemitted: number;
+}
+
+// Counts and cash for the driver's own deliveries between two business dates (YYYY-MM-DD, inclusive).
+export async function fetchMyDriverSummary(from: string, to: string): Promise<DriverSummary> {
+    const { data, error } = await supabase.rpc('get_my_driver_summary', { p_from: from, p_to: to });
+    if (error) throw translatedError(error);
+    const row = (data ?? {}) as unknown as Record<string, number | string | null | undefined>;
+    return {
+        delivered: Number(row.delivered ?? 0),
+        failed: Number(row.failed ?? 0),
+        cashCollected: Number(row.cod_collected ?? 0),
+        cashRemitted: Number(row.remitted_confirmed ?? 0),
+    };
 }
 
 export async function shareMyLocation(latitude: number, longitude: number, accuracyMeters: number | null): Promise<void> {
@@ -149,97 +212,59 @@ export function subscribeToMyDeliveries(onChange: () => void): () => void {
     };
 }
 
-export interface DriverCashDrawerSummary {
-    collectedToday: number;
-    deliveredCount: number;
-    pendingRemittance: number;
-    confirmedRemittance: number;
-    unremittedBalance: number;
-    deliveredOrders: {
-        id: string;
-        orderNumber: string;
-        customerName: string;
-        codAmount: number;
-        deliveredAt: string | null;
-    }[];
+export type CashEntryType = 'cod_collected' | 'remittance_confirmed' | 'adjustment';
+
+export interface CashPositionEntry {
+    orderNumber: string | null;
+    entryType: CashEntryType;
+    amount: number;
+    createdAt: string;
 }
 
-export async function fetchDriverCashDrawer(): Promise<DriverCashDrawerSummary> {
-    const deliveries = await fetchMyDeliveries();
-    const delivered = deliveries.filter((d) => d.status === 'delivered');
+export interface CashPosition {
+    businessDate: string;
+    openingBalance: number;
+    collected: number;
+    remittedConfirmed: number;
+    pendingSubmitted: number;
+    closingBalance: number;
+    entries: CashPositionEntry[];
+}
 
-    let totalCollected = 0;
-    const deliveredOrders = delivered.map((d) => {
-        const amt = d.codAmount ?? 0;
-        totalCollected += amt;
-        return {
-            id: d.id,
-            orderNumber: d.orderNumber,
-            customerName: d.customerName,
-            codAmount: amt,
-            deliveredAt: d.statusChangedAt || d.createdAt,
-        };
-    });
+type CashPositionRow = {
+    business_date: string;
+    opening_balance: number;
+    collected: number;
+    remitted_confirmed: number;
+    pending_submitted: number;
+    closing_balance: number;
+    entries: { order_number: string | null; entry_type: CashEntryType; amount: number; created_at: string }[] | null;
+};
 
-    let pendingRemittance = 0;
-    let confirmedRemittance = 0;
-
-    try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-            const { data: driver } = await supabase.from('drivers').select('id').eq('user_id', user.id).maybeSingle();
-            if (driver) {
-                const { data: remittances } = await (supabase.from as any)('driver_cash_remittances')
-                    .select('amount, status')
-                    .eq('driver_id', driver.id);
-
-                if (remittances) {
-                    for (const r of (remittances as any[])) {
-                        const amt = Number(r.amount);
-                        if (r.status === 'confirmed') confirmedRemittance += amt;
-                        else if (r.status === 'submitted') pendingRemittance += amt;
-                    }
-                }
-            }
-        }
-    } catch {
-        // Fallback
-    }
-
-    const unremittedBalance = Math.max(0, totalCollected - confirmedRemittance - pendingRemittance);
-
+export async function fetchMyCashPosition(businessDate?: string): Promise<CashPosition> {
+    const { data, error } = await supabase.rpc('get_my_cash_position', { p_business_date: businessDate });
+    if (error) throw translatedError(error);
+    const row = data as unknown as CashPositionRow;
     return {
-        collectedToday: totalCollected,
-        deliveredCount: delivered.length,
-        pendingRemittance,
-        confirmedRemittance,
-        unremittedBalance,
-        deliveredOrders,
+        businessDate: row.business_date,
+        openingBalance: Number(row.opening_balance),
+        collected: Number(row.collected),
+        remittedConfirmed: Number(row.remitted_confirmed),
+        pendingSubmitted: Number(row.pending_submitted),
+        closingBalance: Number(row.closing_balance),
+        entries: (row.entries ?? []).map((e) => ({
+            orderNumber: e.order_number,
+            entryType: e.entry_type,
+            amount: Number(e.amount),
+            createdAt: e.created_at,
+        })),
     };
 }
 
 export async function submitDriverCashRemittance(amount: number, notes?: string): Promise<void> {
-    try {
-        const { error } = await (supabase.rpc as any)('driver_submit_cash_remittance', {
-            p_amount: amount,
-            p_notes: notes || undefined,
-        });
-        if (!error) return;
-    } catch {
-        // Fallback
-    }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not logged in');
-    const { data: driver } = await supabase.from('drivers').select('id, warehouse_id').eq('user_id', user.id).single();
-    if (!driver) throw new Error('Driver profile not found');
-
-    const { error: insertErr } = await (supabase.from as any)('driver_cash_remittances').insert({
-        driver_id: driver.id,
-        warehouse_id: driver.warehouse_id,
-        amount,
-        driver_notes: notes || null,
-        status: 'submitted',
+    const { error } = await supabase.rpc('driver_submit_cash_remittance', {
+        p_amount: amount,
+        p_notes: notes || undefined,
     });
-    if (insertErr) throw insertErr;
+    if (error) throw translatedError(error);
 }

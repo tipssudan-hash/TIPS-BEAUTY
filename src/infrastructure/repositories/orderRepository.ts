@@ -1,5 +1,5 @@
 import { supabase } from '../supabase/client';
-import type { CouponPreview, DeliveryQuote, Order, OrderItem, OrderReturn, OrderStatusEntry, ReturnItem, ReturnResolution } from '../../domain/entities';
+import type { CartPricing, CouponPreview, DeliveryQuote, Order, OrderItem, OrderReturn, OrderStatusEntry, ReturnItem, ReturnResolution } from '../../domain/entities';
 
 export interface CheckoutInput {
     customerName: string;
@@ -11,9 +11,13 @@ export interface CheckoutInput {
     items: CheckoutItem[];
     couponCode?: string | null;
     idempotencyKey: string;
-    customerLat: number;
-    customerLng: number;
+    // Both null when GPS was denied or unavailable: the zone (state + locality) then prices the Order and staff confirm the address by phone.
+    customerLat: number | null;
+    customerLng: number | null;
+    pointsToRedeem?: number;
 }
+
+export const ORDER_PAGE_SIZE = 10;
 
 // A checkout line as the backend takes it: the Variant is optional and must belong to the Product.
 export type CheckoutItem = { id: string; quantity: number; variant_id?: string | null };
@@ -30,10 +34,11 @@ export interface CheckoutResult {
 type OrderRow = {
     id: string; order_number: string | null; items: unknown; total: number; shipping_fee: number | null; discount_amount: number | null; coupon_code: string | null;
     points_discount: number | null; status: string; payment_method: string; payment_status: string; payment_reference: string | null;
-    shipping_address: string; city: string | null; state: string | null; created_at: string;
+    shipping_address: string; city: string | null; state: string | null; created_at: string; estimated_delivery_at: string | null;
 };
 
-const ORDER_COLUMNS = 'id,order_number,items,total,shipping_fee,discount_amount,coupon_code,points_discount,status,payment_method,payment_status,payment_reference,shipping_address,city,state,created_at';
+// staff_note is deliberately absent: it is the warehouse's internal instruction, not the customer's.
+const ORDER_COLUMNS = 'id,order_number,items,total,shipping_fee,discount_amount,coupon_code,points_discount,status,payment_method,payment_status,payment_reference,shipping_address,city,state,created_at,estimated_delivery_at';
 
 function mapOrder(row: OrderRow): Order {
     return {
@@ -54,11 +59,17 @@ function mapOrder(row: OrderRow): Order {
         city: row.city,
         state: row.state,
         createdAt: row.created_at,
+        estimatedDeliveryAt: row.estimated_delivery_at,
     };
 }
 
-export async function fetchMyOrders(): Promise<Order[]> {
-    const { data, error } = await supabase.from('orders').select(ORDER_COLUMNS).order('created_at', { ascending: false });
+// One page of the customer's orders, newest first. A page shorter than the limit means there is nothing more to load.
+export async function fetchMyOrders(offset = 0, limit = ORDER_PAGE_SIZE): Promise<Order[]> {
+    const { data, error } = await supabase
+        .from('orders')
+        .select(ORDER_COLUMNS)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
     if (error) throw error;
     return ((data ?? []) as OrderRow[]).map(mapOrder);
 }
@@ -122,6 +133,13 @@ export async function cancelMyOrder(orderId: string): Promise<void> {
     if (error) throw error;
 }
 
+// Issuing replaces any earlier code for the order, so the value returned here is the only valid one.
+export async function issueDeliveryCode(orderId: string): Promise<string> {
+    const { data, error } = await supabase.rpc('customer_issue_delivery_code', { p_order_id: orderId });
+    if (error) throw error;
+    return data as string;
+}
+
 export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
     const { data, error } = await supabase.rpc('checkout_order_safe' as never, {
         p_customer_name: input.customerName,
@@ -134,6 +152,7 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
         p_customer_lat: input.customerLat,
         p_customer_lng: input.customerLng,
         p_coupon_code: input.couponCode?.trim() || undefined,
+        p_points_to_redeem: input.pointsToRedeem ?? 0,
         p_idempotency_key: input.idempotencyKey,
     } as never);
     if (error) throw error;
@@ -166,13 +185,48 @@ export async function previewCoupon(code: string, items: CheckoutItem[]): Promis
     };
 }
 
+// What checkout will charge for the Cart's goods (promotions and the Coupon included), line by line.
+// Read-only and repeatable; the Order is still priced again at placement.
+export async function previewCartPricing(items: CheckoutItem[], couponCode?: string | null): Promise<CartPricing> {
+    const { data, error } = await supabase.rpc('preview_cart_pricing', { p_items: items, p_coupon_code: couponCode?.trim() || undefined });
+    if (error) throw error;
+    if (!data) throw new Error('Cart pricing preview returned nothing');
+    // Lines cover every submitted item, so the smallest line_index is the first item's, whatever its base.
+    const firstLineIndex = data.lines.reduce((min, l) => Math.min(min, l.line_index), Infinity);
+    return {
+        lines: data.lines.map((l) => ({
+            lineIndex: l.line_index - firstLineIndex,
+            productId: l.product_id,
+            variantId: l.variant_id ?? null,
+            quantity: Number(l.quantity),
+            unitPrice: Number(l.unit_price),
+            lineTotal: Number(l.line_total),
+            effectiveUnitPrice: Number(l.effective_unit_price),
+            pricingRuleKind: l.pricing_rule_kind,
+            promotionId: l.promotion_id,
+            promotionType: l.promotion_type,
+        })),
+        baseSubtotal: Number(data.base_subtotal),
+        lineReductions: Number(data.line_reductions),
+        subtotal: Number(data.subtotal),
+        appliedPromotions: data.applied_promotions.map((p) => ({
+            promotionId: p.promotion_id,
+            promotionType: p.promotion_type,
+            ruleLabel: p.rule_label,
+            reduction: Number(p.reduction),
+        })),
+        coupon: data.coupon ? { code: data.coupon.code, reduction: Number(data.coupon.reduction), reason: data.coupon.reason } : null,
+    };
+}
+
 // A side-effect-free preview of the delivery fee checkout_order_safe will freeze into the Order:
 // both resolve the fulfilling warehouses and call the same calculate_delivery_quote RPC, so the
-// preview can never show a number the real order wouldn't also charge. The customer's GPS pin is mandatory.
+// preview can never show a number the real order wouldn't also charge. Without a GPS pin (null) the
+// backend may refuse; the caller then shows the selected zone's fee as an estimate.
 export async function previewDeliveryQuote(
     items: CheckoutItem[],
-    customerLat: number,
-    customerLng: number,
+    customerLat: number | null,
+    customerLng: number | null,
 ): Promise<DeliveryQuote> {
     const { data, error } = await supabase.rpc('preview_delivery_quote' as never, {
         p_items: items,

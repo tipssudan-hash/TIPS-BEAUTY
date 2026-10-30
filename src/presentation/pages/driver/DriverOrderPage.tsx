@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
     ArrowRight,
@@ -21,13 +21,17 @@ import {
     ChevronUp,
 } from 'lucide-react';
 import { useDriver } from './DriverContext';
-import { fetchDriverDelivery as fetchMyDelivery, updateMyDeliveryStatus, type Delivery } from '@infrastructure/repositories';
+import { fetchDriverDelivery as fetchMyDelivery, fetchPickupChecks, updateMyDeliveryStatus, uploadDeliveryProof, type Delivery, type DeliveryStatus, type PickupCheck } from '@infrastructure/repositories';
+import type { QueuedAction } from '@infrastructure/offline/driverActionQueue';
 import { errorMessage } from '@application/errors';
 import { formatSDG, formatDateTime } from '@application/services/format';
 import { EmptyState, Notice, Spinner } from '../../components/ui';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { cn } from '@presentation/utils/cn';
 import { useProductImageMap } from '../../hooks/useProductImageMap';
+import { useConfirmation } from '../../hooks/useConfirmation';
 import { BarcodeScannerModal } from '../../components/driver/BarcodeScannerModal';
+import { ProofPhotoInput } from '../../components/driver/ProofPhotoInput';
 
 const FAILURE_REASONS = [
     'العميل لا يرد على الهاتف',
@@ -37,19 +41,41 @@ const FAILURE_REASONS = [
     'تعذر الوصول إلى الموقع الجغرافي',
 ];
 
+const QUEUED_NOTICE = 'تم حفظ الإجراء على الجهاز، وسيُرسل تلقائياً عند عودة الاتصال.';
+
+function queuedChecks(actions: QueuedAction[], orderId: string): Map<number, number> {
+    const latest = new Map<number, number>();
+    for (const action of actions) {
+        if (action.kind === 'pickup_check' && action.orderId === orderId) latest.set(action.lineNo, action.checkedQty);
+    }
+    return latest;
+}
+
+// The status the driver last asked for and that is still waiting on the device; shown until the server agrees.
+function effectiveStatus(actions: QueuedAction[], orderId: string, current: DeliveryStatus): DeliveryStatus {
+    const last = actions.filter((a) => a.kind === 'status' && a.orderId === orderId).pop();
+    if (!last || last.kind !== 'status') return current;
+    if (last.status === 'shipped' && (current === 'confirmed' || current === 'preparing')) return 'shipped';
+    if (last.status === 'delivery_failed' && current === 'shipped') return 'delivery_failed';
+    return current;
+}
+
 export const DriverOrderPage: React.FC = () => {
     const { id } = useParams();
-    const { deliveries, refresh } = useDriver();
+    const { deliveries, refresh, isOnline, queued, submitAction } = useDriver();
     const { getProductImageUrl } = useProductImageMap();
+    const confirmation = useConfirmation();
     const [fallback, setFallback] = useState<Delivery | null | undefined>(undefined);
+    const [serverChecks, setServerChecks] = useState<PickupCheck[]>([]);
+    const [checkBusy, setCheckBusy] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [notice, setNotice] = useState<string | null>(null);
     const [failing, setFailing] = useState(false);
     const [reason, setReason] = useState(FAILURE_REASONS[0]);
     const [note, setNote] = useState('');
-    const [checkedItems, setCheckedItems] = useState<Record<number, boolean>>({});
+    const [photo, setPhoto] = useState<Blob | null>(null);
     const [barcodeModalOpen, setBarcodeModalOpen] = useState(false);
-    const [barcodeVerified, setBarcodeVerified] = useState(false);
     const [copied, setCopied] = useState<string | null>(null);
     const [showAllProducts, setShowAllProducts] = useState(false);
 
@@ -69,6 +95,18 @@ export const DriverOrderPage: React.FC = () => {
         };
     }, [id, fromFeed]);
 
+    const loadChecks = useCallback(async (orderId: string) => {
+        try {
+            setServerChecks(await fetchPickupChecks(orderId));
+        } catch (err) {
+            console.error('staff_get_item_checks', err);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (id) void loadChecks(id);
+    }, [id, deliveries, loadChecks]);
+
     const delivery = fromFeed ?? fallback;
 
     if (delivery === undefined) return <Spinner label="جاري تحميل بيانات الطلب..." />;
@@ -86,9 +124,12 @@ export const DriverOrderPage: React.FC = () => {
         );
     }
 
-    const toggleItemChecked = (index: number) => {
-        setCheckedItems((prev) => ({ ...prev, [index]: !prev[index] }));
-    };
+    const status = effectiveStatus(queued, delivery.id, delivery.status);
+    const overrides = queuedChecks(queued, delivery.id);
+    const pendingCount = queued.filter((a) => a.orderId === delivery.id).length;
+
+    const checkedQtyOf = (lineNo: number): number =>
+        overrides.get(lineNo) ?? serverChecks.find((c) => c.lineNo === lineNo)?.checkedQty ?? 0;
 
     const copyToClipboard = async (text: string, label: string) => {
         try {
@@ -100,33 +141,75 @@ export const DriverOrderPage: React.FC = () => {
         }
     };
 
-    const act = async (status: 'shipped' | 'delivered' | 'delivery_failed') => {
-        if (status === 'delivered') {
-            if (delivery.codAmount != null && delivery.codAmount > 0) {
-                const confirmed = window.confirm(
-                    `تأكيد تسليم الطلب وتحصيل مبلغ ${formatSDG(delivery.codAmount)} نقداً من العميل؟`
-                );
-                if (!confirmed) return;
-            } else {
-                if (!window.confirm('تأكيد تسليم الطلب للعميل؟')) return;
-            }
-        }
+    const refreshAll = async () => {
+        await refresh();
+        if (fallback) setFallback(await fetchMyDelivery(delivery.id));
+    };
 
-        setBusy(true);
+    const toggleLine = async (index: number) => {
+        const item = delivery.items[index];
+        if (!item) return;
+        const lineNo = index + 1;
+        const next = checkedQtyOf(lineNo) >= item.quantity ? 0 : item.quantity;
+        setCheckBusy(true);
         setError(null);
         try {
-            await updateMyDeliveryStatus(
-                delivery.id,
-                status,
-                status === 'delivery_failed' ? reason : undefined,
-                note.trim() || undefined
-            );
-            setFailing(false);
+            const outcome = await submitAction({ kind: 'pickup_check', orderId: delivery.id, lineNo, checkedQty: next });
+            if (outcome === 'queued') setNotice(QUEUED_NOTICE);
+            await loadChecks(delivery.id);
+        } catch (err) {
+            setError(errorMessage(err, 'تعذر حفظ فحص المنتج.'));
+        } finally {
+            setCheckBusy(false);
+        }
+    };
+
+    const sendStatus = async (next: 'shipped' | 'delivery_failed') => {
+        setBusy(true);
+        setError(null);
+        setNotice(null);
+        try {
+            const outcome = await submitAction({
+                kind: 'status',
+                orderId: delivery.id,
+                status: next,
+                failureReason: next === 'delivery_failed' ? reason : null,
+                note: note.trim() || null,
+                proof: next === 'delivery_failed' ? photo : null,
+            });
+            if (next === 'delivery_failed') {
+                setFailing(false);
+                setPhoto(null);
+            }
             setNote('');
-            await refresh();
-            if (fallback) setFallback(await fetchMyDelivery(delivery.id));
+            if (outcome === 'queued') setNotice(QUEUED_NOTICE);
+            await refreshAll();
         } catch (err) {
             setError(errorMessage(err, 'تعذر تحديث حالة الطلب.'));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const openScanner = async () => {
+        const cod = delivery.codAmount != null && delivery.codAmount > 0;
+        const confirmed = await confirmation.ask({
+            title: 'تأكيد التسليم',
+            body: cod ? `تأكيد تسليم الطلب وتحصيل مبلغ ${formatSDG(delivery.codAmount ?? 0)} نقداً من العميل؟` : 'تأكيد تسليم الطلب للعميل؟',
+            confirmLabel: 'متابعة إلى رمز التسليم',
+        });
+        if (confirmed) setBarcodeModalOpen(true);
+    };
+
+    const deliverWithCode = async (deliveryCode: string) => {
+        setBusy(true);
+        try {
+            const proofPath = photo ? await uploadDeliveryProof(delivery.id, photo) : undefined;
+            await updateMyDeliveryStatus(delivery.id, 'delivered', undefined, note.trim() || undefined, deliveryCode, proofPath);
+            setBarcodeModalOpen(false);
+            setPhoto(null);
+            setNote('');
+            await refreshAll();
         } finally {
             setBusy(false);
         }
@@ -151,12 +234,13 @@ export const DriverOrderPage: React.FC = () => {
         ? `https://www.google.com/maps/dir/?api=1&destination=${delivery.customerLat},${delivery.customerLng}&travelmode=driving`
         : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
 
-    const canPickUp = delivery.status === 'confirmed' || delivery.status === 'preparing';
-    const onTheRoad = delivery.status === 'shipped';
-    const closed = delivery.status === 'delivered' || delivery.status === 'delivery_failed';
+    const canPickUp = status === 'confirmed' || status === 'preparing';
+    const onTheRoad = status === 'shipped';
+    const closed = status === 'delivered' || status === 'delivery_failed';
+    const showChecklist = canPickUp || onTheRoad;
+    const checklistEditable = canPickUp && !checkBusy && !busy;
 
-    const checkedCount = Object.values(checkedItems).filter(Boolean).length;
-    const allChecked = checkedCount === delivery.items.length && delivery.items.length > 0;
+    const checkedLines = delivery.items.filter((item, index) => checkedQtyOf(index + 1) >= item.quantity).length;
 
     const ITEMS_PREVIEW = 4;
     const visibleItems = showAllProducts ? delivery.items : delivery.items.slice(0, ITEMS_PREVIEW);
@@ -178,6 +262,20 @@ export const DriverOrderPage: React.FC = () => {
                 </div>
             </div>
 
+            {!isOnline && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900">
+                    أنت غير متصل بالإنترنت. الاستلام وبدء التوصيل وتعذّر التسليم تُحفظ على الجهاز، أما التسليم فيحتاج اتصالاً لأن رمز العميل يُتحقق منه في الخادم.
+                </div>
+            )}
+            {pendingCount > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900">
+                    لديك {pendingCount} إجراء محفوظ على الجهاز بانتظار الاتصال.
+                </div>
+            )}
+            {notice && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900">{notice}</div>
+            )}
+
             {/* Order Hero Status Card */}
             <div className="bg-white rounded-lg border border-gray-200 shadow-xs p-4 sm:p-5 space-y-3.5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
@@ -188,14 +286,14 @@ export const DriverOrderPage: React.FC = () => {
                             </span>
                             <span className={cn(
                                 'text-xs font-bold px-2.5 py-1 rounded-md border',
-                                delivery.status === 'shipped' ? 'bg-sky-50 text-sky-900 border-sky-200' :
-                                delivery.status === 'delivered' ? 'bg-emerald-50 text-emerald-900 border-emerald-200' :
-                                delivery.status === 'delivery_failed' ? 'bg-rose-50 text-rose-900 border-rose-200' :
+                                status === 'shipped' ? 'bg-sky-50 text-sky-900 border-sky-200' :
+                                status === 'delivered' ? 'bg-emerald-50 text-emerald-900 border-emerald-200' :
+                                status === 'delivery_failed' ? 'bg-rose-50 text-rose-900 border-rose-200' :
                                 'bg-gray-50 text-gray-800 border-gray-200'
                             )}>
-                                {delivery.status === 'shipped' ? 'في الطريق للتوصيل' :
-                                 delivery.status === 'delivered' ? 'تم التسليم بنجاح ✓' :
-                                 delivery.status === 'delivery_failed' ? 'تعذر التسليم' :
+                                {status === 'shipped' ? 'في الطريق للتوصيل' :
+                                 status === 'delivered' ? 'تم التسليم بنجاح ✓' :
+                                 status === 'delivery_failed' ? 'تعذر التسليم' :
                                  'بانتظار الاستلام من المستودع'}
                             </span>
                         </div>
@@ -224,7 +322,7 @@ export const DriverOrderPage: React.FC = () => {
                     </div>
                     <div className={cn(
                         'py-2 px-2.5 rounded-lg text-xs font-bold border transition-colors',
-                        closed ? (delivery.status === 'delivered' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-rose-600 text-white border-rose-600') : 'bg-gray-50 text-gray-500 border-gray-200'
+                        closed ? (status === 'delivered' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-rose-600 text-white border-rose-600') : 'bg-gray-50 text-gray-500 border-gray-200'
                     )}>
                         3. التسليم
                     </div>
@@ -286,6 +384,21 @@ export const DriverOrderPage: React.FC = () => {
                         </p>
                     </div>
 
+                    <div className="grid gap-2.5 border-t border-gray-100 pt-3 sm:grid-cols-2">
+                        <div className="rounded-md border border-sky-200 bg-sky-50/70 p-2.5">
+                            <span className="block text-[11px] font-bold text-sky-900">الموعد المتوقع:</span>
+                            <p className="mt-0.5 font-medium text-sky-950">
+                                {delivery.estimatedDeliveryAt ? formatDateTime(delivery.estimatedDeliveryAt) : 'لم يُحدد بعد'}
+                            </p>
+                        </div>
+                        {delivery.staffNote && (
+                            <div className="rounded-md border border-amber-200 bg-amber-50 p-2.5">
+                                <span className="block text-[11px] font-bold text-amber-900">تعليمات المستودع:</span>
+                                <p className="mt-0.5 font-medium text-amber-950">{delivery.staffNote}</p>
+                            </div>
+                        )}
+                    </div>
+
                     {delivery.notes && (
                         <div className="pt-2 border-t border-gray-100 flex items-start gap-2 bg-gray-50 p-2.5 rounded-md text-gray-800">
                             <StickyNote className="w-3.5 h-3.5 text-gray-500 shrink-0 mt-0.5" />
@@ -313,7 +426,7 @@ export const DriverOrderPage: React.FC = () => {
                                 </p>
                             </div>
                         </div>
-                        {closed && delivery.status === 'delivered' && (
+                        {delivery.codCollected && (
                             <span className="flex items-center gap-1 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg">
                                 <ShieldCheck className="w-4 h-4" /> تم التحصيل
                             </span>
@@ -334,7 +447,7 @@ export const DriverOrderPage: React.FC = () => {
                 </div>
             )}
 
-            {/* Product Items Checklist Card */}
+            {/* Product Items Checklist Card: pickup checks are stored on the server, so they survive a reload */}
             <div className="bg-white rounded-lg border border-gray-200 shadow-xs p-4 sm:p-5 space-y-3.5">
                 <div className="flex items-center justify-between pb-2.5 border-b border-gray-100">
                     <div className="flex items-center gap-2">
@@ -343,12 +456,12 @@ export const DriverOrderPage: React.FC = () => {
                             محتويات الشحنة ({delivery.itemCount} قطعة)
                         </h2>
                     </div>
-                    {onTheRoad && (
+                    {showChecklist && (
                         <span className={cn(
                             'text-xs font-bold px-2.5 py-1 rounded-md border transition-all',
-                            allChecked ? 'bg-emerald-50 text-emerald-900 border-emerald-200' : 'bg-gray-50 text-gray-700 border-gray-200'
+                            checkedLines === delivery.items.length && delivery.items.length > 0 ? 'bg-emerald-50 text-emerald-900 border-emerald-200' : 'bg-gray-50 text-gray-700 border-gray-200'
                         )}>
-                            {checkedCount} من {delivery.items.length} تم فحصها ✓
+                            {checkedLines} من {delivery.items.length} تم فحصها ✓
                         </span>
                     )}
                 </div>
@@ -356,23 +469,24 @@ export const DriverOrderPage: React.FC = () => {
                 <div className="divide-y divide-gray-100">
                     {visibleItems.map((item, index) => {
                         const img = getProductImageUrl(item, 200);
-                        const isChecked = !!checkedItems[index];
+                        const isChecked = checkedQtyOf(index + 1) >= item.quantity;
 
                         return (
                             <div
                                 key={index}
-                                onClick={() => onTheRoad && toggleItemChecked(index)}
                                 className={cn(
                                     'py-3 flex items-center gap-3 transition-colors px-1.5 rounded-lg',
-                                    onTheRoad ? 'cursor-pointer hover:bg-gray-50' : '',
-                                    isChecked && onTheRoad ? 'bg-emerald-50/40' : ''
+                                    isChecked && showChecklist ? 'bg-emerald-50/40' : ''
                                 )}
                             >
-                                {onTheRoad && (
+                                {showChecklist && (
                                     <button
                                         type="button"
-                                        aria-label="تحديد المنتج"
-                                        className="shrink-0 text-gray-400 hover:text-emerald-600"
+                                        onClick={() => void toggleLine(index)}
+                                        disabled={!checklistEditable}
+                                        aria-pressed={isChecked}
+                                        aria-label={`فحص ${item.name_ar}`}
+                                        className="shrink-0 text-gray-400 hover:text-emerald-600 disabled:cursor-default disabled:hover:text-gray-400"
                                     >
                                         {isChecked ? (
                                             <CheckSquare className="w-5 h-5 text-emerald-600" />
@@ -400,7 +514,7 @@ export const DriverOrderPage: React.FC = () => {
                                 <div className="min-w-0 flex-1">
                                     <p className={cn(
                                         'text-sm font-bold text-gray-900 leading-snug',
-                                        isChecked && onTheRoad ? 'line-through text-gray-400' : ''
+                                        isChecked && showChecklist ? 'line-through text-gray-400' : ''
                                     )}>
                                         {item.name_ar}
                                     </p>
@@ -439,6 +553,16 @@ export const DriverOrderPage: React.FC = () => {
                     </button>
                 )}
             </div>
+
+            {onTheRoad && (
+                <div className="bg-white rounded-lg border border-gray-200 shadow-xs p-4 sm:p-5 space-y-3">
+                    <div>
+                        <h2 className="text-sm font-bold text-gray-900">صورة إثبات التسليم</h2>
+                        <p className="text-xs text-gray-500 mt-0.5">التقطي صورة عند التسليم، أو صورة لما يثبت تعذّره.</p>
+                    </div>
+                    <ProofPhotoInput photo={photo} onChange={setPhoto} disabled={busy} />
+                </div>
+            )}
 
             {error && <Notice kind="error">{error}</Notice>}
 
@@ -488,8 +612,8 @@ export const DriverOrderPage: React.FC = () => {
                     {canPickUp && (
                         <button
                             type="button"
-                            onClick={() => void act('shipped')}
-                            disabled={busy}
+                            onClick={() => void sendStatus('shipped')}
+                            disabled={busy || checkBusy}
                             className="w-full py-3 px-4 bg-black hover:bg-gray-800 text-white font-bold text-sm sm:text-base rounded-lg flex items-center justify-center gap-2 shadow-xs transition-all active:scale-95"
                         >
                             {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
@@ -501,18 +625,12 @@ export const DriverOrderPage: React.FC = () => {
                         <div className="grid grid-cols-2 gap-2.5">
                             <button
                                 type="button"
-                                onClick={() => {
-                                    if (!barcodeVerified) {
-                                        setBarcodeModalOpen(true);
-                                    } else {
-                                        void act('delivered');
-                                    }
-                                }}
-                                disabled={busy}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 sm:py-3 px-3 rounded-lg flex items-center justify-center gap-1.5 shadow-xs transition-colors text-xs sm:text-sm active:scale-95"
+                                onClick={() => void openScanner()}
+                                disabled={busy || !isOnline}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 sm:py-3 px-3 rounded-lg flex items-center justify-center gap-1.5 shadow-xs transition-colors text-xs sm:text-sm active:scale-95 disabled:opacity-50"
                             >
                                 {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <PackageCheck className="w-4 h-4" />}
-                                {barcodeVerified ? 'تأكيد التسليم' : 'مسح الباركود والتسليم'}
+                                مسح الباركود والتسليم
                             </button>
                             <button
                                 type="button"
@@ -525,11 +643,15 @@ export const DriverOrderPage: React.FC = () => {
                         </div>
                     )}
 
+                    {onTheRoad && !isOnline && !failing && (
+                        <p className="text-center text-[11px] font-bold text-amber-800">التسليم يحتاج اتصالاً لأن رمز العميل يُتحقق منه في الخادم.</p>
+                    )}
+
                     {onTheRoad && failing && (
                         <div className="grid grid-cols-2 gap-2.5">
                             <button
                                 type="button"
-                                onClick={() => void act('delivery_failed')}
+                                onClick={() => void sendStatus('delivery_failed')}
                                 disabled={busy}
                                 className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 sm:py-3 px-3 rounded-lg shadow-xs transition-colors flex items-center justify-center gap-1.5 text-xs sm:text-sm"
                             >
@@ -549,7 +671,7 @@ export const DriverOrderPage: React.FC = () => {
 
                     {closed && (
                         <div className="p-3 text-center rounded-lg bg-gray-50 border border-gray-200 text-xs font-bold text-gray-700">
-                            {delivery.status === 'delivered'
+                            {status === 'delivered'
                                 ? '✓ تم تسليم هذا الطلب للعميل بنجاح'
                                 : 'سُجّل تعذر التسليم — تمت إعادة توجيه الطلب لإدارة المستودع'}
                         </div>
@@ -561,14 +683,21 @@ export const DriverOrderPage: React.FC = () => {
             <BarcodeScannerModal
                 isOpen={barcodeModalOpen}
                 orderNumber={delivery.orderNumber}
-                orderId={delivery.id}
                 onClose={() => setBarcodeModalOpen(false)}
-                onVerified={() => {
-                    setBarcodeVerified(true);
-                    setBarcodeModalOpen(false);
-                    void act('delivered');
-                }}
+                onSubmitCode={deliverWithCode}
             />
+
+            {confirmation.request && (
+                <ConfirmDialog
+                    title={confirmation.request.title}
+                    body={confirmation.request.body}
+                    confirmLabel={confirmation.request.confirmLabel}
+                    cancelLabel={confirmation.request.cancelLabel}
+                    tone={confirmation.request.tone}
+                    onConfirm={confirmation.confirm}
+                    onCancel={confirmation.cancel}
+                />
+            )}
         </div>
     );
 };

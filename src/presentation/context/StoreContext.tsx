@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback, useRef } from 'react';
 import { Product, ProductVariant, CartItem } from '@domain/entities';
 import { fetchProducts } from '@infrastructure/repositories';
-import { cartLineKey } from '@domain/valueObjects';
-import { getCached, setCache, invalidateCache } from '@infrastructure/cache';
+import { cartLineKey, remainingStock, reconcileCartWithStock, productQuantityInCart } from '@domain/valueObjects';
+import { getCached, invalidateCache, subscribeCache } from '@infrastructure/cache';
 import { useAuth } from './AuthContext';
 import { supabase } from '@infrastructure/supabase';
 import { useNavigate } from 'react-router-dom';
@@ -19,7 +19,7 @@ interface StoreContextType {
     products: Product[];
     productsLoading: boolean;
     productsError: string | null;
-    reloadProducts: () => Promise<void>;
+    reloadProducts: (force?: boolean) => Promise<void>;
     cart: CartItem[];
     wishlist: string[];
     favoriteProducts: Product[];
@@ -28,12 +28,16 @@ interface StoreContextType {
     removeFromCart: (lineKey: string) => void;
     updateQuantity: (lineKey: string, quantity: number) => void;
     clearCart: () => void;
+    // Re-reads live stock and brings the Cart back under it; the adjustments are reported through storeNotice.
+    revalidateCart: () => Promise<void>;
     toggleWishlist: (productId: string, product?: Product) => void;
     addToRecentlyViewed: (product: Product) => void;
     recentlyViewed: Product[];
     cartCount: number;
     cartNotification: CartNotificationData | null;
     dismissCartNotification: () => void;
+    storeNotice: string | null;
+    dismissStoreNotice: () => void;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -59,19 +63,29 @@ const isProductRecord = (value: unknown): value is Record<string, Product> =>
     value !== null && typeof value === 'object' && !Array.isArray(value) &&
     Object.values(value as Record<string, unknown>).every((p) => p && typeof (p as Product).id === 'string' && typeof (p as Product).name_ar === 'string');
 const MAX_RECENTLY_VIEWED_ITEMS = 10;
+const STORE_NOTICE_MS = 4000;
+const PRODUCTS_KEY = 'products:all';
 
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { user } = useAuth();
     const userId = user?.id ?? null;
     const navigate = useNavigate();
 
-    const [products, setProducts] = useState<Product[]>(() => getCached<Product[]>('products:all') ?? []);
-    const [productsLoading, setProductsLoading] = useState(() => getCached<Product[]>('products:all') === null);
+    const [products, setProducts] = useState<Product[]>(() => getCached<Product[]>(PRODUCTS_KEY) ?? []);
+    const [productsLoading, setProductsLoading] = useState(() => getCached<Product[]>(PRODUCTS_KEY) === null);
     const [productsError, setProductsError] = useState<string | null>(null);
+    const [storeNotice, setStoreNotice] = useState<string | null>(null);
+    const dismissStoreNotice = useCallback(() => setStoreNotice(null), []);
+
+    useEffect(() => {
+        if (!storeNotice) return;
+        const timer = setTimeout(() => setStoreNotice(null), STORE_NOTICE_MS);
+        return () => clearTimeout(timer);
+    }, [storeNotice]);
 
     const reloadProducts = useCallback(async (force = false) => {
-        if (force) invalidateCache('products:all');
-        const cached = getCached<Product[]>('products:all');
+        if (force) invalidateCache(PRODUCTS_KEY);
+        const cached = getCached<Product[]>(PRODUCTS_KEY);
         if (cached) {
             setProducts(cached);
             setProductsLoading(false);
@@ -80,9 +94,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
         setProductsError(null);
         try {
-            const fresh = await fetchProducts();
-            setCache('products:all', fresh);
-            setProducts(fresh);
+            setProducts(await fetchProducts());
         } catch (error) {
             console.error('Failed to load products', error);
             if (!cached) setProductsError('تعذر تحميل المنتجات، تحققي من الاتصال وحاولي مرة أخرى.');
@@ -92,14 +104,27 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }, []);
 
     useEffect(() => { void reloadProducts(); }, [reloadProducts]);
+    // Background refreshes of the catalogue (SWR, tab returning to the foreground) reach the page here.
+    useEffect(() => subscribeCache<Product[]>(PRODUCTS_KEY, (fresh) => {
+        setProducts(fresh);
+        setProductsLoading(false);
+    }), []);
 
     const [cart, setCart] = useState<CartItem[]>(() => withVariantFields(readJson('sb_cart', isCart, [])));
+    // Cart edits read the latest committed Cart here, so several edits in one tick (a reorder) each see the one before.
+    const cartRef = useRef(cart);
+    const commitCart = useCallback((next: CartItem[]) => {
+        cartRef.current = next;
+        setCart(next);
+    }, []);
+
     const [wishlist, setWishlist] = useState<string[]>(() => {
         if (!userId) return [];
         const userWishlist = readJson(`sb_wishlist_${userId}`, isStringArray, null as string[] | null);
         if (userWishlist !== null) return userWishlist;
         return readJson('sb_wishlist', isStringArray, []);
     });
+    const pendingWishlistIds = useRef(new Set<string>());
 
     const [favoriteSnapshots, setFavoriteSnapshots] = useState<Record<string, Product>>(() => {
         if (!userId) return {};
@@ -282,26 +307,32 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const addToCart = useCallback((product: Product, variant: ProductVariant | null = null, quantity = 1) => {
         if (product.isRemoved) return;
         if (products.length > 0 && !products.some(p => p.id === product.id)) return;
-        setCart(prev => {
-            const line: CartItem = {
-                productId: product.id,
-                variantId: variant?.id ?? null,
-                variantName: variant?.name_ar ?? null,
-                name_ar: product.name_ar,
-                image: product.image,
-                price: variant?.price ?? product.price,
-                discountPercentage: product.discountPercentage,
-                effectivePrice: variant ? variant.effectivePrice : product.effectivePrice,
-                pricingRule: variant ? variant.pricingRule : product.pricingRule,
-                quantity,
-            };
-            const key = cartLineKey(line);
-            const existing = prev.find(item => cartLineKey(item) === key);
-            if (existing) {
-                return prev.map(item => cartLineKey(item) === key ? { ...item, quantity: item.quantity + quantity } : item);
-            }
-            return [...prev, line];
-        });
+        const current = cartRef.current;
+        const allowed = Math.min(quantity, remainingStock(current, product.id, product.stock));
+        if (allowed <= 0) {
+            setStoreNotice(`وصلتِ إلى الكمية المتاحة من ${product.name_ar} في المخزون`);
+            return;
+        }
+        if (allowed < quantity) {
+            setStoreNotice(`المتاح من ${product.name_ar} في المخزون ${product.stock} فقط، أضفنا ${allowed}`);
+        }
+        const line: CartItem = {
+            productId: product.id,
+            variantId: variant?.id ?? null,
+            variantName: variant?.name_ar ?? null,
+            name_ar: product.name_ar,
+            image: product.image,
+            price: variant?.price ?? product.price,
+            discountPercentage: product.discountPercentage,
+            effectivePrice: variant ? variant.effectivePrice : product.effectivePrice,
+            pricingRule: variant ? variant.pricingRule : product.pricingRule,
+            quantity: allowed,
+        };
+        const key = cartLineKey(line);
+        const existing = current.find(item => cartLineKey(item) === key);
+        commitCart(existing
+            ? current.map(item => cartLineKey(item) === key ? { ...item, quantity: item.quantity + allowed } : item)
+            : [...current, line]);
         setCartNotification({
             productId: product.id,
             productName: product.name_ar,
@@ -309,22 +340,62 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             image: product.image,
             price: variant ? variant.effectivePrice : product.effectivePrice,
         });
-    }, [products]);
+    }, [products, commitCart]);
 
     const removeFromCart = useCallback((lineKey: string) => {
-        setCart(prev => prev.filter(item => cartLineKey(item) !== lineKey));
-    }, []);
+        commitCart(cartRef.current.filter(item => cartLineKey(item) !== lineKey));
+    }, [commitCart]);
 
     const updateQuantity = useCallback((lineKey: string, quantity: number) => {
         if (quantity <= 0) {
             removeFromCart(lineKey);
             return;
         }
-        setCart(prev => prev.map(item => cartLineKey(item) === lineKey ? { ...item, quantity } : item));
-    }, [removeFromCart]);
+        const current = cartRef.current;
+        const line = current.find(item => cartLineKey(item) === lineKey);
+        if (!line) return;
+        let next = quantity;
+        const product = products.find(p => p.id === line.productId);
+        if (product) {
+            const othersInCart = productQuantityInCart(current, product.id) - line.quantity;
+            const cap = Math.max(product.stock - othersInCart, 0);
+            if (quantity > cap) {
+                setStoreNotice(`المتاح من ${product.name_ar} في المخزون ${product.stock} فقط`);
+                next = cap;
+            }
+        }
+        if (next <= 0) {
+            removeFromCart(lineKey);
+            return;
+        }
+        commitCart(current.map(item => cartLineKey(item) === lineKey ? { ...item, quantity: next } : item));
+    }, [products, removeFromCart, commitCart]);
 
-    const clearCart = useCallback(() => setCart([]), []);
+    const clearCart = useCallback(() => commitCart([]), [commitCart]);
 
+    const revalidateCart = useCallback(async () => {
+        invalidateCache(PRODUCTS_KEY);
+        let fresh: Product[];
+        try {
+            fresh = await fetchProducts();
+        } catch (error) {
+            console.error('Cart stock check failed', error);
+            return;
+        }
+        setProducts(fresh);
+        const stockById = new Map(fresh.map(p => [p.id, p.stock]));
+        const current = cartRef.current;
+        const { cart: next, adjustments } = reconcileCartWithStock(current, stockById);
+        if (adjustments.length === 0) return;
+        commitCart(next);
+        setStoreNotice(adjustments
+            .map(a => (a.to === 0
+                ? `نفد ${a.name_ar} من المخزون وأُزيل من السلة`
+                : `تم تخفيض كمية ${a.name_ar} إلى ${a.to} حسب المتاح في المخزون`))
+            .join('، '));
+    }, [commitCart]);
+
+    // Writes run outside the state updater: the optimistic change is rolled back and a message shown if the server refuses.
     const toggleWishlist = useCallback((productId: string, product?: Product) => {
         if (!userId) {
             if (navigate) {
@@ -334,30 +405,38 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             }
             return;
         }
+        if (pendingWishlistIds.current.has(productId)) return;
 
-        setWishlist(prev => {
-            const exists = prev.includes(productId);
-            if (exists) {
-                void supabase
-                    .from('customer_favorites')
-                    .delete()
-                    .eq('customer_id', userId)
-                    .eq('product_id', productId);
-                return prev.filter(id => id !== productId);
-            } else {
-                const snapshot = product
-                    || products.find(p => p.id === productId)
-                    || recentlyViewed.find(p => p.id === productId);
-                if (snapshot) {
-                    setFavoriteSnapshots(current => ({ ...current, [productId]: snapshot }));
-                }
-                void supabase
-                    .from('customer_favorites')
-                    .insert({ customer_id: userId, product_id: productId });
-                return [...prev, productId];
+        const exists = wishlist.includes(productId);
+        const snapshot = product
+            || products.find(p => p.id === productId)
+            || recentlyViewed.find(p => p.id === productId);
+        pendingWishlistIds.current.add(productId);
+        setWishlist(exists ? wishlist.filter(id => id !== productId) : [...wishlist, productId]);
+        if (!exists && snapshot) {
+            setFavoriteSnapshots(current => ({ ...current, [productId]: snapshot }));
+        }
+
+        void (async () => {
+            try {
+                const { error } = exists
+                    ? await supabase.from('customer_favorites').delete().eq('customer_id', userId).eq('product_id', productId)
+                    : await supabase.from('customer_favorites').insert({ customer_id: userId, product_id: productId });
+                if (error) throw error;
+            } catch (error) {
+                console.error('Wishlist write failed', error);
+                setWishlist(current => {
+                    const present = current.includes(productId);
+                    if (exists && !present) return [...current, productId];
+                    if (!exists && present) return current.filter(id => id !== productId);
+                    return current;
+                });
+                setStoreNotice('تعذر تحديث المفضلة، حاولي مرة أخرى.');
+            } finally {
+                pendingWishlistIds.current.delete(productId);
             }
-        });
-    }, [userId, products, recentlyViewed, navigate]);
+        })();
+    }, [userId, products, recentlyViewed, navigate, wishlist]);
 
     const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -375,11 +454,14 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             removeFromCart,
             updateQuantity,
             clearCart,
+            revalidateCart,
             toggleWishlist,
             addToRecentlyViewed,
             cartCount,
             cartNotification,
             dismissCartNotification,
+            storeNotice,
+            dismissStoreNotice,
         }}>
             {children}
         </StoreContext.Provider>

@@ -2,10 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, Navigate } from 'react-router-dom';
 import {
     LayoutDashboard, Package, LogOut, Menu, X, Loader2,
-    ShoppingBag, Settings, Truck, Boxes, Warehouse, MapPin, Image, MessageSquare, Radio, Layers, Ticket, Percent, Users, Megaphone, Gauge, Undo2
+    ShoppingBag, Settings, Truck, Boxes, Warehouse, MapPin, Image, MessageSquare, Radio, Layers, Ticket, Percent, Users, Megaphone, Gauge, Undo2, Banknote, FolderTree, Tag,
+    FileText, Building2, PackageX, TrendingUp, Bell, ClipboardList, MapPinned, ScrollText
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useUnseenOrders } from '../hooks/useUnseenOrders';
+import { useOrdersNeedingActionCount } from '../hooks/useOrdersNeedingActionCount';
+import { useUnreadStaffNotifications } from '../hooks/useUnreadStaffNotifications';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
 // Below `lg:` (1024px) the sidebar renders as a modal drawer over the page and should trap
@@ -28,8 +31,10 @@ export const AdminLayout: React.FC = () => {
     const closeSidebar = React.useCallback(() => setSidebarOpen(false), []);
     const sidebarRef = useFocusTrap<HTMLElement>(sidebarOpen && isBelowLg, closeSidebar);
     const location = useLocation();
-    const { user, isAdmin, loading, signOut } = useAuth();
+    const { user, isAdmin, isWarehouseManager, managedWarehouses, loading, signOut } = useAuth();
     const { count: unseenOrders } = useUnseenOrders();
+    const actionCount = useOrdersNeedingActionCount();
+    const unreadNotifications = useUnreadStaffNotifications();
 
     if (loading) {
         return (
@@ -39,32 +44,53 @@ export const AdminLayout: React.FC = () => {
         );
     }
 
-    if (!user || !isAdmin) {
+    if (!user || !(isAdmin || isWarehouseManager)) {
         return <Navigate to="/login" replace />;
     }
 
-    const menuItems: { path: string; icon: typeof LayoutDashboard; label: string; badge: string | null }[] = [
-        { path: '/dashboard', icon: LayoutDashboard, label: 'لوحة التحكم', badge: null },
-        { path: '/orders', icon: ShoppingBag, label: 'الطلبات', badge: unseenOrders > 0 ? String(unseenOrders) : null },
-        { path: '/returns', icon: Undo2, label: 'المرتجعات', badge: null },
-        { path: '/customers', icon: Users, label: 'العملاء', badge: null },
-        { path: '/products', icon: Package, label: 'المنتجات', badge: null },
-        { path: '/inventory', icon: Boxes, label: 'المخزون', badge: null },
-        { path: '/warehouses', icon: Warehouse, label: 'المخازن', badge: null },
-        { path: '/delivery-zones', icon: MapPin, label: 'محليات التوصيل', badge: null },
-        { path: '/delivery-pricing', icon: Gauge, label: 'تسعير التوصيل الديناميكي', badge: null },
-        { path: '/drivers', icon: Truck, label: 'المندوبون', badge: null },
-        { path: '/banners', icon: Image, label: 'البانرات', badge: null },
-        { path: '/collections', icon: Layers, label: 'التشكيلات', badge: null },
-        { path: '/coupons', icon: Ticket, label: 'أكواد الخصم', badge: null },
-        { path: '/affiliates', icon: Megaphone, label: 'المسوقون والعمولات', badge: null },
-        { path: '/promotions', icon: Percent, label: 'العروض', badge: null },
-        { path: '/reviews', icon: MessageSquare, label: 'التقييمات', badge: null },
-        { path: '/delivery-health', icon: Radio, label: 'حالة الإشعارات', badge: null },
-        { path: '/settings', icon: Settings, label: 'الإعدادات', badge: null },
+    const menuItems: { path: string; icon: typeof LayoutDashboard; label: string; badge: string | null; access: 'admin' | 'staff' }[] = [
+        { path: '/dashboard', icon: LayoutDashboard, label: 'لوحة التحكم', badge: null, access: 'admin' },
+        { path: '/reports/profit', icon: TrendingUp, label: 'تقرير الأرباح', badge: null, access: 'admin' },
+        { path: '/orders', icon: ShoppingBag, label: 'الطلبات', badge: unseenOrders > 0 ? String(unseenOrders) : null, access: 'staff' },
+        { path: '/orders?view=action', icon: ClipboardList, label: 'يحتاج إجراء', badge: actionCount > 0 ? String(actionCount) : null, access: 'staff' },
+        { path: '/drivers/map', icon: MapPinned, label: 'خريطة المناديب', badge: null, access: 'staff' },
+        { path: '/notifications', icon: Bell, label: 'التنبيهات', badge: unreadNotifications > 0 ? String(unreadNotifications) : null, access: 'staff' },
+        { path: '/returns', icon: Undo2, label: 'المرتجعات', badge: null, access: 'admin' },
+        { path: '/customers', icon: Users, label: 'العملاء', badge: null, access: 'admin' },
+        { path: '/products', icon: Package, label: 'المنتجات', badge: null, access: 'admin' },
+        { path: '/categories', icon: FolderTree, label: 'التصنيفات', badge: null, access: 'admin' },
+        { path: '/brands', icon: Tag, label: 'العلامات التجارية', badge: null, access: 'admin' },
+        { path: '/inventory', icon: Boxes, label: 'المخزون', badge: null, access: 'staff' },
+        { path: '/warehouse-cash', icon: Banknote, label: 'تسويات النقد', badge: null, access: 'staff' },
+        { path: '/purchases', icon: FileText, label: 'فواتير الشراء', badge: null, access: 'staff' },
+        { path: '/suppliers', icon: Building2, label: 'الموردون', badge: null, access: 'staff' },
+        { path: '/supplier-returns', icon: PackageX, label: 'مرتجعات الموردين', badge: null, access: 'staff' },
+        { path: '/warehouses', icon: Warehouse, label: 'المخازن', badge: null, access: 'admin' },
+        { path: '/delivery-zones', icon: MapPin, label: 'محليات التوصيل', badge: null, access: 'admin' },
+        { path: '/delivery-pricing', icon: Gauge, label: 'تسعير التوصيل الديناميكي', badge: null, access: 'admin' },
+        { path: '/drivers', icon: Truck, label: 'المندوبون', badge: null, access: 'admin' },
+        { path: '/banners', icon: Image, label: 'البانرات', badge: null, access: 'admin' },
+        { path: '/collections', icon: Layers, label: 'التشكيلات', badge: null, access: 'admin' },
+        { path: '/coupons', icon: Ticket, label: 'أكواد الخصم', badge: null, access: 'admin' },
+        { path: '/affiliates', icon: Megaphone, label: 'المسوقون والعمولات', badge: null, access: 'admin' },
+        { path: '/promotions', icon: Percent, label: 'العروض', badge: null, access: 'admin' },
+        { path: '/reviews', icon: MessageSquare, label: 'التقييمات', badge: null, access: 'admin' },
+        { path: '/delivery-health', icon: Radio, label: 'حالة الإشعارات', badge: null, access: 'admin' },
+        { path: '/audit', icon: ScrollText, label: 'سجل التدقيق', badge: null, access: 'admin' },
+{ path: '/settings', icon: Settings, label: 'الإعدادات', badge: null, access: 'admin' },
     ];
 
-    const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
+    const visibleMenuItems = menuItems.filter((item) => item.access === 'staff' || isAdmin);
+    const warehouseNames = managedWarehouses.map((w) => w.name).join('، ');
+    const roleLabel = isAdmin ? 'مدير النظام' : 'مدير المستودع';
+
+    const isActive = (path: string) => {
+        const [pathname, query] = path.split('?');
+        if (query) return location.pathname === pathname && location.search.includes(query);
+        if (pathname === '/orders' && location.search.includes('view=action')) return false;
+        if (pathname === '/drivers' && location.pathname === '/drivers/map') return false;
+        return location.pathname === pathname || location.pathname.startsWith(pathname + '/');
+    };
 
     return (
         <div className="min-h-screen bg-slate-50 flex font-sans text-slate-900" dir="rtl">
@@ -95,7 +121,9 @@ export const AdminLayout: React.FC = () => {
                             </div>
                             <div>
                                 <h2 className="text-xl font-bold tracking-tight text-white">إدارة تيبس</h2>
-                                <p className="text-[10px] tracking-widest text-slate-400 font-bold">لوحة الإدارة</p>
+                                <p className="text-[10px] tracking-widest text-slate-400 font-bold truncate">
+                                    {isAdmin ? 'لوحة الإدارة' : `${roleLabel}: ${warehouseNames || '—'}`}
+                                </p>
                             </div>
                         </div>
                         <button onClick={closeSidebar} aria-label="إغلاق القائمة" className="lg:hidden p-2 text-slate-400 hover:text-white transition-colors">
@@ -105,7 +133,7 @@ export const AdminLayout: React.FC = () => {
 
                     {/* Navigation */}
                     <nav className="flex-1 px-4 py-8 space-y-1 overflow-y-auto custom-scrollbar">
-                        {menuItems.map((item) => {
+                        {visibleMenuItems.map((item) => {
                             const Icon = item.icon;
                             const active = isActive(item.path);
                             return (
@@ -140,7 +168,7 @@ export const AdminLayout: React.FC = () => {
                             </div>
                             <div className="overflow-hidden">
                                 <p className="text-xs font-bold text-slate-200 truncate">{user?.email}</p>
-                                <p className="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">مدير النظام</p>
+                                <p className="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">{roleLabel}</p>
                             </div>
                         </div>
                         <button
@@ -162,7 +190,18 @@ export const AdminLayout: React.FC = () => {
                         <Menu className="w-6 h-6" />
                     </button>
                     <h2 className="text-lg font-bold text-slate-900">نظام إدارة تيبس</h2>
-                    <div className="w-10" /> {/* Spacer */}
+                    <Link
+                        to="/notifications"
+                        aria-label={unreadNotifications > 0 ? `التنبيهات، ${unreadNotifications} جديد` : 'التنبيهات'}
+                        className="relative p-2 text-slate-600 hover:bg-slate-50 rounded-lg"
+                    >
+                        <Bell className="w-6 h-6" />
+                        {unreadNotifications > 0 && (
+                            <span className="absolute -top-0.5 -left-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-black flex items-center justify-center">
+                                {unreadNotifications}
+                            </span>
+                        )}
+                    </Link>
                 </header>
 
                 {/* Dashboard Viewport */}

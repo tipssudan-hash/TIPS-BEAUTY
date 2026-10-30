@@ -1,38 +1,47 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchStaffContext, type ManagedWarehouse } from '../lib/adminApi';
 import type { Session, User } from '@supabase/supabase-js';
 
-interface AuthContextType {
+interface StaffState {
+    role: string | null;
+    isAdmin: boolean;
+    isWarehouseManager: boolean;
+    managedWarehouses: ManagedWarehouse[];
+}
+
+interface AuthContextType extends StaffState {
     session: Session | null;
     user: User | null;
-    isAdmin: boolean;
     loading: boolean;
     signOut: () => Promise<void>;
-    checkAdminRole: (userId: string) => Promise<boolean>;
+    checkStaffAccess: () => Promise<boolean>;
 }
+
+const NO_STAFF_ACCESS: StaffState = { role: null, isAdmin: false, isWarehouseManager: false, managedWarehouses: [] };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [session, setSession] = useState<Session | null>(null);
     const [user, setUser] = useState<User | null>(null);
-    const [isAdmin, setIsAdmin] = useState(false);
+    const [staff, setStaff] = useState<StaffState>(NO_STAFF_ACCESS);
     const [loading, setLoading] = useState(true);
 
-    const checkAdminRole = useCallback(async (userId: string): Promise<boolean> => {
+    const checkStaffAccess = useCallback(async (): Promise<boolean> => {
         try {
-            const { data, error } = await supabase.from('profiles').select('role').eq('id', userId).single();
-            if (error) {
-                console.error('Error checking role:', error);
-                setIsAdmin(false);
-                return false;
-            }
-            const admin = data?.role === 'admin';
-            setIsAdmin(admin);
-            return admin;
+            const context = await fetchStaffContext();
+            const next: StaffState = {
+                role: context.role,
+                isAdmin: context.is_admin,
+                isWarehouseManager: context.is_warehouse_manager,
+                managedWarehouses: context.warehouses,
+            };
+            setStaff(next);
+            return next.isAdmin || next.isWarehouseManager;
         } catch (error) {
-            console.error('Error checking admin role:', error);
-            setIsAdmin(false);
+            console.error('Error checking staff access:', error);
+            setStaff(NO_STAFF_ACCESS);
             return false;
         } finally {
             setLoading(false);
@@ -44,7 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setSession(session);
             setUser(session?.user ?? null);
             if (session?.user) {
-                void checkAdminRole(session.user.id);
+                void checkStaffAccess();
             } else {
                 setLoading(false);
             }
@@ -56,23 +65,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(session?.user ?? null);
             if (event === 'TOKEN_REFRESHED') return;
             if (session?.user) {
-                void checkAdminRole(session.user.id);
+                void checkStaffAccess();
             } else {
-                setIsAdmin(false);
+                setStaff(NO_STAFF_ACCESS);
                 setLoading(false);
             }
         });
 
         return () => subscription.unsubscribe();
-    }, [checkAdminRole]);
+    }, [checkStaffAccess]);
 
     const signOut = async () => {
         await supabase.auth.signOut();
-        setIsAdmin(false);
+        setStaff(NO_STAFF_ACCESS);
     };
 
     return (
-        <AuthContext.Provider value={{ session, user, isAdmin, loading, signOut, checkAdminRole }}>
+        <AuthContext.Provider value={{ session, user, ...staff, loading, signOut, checkStaffAccess }}>
             {children}
         </AuthContext.Provider>
     );

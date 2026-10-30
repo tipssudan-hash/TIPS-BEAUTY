@@ -4,12 +4,15 @@ import type { Warehouse } from '../types';
 import { SUDANESE_STATES } from '../types';
 import { fetchWarehouses, saveWarehouse, type WarehouseInput } from '../lib/catalogApi';
 import {
-    fetchWarehouseSupervisors,
+    fetchWarehouseManagers,
     searchAssignableUsers,
-    setWarehouseSupervisor,
+    setWarehouseManagerAccess,
     type SupervisorUser,
+    type WarehouseManager,
 } from '../lib/adminApi';
+import { resolvePrimaryWarehouse } from '../lib/warehouseAccess';
 import { errorMessage } from '../lib/errors';
+import { AuditHistory } from '../components/AuditHistory';
 import {
     Card,
     Field,
@@ -46,14 +49,14 @@ const numberOrNull = (value: string): number | null => {
 
 export const WarehousesPage: React.FC = () => {
     const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-    const [supervisors, setSupervisors] = useState<SupervisorUser[]>([]);
+    const [managers, setManagers] = useState<WarehouseManager[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [successMsg, setSuccessMsg] = useState<string | null>(null);
     const [editing, setEditing] = useState<{ id: string | null; data: WarehouseInput } | null>(null);
     const [saving, setSaving] = useState(false);
 
-    // Supervisor Assignment Modal State
+    // Manager Assignment Modal State
     const [assignModalWarehouse, setAssignModalWarehouse] = useState<Warehouse | null>(null);
     const [userSearch, setUserSearch] = useState('');
     const [candidateUsers, setCandidateUsers] = useState<SupervisorUser[]>([]);
@@ -64,14 +67,14 @@ export const WarehousesPage: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            const [whList, supList] = await Promise.all([
+            const [whList, managerList] = await Promise.all([
                 fetchWarehouses(),
-                fetchWarehouseSupervisors().catch(() => []),
+                fetchWarehouseManagers().catch(() => []),
             ]);
             setWarehouses(whList);
-            setSupervisors(supList);
+            setManagers(managerList);
         } catch (err) {
-            setError(errorMessage(err, 'تعذر تحميل المخازن والمشرفين.'));
+            setError(errorMessage(err, 'تعذر تحميل المخازن ومديري المستودعات.'));
         } finally {
             setLoading(false);
         }
@@ -81,7 +84,7 @@ export const WarehousesPage: React.FC = () => {
         void load();
     }, []);
 
-    // Search users for supervisor delegation
+    // Search users for manager delegation
     useEffect(() => {
         if (!assignModalWarehouse) return;
         let cancelled = false;
@@ -134,23 +137,35 @@ export const WarehousesPage: React.FC = () => {
         }
     };
 
-    const handleAssignSupervisor = async (userId: string, warehouseId: string | null) => {
+    const managersOf = (warehouseId: string) => managers.filter((m) => m.warehouse_ids.includes(warehouseId));
+
+    const applyManagerAccess = async (userId: string, warehouseIds: string[], primaryId: string | null, message: string) => {
         setAssigningUserId(userId);
         setError(null);
         try {
-            await setWarehouseSupervisor(userId, warehouseId);
-            setSuccessMsg(
-                warehouseId
-                    ? 'تم تعيين المشرف للمستودع بنجاح وتفعيل صلاحيات المشرف.'
-                    : 'تم إلغاء تعيين المشرف وإعادته كحساب عميل عادي.'
-            );
+            await setWarehouseManagerAccess(userId, warehouseIds, resolvePrimaryWarehouse(warehouseIds, primaryId));
+            setSuccessMsg(message);
             setTimeout(() => setSuccessMsg(null), 4000);
             await load();
         } catch (err) {
-            setError(errorMessage(err, 'تعذر تحديث تعيين المشرف.'));
+            setError(errorMessage(err, 'تعذر تحديث صلاحيات مدير المستودع.'));
         } finally {
             setAssigningUserId(null);
         }
+    };
+
+    const removeFromWarehouse = (manager: WarehouseManager, warehouse: Warehouse) => {
+        const remaining = manager.warehouse_ids.filter((id) => id !== warehouse.id);
+        const message = remaining.length
+            ? `تم إزالة المدير من مستودع ${warehouse.name}.`
+            : 'تم إلغاء صلاحيات مدير المستودع وإعادة الحساب لدور عميل.';
+        void applyManagerAccess(manager.user_id, remaining, manager.primary_warehouse_id, message);
+    };
+
+    const addToWarehouse = (userId: string, warehouse: Warehouse) => {
+        const existing = managers.find((m) => m.user_id === userId);
+        const warehouseIds = [...new Set([...(existing?.warehouse_ids ?? []), warehouse.id])];
+        void applyManagerAccess(userId, warehouseIds, existing?.primary_warehouse_id ?? warehouse.id, `تم تعيين المدير لمستودع ${warehouse.name} بنجاح.`);
     };
 
     if (loading) return <Spinner />;
@@ -158,8 +173,8 @@ export const WarehousesPage: React.FC = () => {
     return (
         <div className="space-y-8">
             <PageHeader
-                title="المخازن والمشرفين"
-                subtitle="إدارة المستودعات، الإحداثيات الجغرافية، وتعيين المشرفين المسؤولين عن كل مستودع بالصلاحيات المباشرة."
+                title="المخازن ومديرو المستودعات"
+                subtitle="إدارة المستودعات، الإحداثيات الجغرافية، وتعيين مديري المستودعات. يمكن لمدير أن يدير أكثر من مستودع."
                 icon={<WarehouseIcon className="w-8 h-8 text-brand-blue" />}
                 actions={
                     <button
@@ -180,6 +195,12 @@ export const WarehousesPage: React.FC = () => {
                 </div>
             )}
 
+            {editing?.id && (
+                <Card className="p-6 space-y-3">
+                    <h3 className="font-black text-slate-900">السجل</h3>
+                    <AuditHistory table="warehouses" rowId={editing.id} />
+                </Card>
+            )}
             {/* Warehouse Edit Form */}
             {editing && (
                 <Card className="p-6">
@@ -306,14 +327,14 @@ export const WarehousesPage: React.FC = () => {
                 </Card>
             )}
 
-            {/* Warehouses & Supervisors Table */}
+            {/* Warehouses & Managers Table */}
             <Card className="overflow-hidden">
                 <Table
-                    headers={['المخزن', 'الرمز', 'الموقع', 'المشرف المسؤول', 'الهاتف', 'الحالة', 'الإجراءات']}
+                    headers={['المخزن', 'الرمز', 'الموقع', 'مديرو المستودع', 'الهاتف', 'الحالة', 'الإجراءات']}
                     empty={warehouses.length === 0}
                 >
                     {warehouses.map((w) => {
-                        const warehouseSupervisors = supervisors.filter((s) => s.assigned_warehouse_id === w.id);
+                        const warehouseManagers = managersOf(w.id);
 
                         return (
                             <tr key={w.id} className="hover:bg-slate-50/50">
@@ -331,21 +352,22 @@ export const WarehousesPage: React.FC = () => {
                                     )}
                                 </td>
                                 <td className="px-6 py-4 text-sm">
-                                    {warehouseSupervisors.length > 0 ? (
+                                    {warehouseManagers.length > 0 ? (
                                         <div className="space-y-1">
-                                            {warehouseSupervisors.map((sup) => (
+                                            {warehouseManagers.map((manager) => (
                                                 <div
-                                                    key={sup.id}
+                                                    key={manager.user_id}
                                                     className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-brand-blue font-bold text-xs"
                                                 >
                                                     <Shield className="w-3.5 h-3.5 text-brand-blue" />
-                                                    <span>{sup.full_name || sup.email || 'مشرف'}</span>
+                                                    <span>{manager.full_name || manager.email || 'مدير مستودع'}</span>
+                                                    {manager.primary_warehouse_id === w.id && <span className="text-[10px] text-slate-500">(أساسي)</span>}
                                                 </div>
                                             ))}
                                         </div>
                                     ) : (
                                         <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md">
-                                            لا يوجد مشرف معين
+                                            لا يوجد مدير مستودع معين
                                         </span>
                                     )}
                                 </td>
@@ -364,7 +386,7 @@ export const WarehousesPage: React.FC = () => {
                                             onClick={() => setAssignModalWarehouse(w)}
                                             className={`${smallButtonClass} bg-indigo-50 text-indigo-700 hover:bg-indigo-100 flex items-center gap-1 font-bold`}
                                         >
-                                            <UserCheck className="w-3.5 h-3.5" /> تعيين مشرف
+                                            <UserCheck className="w-3.5 h-3.5" /> تعيين مدير
                                         </button>
                                         <button
                                             type="button"
@@ -397,7 +419,7 @@ export const WarehousesPage: React.FC = () => {
                 </Table>
             </Card>
 
-            {/* Supervisor Assignment Modal */}
+            {/* Manager Assignment Modal */}
             {assignModalWarehouse && (
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn"
@@ -410,7 +432,7 @@ export const WarehousesPage: React.FC = () => {
                                     <UserCheck className="w-6 h-6 text-white" />
                                 </div>
                                 <div>
-                                    <h2 className="font-bold text-lg">تعيين مشرف المستودع</h2>
+                                    <h2 className="font-bold text-lg">تعيين مدير المستودع</h2>
                                     <p className="text-xs text-slate-200">
                                         {assignModalWarehouse.name} ({assignModalWarehouse.code})
                                     </p>
@@ -426,54 +448,55 @@ export const WarehousesPage: React.FC = () => {
                         </div>
 
                         <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
-                            {/* Current Assigned Supervisors for this warehouse */}
+                            {/* Current Managers for this warehouse */}
                             <div>
-                                <h4 className="text-xs font-black text-slate-700 mb-2">المشرفون الحاليون لهذا المستودع:</h4>
-                                {supervisors.filter((s) => s.assigned_warehouse_id === assignModalWarehouse.id).length > 0 ? (
+                                <h4 className="text-xs font-black text-slate-700 mb-2">مديرو هذا المستودع:</h4>
+                                {managersOf(assignModalWarehouse.id).length > 0 ? (
                                     <div className="space-y-2">
-                                        {supervisors
-                                            .filter((s) => s.assigned_warehouse_id === assignModalWarehouse.id)
-                                            .map((sup) => (
-                                                <div
-                                                    key={sup.id}
-                                                    className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-200"
-                                                >
-                                                    <div className="flex items-center gap-2.5">
-                                                        <div className="w-8 h-8 rounded-full bg-brand-blue/10 text-brand-blue flex items-center justify-center font-bold text-xs">
-                                                            {sup.full_name?.charAt(0) || sup.email?.charAt(0) || 'U'}
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-xs font-black text-slate-900">
-                                                                {sup.full_name || 'بدون اسم'}
-                                                            </p>
-                                                            <p className="text-2xs text-slate-500 font-mono" dir="ltr">
-                                                                {sup.email} {sup.phone ? `· ${sup.phone}` : ''}
-                                                            </p>
-                                                        </div>
+                                        {managersOf(assignModalWarehouse.id).map((manager) => (
+                                            <div
+                                                key={manager.user_id}
+                                                className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-200"
+                                            >
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="w-8 h-8 rounded-full bg-brand-blue/10 text-brand-blue flex items-center justify-center font-bold text-xs">
+                                                        {manager.full_name?.charAt(0) || manager.email?.charAt(0) || 'U'}
                                                     </div>
-                                                    <button
-                                                        type="button"
-                                                        disabled={assigningUserId === sup.id}
-                                                        onClick={() => handleAssignSupervisor(sup.id, null)}
-                                                        className="px-2.5 py-1.5 rounded-xl bg-red-50 text-red-700 hover:bg-red-100 text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1"
-                                                    >
-                                                        <UserX className="w-3.5 h-3.5" /> إلغاء التعيين
-                                                    </button>
+                                                    <div>
+                                                        <p className="text-xs font-black text-slate-900">
+                                                            {manager.full_name || 'بدون اسم'}
+                                                        </p>
+                                                        <p className="text-2xs text-slate-500 font-mono" dir="ltr">
+                                                            {manager.email} {manager.phone ? `· ${manager.phone}` : ''}
+                                                        </p>
+                                                        {manager.warehouse_ids.length > 1 && (
+                                                            <p className="text-2xs text-slate-500">يدير {manager.warehouse_ids.length} مستودعات</p>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            ))}
+                                                <button
+                                                    type="button"
+                                                    disabled={assigningUserId === manager.user_id}
+                                                    onClick={() => removeFromWarehouse(manager, assignModalWarehouse)}
+                                                    className="px-2.5 py-1.5 rounded-xl bg-red-50 text-red-700 hover:bg-red-100 text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1"
+                                                >
+                                                    <UserX className="w-3.5 h-3.5" /> إزالة من المستودع
+                                                </button>
+                                            </div>
+                                        ))}
                                     </div>
                                 ) : (
                                     <p className="text-xs text-slate-400 bg-slate-50 p-3 rounded-xl border border-dashed border-slate-200">
-                                        لا يوجد أي مشرف مرتبط بهذا المستودع حالياً.
+                                        لا يوجد أي مدير مرتبط بهذا المستودع حالياً.
                                     </p>
                                 )}
                             </div>
 
                             <hr className="border-slate-100" />
 
-                            {/* Search & Assign New Supervisor */}
+                            {/* Search & Add Manager */}
                             <div>
-                                <h4 className="text-xs font-black text-slate-700 mb-2">تعيين حساب مستخدم جديد كمشرف:</h4>
+                                <h4 className="text-xs font-black text-slate-700 mb-2">إضافة حساب مستخدم كمدير لهذا المستودع:</h4>
                                 <div className="relative mb-3">
                                     <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3.5 pointer-events-none" />
                                     <input
@@ -490,7 +513,7 @@ export const WarehousesPage: React.FC = () => {
                                 ) : candidateUsers.length > 0 ? (
                                     <div className="space-y-2 max-h-56 overflow-y-auto">
                                         {candidateUsers.map((user) => {
-                                            const isAlreadyHere = user.assigned_warehouse_id === assignModalWarehouse.id;
+                                            const isAlreadyHere = managers.some((m) => m.user_id === user.id && m.warehouse_ids.includes(assignModalWarehouse.id));
                                             return (
                                                 <div
                                                     key={user.id}
@@ -506,13 +529,13 @@ export const WarehousesPage: React.FC = () => {
                                                     </div>
                                                     {isAlreadyHere ? (
                                                         <span className="text-2xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md">
-                                                            معين حالياً
+                                                            مُعيَّن حالياً
                                                         </span>
                                                     ) : (
                                                         <button
                                                             type="button"
                                                             disabled={assigningUserId === user.id}
-                                                            onClick={() => handleAssignSupervisor(user.id, assignModalWarehouse.id)}
+                                                            onClick={() => addToWarehouse(user.id, assignModalWarehouse)}
                                                             className="px-3 py-1.5 rounded-xl bg-brand-blue text-white hover:bg-brand-blue/90 text-xs font-bold transition-all shadow-xs disabled:opacity-50 flex items-center gap-1 shrink-0"
                                                         >
                                                             <UserCheck className="w-3.5 h-3.5" />

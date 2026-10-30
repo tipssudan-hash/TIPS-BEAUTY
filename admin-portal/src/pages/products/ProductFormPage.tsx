@@ -1,17 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Save, ArrowRight, Loader2, Image as ImageIcon, Plus, Trash2, Info, Upload, Link as LinkIcon, Star } from 'lucide-react';
-import type { ProductInput, ProductVariant } from '../../types';
-import { createProduct, fetchAdminProduct, fetchAdminProducts, updateProduct, uploadPublicImage, validateImage } from '../../lib/catalogApi';
+import type { Brand, Category, ProductInput, ProductVariant } from '../../types';
+import { catalogError, createProduct, fetchAdminProduct, fetchBrands, fetchCategories, updateProduct, uploadPublicImage, validateImage } from '../../lib/catalogApi';
 import { errorMessage } from '../../lib/errors';
 import { formatSDG } from '../../lib/format';
+import { childrenByParent, categoryLabel, topLevelCategories } from '../../lib/categoryTree';
 import { Card, Field, Notice, Spinner, inputClass, primaryButtonClass, secondaryButtonClass } from '../../components/ui';
 
 const SKIN_TYPES = ['جميع الأنواع', 'دهنية', 'جافة', 'مختلطة', 'حساسة', 'عادية'];
 
 const emptyProduct: ProductInput = {
     name_ar: '', name_en: '', description: '', price: 0, cost_price: 0, discount_percentage: 0,
-    brand: '', category: '', image: '', images: [], origin: 'السودان', expiry: '',
+    category_id: null, brand_id: null, image: '', images: [], origin: 'السودان', expiry: '',
     ingredients: [], benefits: [], usage: '', skin_type: [], is_imported: true, variants: [], is_active: true,
     weight_grams: null, length_cm: null, width_cm: null, height_cm: null,
 };
@@ -31,24 +32,28 @@ export const ProductFormPage: React.FC = () => {
     const [saving, setSaving] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [categories, setCategories] = useState<string[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
+    const [brands, setBrands] = useState<Brand[]>([]);
     const [urlDraft, setUrlDraft] = useState('');
+    const [averageCost, setAverageCost] = useState<number | null>(null);
     const fileInput = useRef<HTMLInputElement>(null);
     const uploadFolder = useMemo(() => id ?? crypto.randomUUID(), [id]);
+    const childrenOf = useMemo(() => childrenByParent(categories), [categories]);
 
     useEffect(() => {
         let cancelled = false;
-        fetchAdminProducts()
-            .then((products) => { if (!cancelled) setCategories(Array.from(new Set(products.map((p) => p.category).filter(Boolean))).sort()); })
-            .catch(() => undefined);
+        Promise.all([fetchCategories(), fetchBrands()])
+            .then(([cats, brandList]) => { if (!cancelled) { setCategories(cats); setBrands(brandList); } })
+            .catch((err) => { if (!cancelled) setError(catalogError(err, 'تعذر تحميل التصنيفات والعلامات.')); });
         if (!id) return () => { cancelled = true; };
         fetchAdminProduct(id)
             .then((product) => {
                 if (cancelled) return;
                 if (!product) { navigate('/products'); return; }
-                const { id: _id, stock: _stock, reviews_count: _rc, average_rating: _ar, created_at: _ca, ...input } = product;
-                void _id; void _stock; void _rc; void _ar; void _ca;
+                const { id: _id, stock: _stock, reviews_count: _rc, average_rating: _ar, created_at: _ca, category: _category, brand: _brand, average_cost, ...input } = product;
+                void _id; void _stock; void _rc; void _ar; void _ca; void _category; void _brand;
                 setForm(input);
+                setAverageCost(average_cost);
             })
             .catch((err) => { if (!cancelled) setError(errorMessage(err, 'تعذر تحميل المنتج.')); })
             .finally(() => { if (!cancelled) setFetching(false); });
@@ -96,6 +101,7 @@ export const ProductFormPage: React.FC = () => {
         setError(null);
         if (form.price <= 0) { setError('السعر يجب أن يكون أكبر من صفر.'); return; }
         if (form.discount_percentage < 0 || form.discount_percentage >= 100) { setError('نسبة الخصم يجب أن تكون بين 0 و 99.'); return; }
+        if (!form.category_id) { setError('اختاري التصنيف.'); return; }
         if (!form.image && form.images.length === 0) { setError('أضيفي صورة واحدة على الأقل.'); return; }
         if (form.variants.some((v) => v.price != null && v.price <= 0)) { setError('سعر الخيار يجب أن يكون أكبر من صفر أو فارغاً.'); return; }
         setSaving(true);
@@ -144,11 +150,27 @@ export const ProductFormPage: React.FC = () => {
                         </Field>
                     </div>
                     <div className="grid md:grid-cols-3 gap-6">
-                        <Field label="التصنيف" required hint="اكتبي تصنيفاً جديداً أو اختاري من القائمة">
-                            <input list="category-options" value={form.category} onChange={(e) => set('category', e.target.value)} required className={inputClass} />
-                            <datalist id="category-options">{categories.map((c) => <option key={c} value={c} />)}</datalist>
+                        <Field label="التصنيف" required hint="التصنيفات تُدار من صفحة التصنيفات">
+                            <select value={form.category_id ?? ''} onChange={(e) => set('category_id', e.target.value || null)} required className={inputClass}>
+                                <option value="">اختاري التصنيف</option>
+                                {topLevelCategories(categories).map((group) => {
+                                    const children = childrenOf.get(group.id) ?? [];
+                                    if (children.length === 0) return <option key={group.id} value={group.id}>{categoryLabel(group)}</option>;
+                                    return (
+                                        <optgroup key={group.id} label={categoryLabel(group)}>
+                                            <option value={group.id}>{categoryLabel(group)} (عام)</option>
+                                            {children.map((c) => <option key={c.id} value={c.id}>{categoryLabel(c)}</option>)}
+                                        </optgroup>
+                                    );
+                                })}
+                            </select>
                         </Field>
-                        <Field label="الماركة"><input value={form.brand} onChange={(e) => set('brand', e.target.value)} className={inputClass} /></Field>
+                        <Field label="العلامة التجارية">
+                            <select value={form.brand_id ?? ''} onChange={(e) => set('brand_id', e.target.value || null)} className={inputClass}>
+                                <option value="">بدون علامة</option>
+                                {brands.map((b) => <option key={b.id} value={b.id}>{b.is_active ? b.name_ar : `${b.name_ar} (مخفية)`}</option>)}
+                            </select>
+                        </Field>
                         <Field label="بلد المنشأ"><input value={form.origin} onChange={(e) => set('origin', e.target.value)} className={inputClass} /></Field>
                     </div>
                     <Field label="الوصف">
@@ -200,6 +222,9 @@ export const ProductFormPage: React.FC = () => {
                         </Field>
                         <Field label="سعر التكلفة (ج.س)" hint="لا يظهر للعملاء">
                             <input type="number" min={0} step="1" value={form.cost_price} onChange={(e) => set('cost_price', numberValue(e.target.value))} className={inputClass} />
+                        </Field>
+                        <Field label="متوسط التكلفة (ج.س)" hint="يُحسب من فواتير الشراء والمرتجعات">
+                            <input type="text" value={averageCost == null ? '—' : formatSDG(averageCost)} readOnly disabled className={inputClass} />
                         </Field>
                     </div>
                     {form.discount_percentage > 0 && form.price > 0 && (

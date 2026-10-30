@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-describe("TIPS Beauty Supabase configuration", () => {
+const liveTestsEnabled = Boolean(process.env.EXPO_PUBLIC_SUPABASE_URL) && process.env.RUN_LIVE_TESTS === "1";
+
+describe.skipIf(!liveTestsEnabled)("TIPS Beauty Supabase configuration", () => {
   it("connects with the supplied public credentials", async () => {
     const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
     const key = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;

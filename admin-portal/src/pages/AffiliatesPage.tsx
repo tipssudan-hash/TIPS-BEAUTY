@@ -3,12 +3,38 @@ import {
     Megaphone, Plus, Edit, X, Loader2, DollarSign, TrendingUp,
     CheckCircle2, Eye, Trash2, Building2, CreditCard,
     Receipt, Wallet, Phone, Mail, Ticket, ArrowUpRight, Star,
-    Banknote, ArrowRightLeft, Copy, Check, Info
+    Banknote, ArrowRightLeft, Copy, Check, Info, Undo2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import type { Affiliate, AffiliateInput, AffiliateDetails, AffiliateAccount } from '../types';
+import type { Affiliate, AffiliateInput, AffiliateDetails, AffiliateAccount, AffiliateCommission, AffiliateCommissionStatus, AffiliatePayout } from '../types';
 import { parseAffiliateAccounts, serializeAffiliateAccounts } from '../types';
-import { fetchAffiliates, fetchAffiliateDetails, saveAffiliate, recordAffiliatePayout } from '../lib/catalogApi';
+import { csvFileName, downloadCsv, toCsv, type CsvColumn } from '../lib/csv';
+import { PAGE_SIZE } from '../lib/pagination';
+import { Pagination } from '../components/Pagination';
+import { AuditHistory } from '../components/AuditHistory';
+
+const COMMISSION_CSV: CsvColumn<AffiliateCommission>[] = [
+    { header: 'رقم الطلب', value: (c) => c.order_number ?? c.order_id },
+    { header: 'قيمة العمولة', value: (c) => c.commission_amount },
+    { header: 'المصروف منها', value: (c) => c.paid_amount },
+    { header: 'نسبة العمولة', value: (c) => c.commission_rate },
+    { header: 'الحالة', value: (c) => c.status },
+    { header: 'تستحق في', value: (c) => c.eligible_at },
+    { header: 'ملاحظة', value: (c) => c.review_note },
+    { header: 'تاريخ الإنشاء', value: (c) => c.created_at },
+];
+
+const PAYOUT_CSV: CsvColumn<AffiliatePayout>[] = [
+    { header: 'المبلغ المحول', value: (p) => p.amount },
+    { header: 'طريقة الصرف', value: (p) => p.payout_method },
+    { header: 'الرقم المرجعي للإشعار', value: (p) => p.reference_number },
+    { header: 'ملاحظات', value: (p) => p.notes },
+    { header: 'تاريخ الصرف', value: (p) => p.created_at },
+];
+import {
+    fetchAffiliates, fetchAffiliateDetails, saveAffiliate, recordAffiliatePayout,
+    reviewAffiliateCommission, releaseEligibleCommissions,
+} from '../lib/catalogApi';
 import { errorMessage } from '../lib/errors';
 import { formatDateTime, formatNumber, formatSDG } from '../lib/format';
 import { Card, Field, Notice, PageHeader, Spinner, StatusPill, Table, inputClass, primaryButtonClass, secondaryButtonClass, smallButtonClass } from '../components/ui';
@@ -32,12 +58,15 @@ const emptyAccount = (id: string, isDefault = false): AffiliateAccount => ({
     is_default: isDefault,
 });
 
+// Mirrors the column default affiliate_profiles.minimum_payout; the UI cannot read it at runtime.
+const SERVER_DEFAULT_MINIMUM_PAYOUT = 5000;
+
 const emptyAffiliate = (): AffiliateInput => ({
     display_name: '',
     phone: '',
     email: '',
     commission_rate: 5,
-    minimum_payout: 0,
+    minimum_payout: SERVER_DEFAULT_MINIMUM_PAYOUT,
     payout_method: 'بنك الخرطوم (تطبيق بنكك)',
     payout_details: JSON.stringify([emptyAccount('acc_1', true)]),
     admin_note: '',
@@ -45,6 +74,36 @@ const emptyAffiliate = (): AffiliateInput => ({
 });
 
 type PayoutChannel = 'transfer' | 'cash';
+
+type CommissionFilter = 'all' | AffiliateCommissionStatus;
+
+const COMMISSION_STATUS: Record<AffiliateCommissionStatus, { label: string; tone: 'success' | 'attention' | 'neutral' }> = {
+    pending: { label: 'قيد الانتظار', tone: 'neutral' },
+    approved: { label: 'معتمدة', tone: 'attention' },
+    paid: { label: 'مدفوعة', tone: 'success' },
+    reversed: { label: 'ملغاة', tone: 'neutral' },
+};
+
+const COMMISSION_FILTERS: { value: CommissionFilter; label: string }[] = [
+    { value: 'all', label: 'كل الحالات' },
+    { value: 'pending', label: 'قيد الانتظار' },
+    { value: 'approved', label: 'معتمدة' },
+    { value: 'paid', label: 'مدفوعة' },
+    { value: 'reversed', label: 'ملغاة' },
+];
+
+const payoutAmountError = (amount: number, available: number, minimum: number): string | null => {
+    if (amount <= 0) return 'مبلغ الصرف يجب أن يكون أكبر من صفر.';
+    if (amount > available) return `المبلغ يتجاوز الرصيد المتاح للصرف (${formatSDG(available)}).`;
+    if (amount < minimum && amount !== available) return `الحد الأدنى للصرف ${formatSDG(minimum)}، ولا يُصرف أقل منه إلا كامل الرصيد المتاح.`;
+    return null;
+};
+
+interface CommissionReviewState {
+    commission: AffiliateCommission;
+    status: 'approved' | 'reversed';
+    note: string;
+}
 
 interface PayoutModalState {
     affiliate: Affiliate;
@@ -77,11 +136,17 @@ export const AffiliatesPage: React.FC = () => {
     const [selectedAffiliateId, setSelectedAffiliateId] = useState<string | null>(null);
     const [details, setDetails] = useState<AffiliateDetails | null>(null);
     const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'coupons' | 'payouts'>('overview');
+    const [listPage, setListPage] = useState(0);
 
     // Professional Payout modal state
     const [payoutModal, setPayoutModal] = useState<PayoutModalState | null>(null);
     const [recordingPayout, setRecordingPayout] = useState(false);
     const [copiedAccNumber, setCopiedAccNumber] = useState<string | null>(null);
+
+    const [commissionFilter, setCommissionFilter] = useState<CommissionFilter>('all');
+    const [commissionReview, setCommissionReview] = useState<CommissionReviewState | null>(null);
+    const [reviewingCommission, setReviewingCommission] = useState(false);
+    const [releasingCommissions, setReleasingCommissions] = useState(false);
 
     const load = async () => {
         setLoading(true);
@@ -154,6 +219,7 @@ export const AffiliatesPage: React.FC = () => {
         const data = editing.data;
         if (!data.display_name.trim()) { setError('اسم المسوق مطلوب.'); return; }
         if (data.commission_rate < 0 || data.commission_rate > 100) { setError('نسبة العمولة يجب أن تكون بين 0 و 100%.'); return; }
+        if (!(data.minimum_payout >= 0)) { setError('الحد الأدنى للصرف يجب أن يكون صفراً أو أكبر.'); return; }
 
         const { payout_method, payout_details } = serializeAffiliateAccounts(formAccounts);
         const payload: AffiliateInput = {
@@ -213,8 +279,9 @@ export const AffiliatesPage: React.FC = () => {
     const submitPayout = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!payoutModal) return;
-        if (payoutModal.amount <= 0) {
-            setError('مبلغ الصرف يجب أن يكون أكبر من صفر.');
+        const amountError = payoutAmountError(payoutModal.amount, payoutModal.affiliate.pending_balance, payoutModal.affiliate.minimum_payout);
+        if (amountError) {
+            setError(amountError);
             return;
         }
 
@@ -272,6 +339,53 @@ export const AffiliatesPage: React.FC = () => {
             setRecordingPayout(false);
         }
     };
+
+    const submitCommissionReview = async () => {
+        if (!commissionReview || !selectedAffiliateId) return;
+        const note = commissionReview.note.trim();
+        if (commissionReview.status === 'reversed' && !note) {
+            setError('ملاحظة العكس إلزامية.');
+            return;
+        }
+        setReviewingCommission(true);
+        setError(null);
+        try {
+            await reviewAffiliateCommission(commissionReview.commission.id, commissionReview.status, note || undefined);
+            setCommissionReview(null);
+            setSuccessMessage(commissionReview.status === 'approved' ? 'تم اعتماد العمولة.' : 'تم عكس العمولة.');
+            setTimeout(() => setSuccessMessage(null), 4000);
+            await load();
+            await loadDetails(selectedAffiliateId);
+        } catch (err) {
+            setError(errorMessage(err));
+        } finally {
+            setReviewingCommission(false);
+        }
+    };
+
+    const releaseEligible = async () => {
+        if (!selectedAffiliateId) return;
+        setReleasingCommissions(true);
+        setError(null);
+        try {
+            const count = await releaseEligibleCommissions(selectedAffiliateId);
+            setSuccessMessage(count > 0 ? `تم اعتماد ${formatNumber(count)} عمولة مستحقة.` : 'لا توجد عمولات مستحقة للاعتماد حالياً.');
+            setTimeout(() => setSuccessMessage(null), 4000);
+            await load();
+            await loadDetails(selectedAffiliateId);
+        } catch (err) {
+            setError(errorMessage(err));
+        } finally {
+            setReleasingCommissions(false);
+        }
+    };
+
+    const payoutError = payoutModal
+        ? payoutAmountError(payoutModal.amount, payoutModal.affiliate.pending_balance, payoutModal.affiliate.minimum_payout)
+        : null;
+    const visibleCommissions = details
+        ? details.commissions.filter((c) => commissionFilter === 'all' || c.status === commissionFilter)
+        : [];
 
     // Calculate aggregated totals
     const totalSalesAll = affiliates.reduce((acc, a) => acc + a.total_sales, 0);
@@ -392,6 +506,18 @@ export const AffiliatesPage: React.FC = () => {
                                     className={inputClass}
                                     dir="ltr"
                                     required
+                                />
+                            </Field>
+
+                            <Field label="الحد الأدنى للصرف (ج.س)" hint="لا يُصرف أقل منه إلا كامل الرصيد المتاح">
+                                <input
+                                    type="number"
+                                    min={0}
+                                    step="1"
+                                    value={editing.data.minimum_payout}
+                                    onChange={(e) => updateEditing({ minimum_payout: Number(e.target.value) })}
+                                    className={inputClass}
+                                    dir="ltr"
                                 />
                             </Field>
 
@@ -589,7 +715,7 @@ export const AffiliatesPage: React.FC = () => {
                     empty={affiliates.length === 0}
                     emptyText="لا يوجد مسوقون مسجلون بعد"
                 >
-                    {affiliates.map((a) => {
+                    {affiliates.slice(listPage * PAGE_SIZE, (listPage + 1) * PAGE_SIZE).map((a) => {
                         const marketerAccounts = parseAffiliateAccounts(a.payout_details, a.payout_method);
                         const defaultAcc = marketerAccounts.find(acc => acc.is_default) || marketerAccounts[0];
 
@@ -696,6 +822,7 @@ export const AffiliatesPage: React.FC = () => {
                         );
                     })}
                 </Table>
+                <Pagination page={listPage} pageSize={PAGE_SIZE} total={affiliates.length} onPageChange={setListPage} />
             </Card>
 
             {/* Marketer Detailed Profile & Analytics Modal */}
@@ -746,7 +873,7 @@ export const AffiliatesPage: React.FC = () => {
                         </div>
 
                         {/* Top Stats Cards in Modal */}
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 p-4 bg-slate-50 border-b">
+                        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 p-4 bg-slate-50 border-b">
                             <div className="bg-white p-3 rounded-xl border">
                                 <p className="text-[10px] font-bold text-slate-500">الطلبات المكتملة</p>
                                 <p className="text-lg font-black text-slate-900 mt-1">{formatNumber(details.stats.total_orders)}</p>
@@ -766,6 +893,10 @@ export const AffiliatesPage: React.FC = () => {
                             <div className="bg-white p-3 rounded-xl border">
                                 <p className="text-[10px] font-bold text-slate-500">الرصيد المتبقي</p>
                                 <p className="text-lg font-black text-amber-700 mt-1">{formatSDG(details.stats.pending_balance)}</p>
+                            </div>
+                            <div className="bg-white p-3 rounded-xl border">
+                                <p className="text-[10px] font-bold text-slate-500">معلّق (مدة الانتظار)</p>
+                                <p className="text-lg font-black text-slate-700 mt-1">{formatSDG(details.stats.on_hold_balance)}</p>
                             </div>
                         </div>
 
@@ -804,23 +935,105 @@ export const AffiliatesPage: React.FC = () => {
                         {/* Tab Content */}
                         <div className="p-6 overflow-y-auto flex-1 space-y-4">
                             {activeTab === 'overview' && (
-                                <div>
-                                    <h4 className="text-sm font-black text-slate-900 mb-3">سجل العمولات المحتسبة للطلبات</h4>
-                                    <Table headers={['رقم الطلب', 'قيمة العمولة', 'نسبة العمولة', 'الحالة', 'تاريخ الاستحقاق', 'تاريخ الصرف']} empty={details.commissions.length === 0} emptyText="لا توجد عمولات مسجلة بعد">
-                                        {details.commissions.map((c) => (
-                                            <tr key={c.id}>
-                                                <td className="px-4 py-3 font-mono font-bold text-xs text-brand-blue" dir="ltr">{c.order_number || c.order_id}</td>
-                                                <td className="px-4 py-3 text-sm font-black text-emerald-700">{formatSDG(c.commission_amount)}</td>
-                                                <td className="px-4 py-3 text-xs font-bold text-slate-600">{c.commission_rate}%</td>
-                                                <td className="px-4 py-3">
-                                                    <StatusPill tone={c.status === 'paid' ? 'success' : c.status === 'approved' ? 'attention' : 'neutral'}>
-                                                        {c.status === 'paid' ? 'مدفوعة' : c.status === 'approved' ? 'معتمدة' : c.status === 'pending' ? 'معلقة' : 'ملغاة'}
-                                                    </StatusPill>
-                                                </td>
-                                                <td className="px-4 py-3 text-xs text-slate-500">{formatDateTime(c.created_at)}</td>
-                                                <td className="px-4 py-3 text-xs text-slate-500">{c.paid_at ? formatDateTime(c.paid_at) : '-'}</td>
-                                            </tr>
-                                        ))}
+                                <div className="space-y-4">
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div className="w-56">
+                                            <select
+                                                value={commissionFilter}
+                                                onChange={(e) => setCommissionFilter(e.target.value as CommissionFilter)}
+                                                className={inputClass}
+                                                aria-label="فلتر حالة العمولة"
+                                            >
+                                                {COMMISSION_FILTERS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+                                            </select>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => void releaseEligible()}
+                                            disabled={releasingCommissions}
+                                            title="اعتماد العمولات المعلقة التي انتهت مدة انتظارها ولم يُرجَع طلبها"
+                                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 text-indigo-700 text-xs font-black hover:bg-indigo-100 disabled:opacity-50"
+                                        >
+                                            {releasingCommissions ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} اعتماد المستحق
+                                        </button>
+                                    </div>
+
+                                    {commissionReview && (
+                                        <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-sm font-black text-slate-900">
+                                                    {commissionReview.status === 'approved' ? 'اعتماد' : 'عكس'} عمولة الطلب {commissionReview.commission.order_number || commissionReview.commission.order_id}
+                                                    <span className="text-slate-500 font-bold"> — {formatSDG(commissionReview.commission.commission_amount)}</span>
+                                                </p>
+                                                <button type="button" onClick={() => setCommissionReview(null)} disabled={reviewingCommission} className="p-1 text-slate-400 hover:text-slate-600">
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            <Field label={commissionReview.status === 'reversed' ? 'سبب العكس' : 'ملاحظة الاعتماد'} required={commissionReview.status === 'reversed'}>
+                                                <input
+                                                    value={commissionReview.note}
+                                                    onChange={(e) => setCommissionReview({ ...commissionReview, note: e.target.value })}
+                                                    className={inputClass}
+                                                    placeholder={commissionReview.status === 'reversed' ? 'اذكر سبب العكس' : 'اختياري'}
+                                                />
+                                            </Field>
+                                            <div className="flex justify-end gap-2">
+                                                <button type="button" onClick={() => setCommissionReview(null)} disabled={reviewingCommission} className={secondaryButtonClass}>إلغاء</button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void submitCommissionReview()}
+                                                    disabled={reviewingCommission || (commissionReview.status === 'reversed' && !commissionReview.note.trim())}
+                                                    className={`${commissionReview.status === 'reversed' ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-500'} text-white font-black px-5 py-2.5 rounded-xl disabled:opacity-50`}
+                                                >
+                                                    {reviewingCommission ? 'جاري الحفظ...' : commissionReview.status === 'approved' ? 'تأكيد الاعتماد' : 'تأكيد العكس'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="flex items-center justify-between gap-3">
+                                        <h4 className="text-sm font-black text-slate-900">سجل العمولات المحتسبة للطلبات</h4>
+                                        <button type="button" onClick={() => downloadCsv(csvFileName('affiliate-commissions'), toCsv(visibleCommissions, COMMISSION_CSV))} className={`${smallButtonClass} bg-slate-900 text-white`}>تصدير CSV</button>
+                                    </div>
+                                    <Table
+                                        headers={['رقم الطلب', 'قيمة العمولة', 'المصروف منها', 'نسبة العمولة', 'الحالة', 'تستحق في', 'ملاحظة', 'الإجراءات']}
+                                        empty={visibleCommissions.length === 0}
+                                        emptyText="لا توجد عمولات بهذه الحالة"
+                                    >
+                                        {visibleCommissions.map((c) => {
+                                            const status = COMMISSION_STATUS[c.status];
+                                            const canApprove = c.status === 'pending';
+                                            const canReverse = (c.status === 'pending' || c.status === 'approved') && c.paid_amount <= 0;
+                                            return (
+                                                <tr key={c.id}>
+                                                    <td className="px-4 py-3 font-mono font-bold text-xs text-brand-blue" dir="ltr">{c.order_number || c.order_id}</td>
+                                                    <td className="px-4 py-3 text-sm font-black text-emerald-700">{formatSDG(c.commission_amount)}</td>
+                                                    <td className="px-4 py-3 text-xs font-bold text-slate-600">{formatSDG(c.paid_amount)}</td>
+                                                    <td className="px-4 py-3 text-xs font-bold text-slate-600">{c.commission_rate}%</td>
+                                                    <td className="px-4 py-3"><StatusPill tone={status.tone}>{status.label}</StatusPill></td>
+                                                    <td className="px-4 py-3 text-xs text-slate-500">{c.status === 'pending' && c.eligible_at ? formatDateTime(c.eligible_at) : '-'}</td>
+                                                    <td className="px-4 py-3 text-xs text-slate-500 max-w-[12rem] truncate" title={c.review_note ?? undefined}>{c.review_note || '-'}</td>
+                                                    <td className="px-4 py-3">
+                                                        {canApprove || canReverse ? (
+                                                            <div className="flex items-center gap-1.5">
+                                                                {canApprove && (
+                                                                    <button type="button" onClick={() => setCommissionReview({ commission: c, status: 'approved', note: '' })} className={`${smallButtonClass} bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}>
+                                                                        اعتماد
+                                                                    </button>
+                                                                )}
+                                                                {canReverse && (
+                                                                    <button type="button" onClick={() => setCommissionReview({ commission: c, status: 'reversed', note: '' })} className={`${smallButtonClass} bg-red-50 text-red-600 hover:bg-red-100 flex items-center gap-1`}>
+                                                                        <Undo2 className="w-3.5 h-3.5" /> عكس
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-xs text-slate-400">—</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </Table>
                                 </div>
                             )}
@@ -870,7 +1083,10 @@ export const AffiliatesPage: React.FC = () => {
 
                             {activeTab === 'payouts' && (
                                 <div>
-                                    <h4 className="text-sm font-black text-slate-900 mb-3">سجل المبالغ المحولة والمصروفة</h4>
+                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                        <h4 className="text-sm font-black text-slate-900">سجل المبالغ المحولة والمصروفة</h4>
+                                        <button type="button" onClick={() => downloadCsv(csvFileName('affiliate-payouts'), toCsv(details.payouts, PAYOUT_CSV))} className={`${smallButtonClass} bg-slate-900 text-white`}>تصدير CSV</button>
+                                    </div>
                                     <Table headers={['المبلغ المحول', 'طريقة الصرف', 'الرقم المرجعي للإشعار', 'ملاحظات', 'تاريخ الصرف']} empty={details.payouts.length === 0} emptyText="لم يتم تسجيل دفعات بعد">
                                         {details.payouts.map((p) => (
                                             <tr key={p.id}>
@@ -883,6 +1099,12 @@ export const AffiliatesPage: React.FC = () => {
                                         ))}
                                     </Table>
                                 </div>
+                            )}
+                            {details && (
+                                <section className="space-y-3 border-t border-slate-100 pt-4">
+                                    <h4 className="text-sm font-black text-slate-900">السجل</h4>
+                                    <AuditHistory table="affiliate_profiles" rowId={details.profile.id} />
+                                </section>
                             )}
                         </div>
                     </div>
@@ -918,8 +1140,9 @@ export const AffiliatesPage: React.FC = () => {
                                         <p className="text-base font-black text-slate-900 mt-0.5">{payoutModal.affiliate.display_name}</p>
                                     </div>
                                     <div className="text-left">
-                                        <p className="text-xs text-emerald-800 font-bold">الرصيد المعلق المستحق</p>
+                                        <p className="text-xs text-emerald-800 font-bold">الرصيد المتاح للصرف</p>
                                         <p className="text-base font-black text-emerald-700 mt-0.5">{formatSDG(payoutModal.affiliate.pending_balance)}</p>
+                                        <p className="text-[11px] font-bold text-emerald-800 mt-0.5">الحد الأدنى للصرف: {formatSDG(payoutModal.affiliate.minimum_payout)}</p>
                                     </div>
                                 </div>
                             </div>
@@ -1111,6 +1334,7 @@ export const AffiliatesPage: React.FC = () => {
                                 <input
                                     type="number"
                                     min={1}
+                                    max={payoutModal.affiliate.pending_balance}
                                     step="1"
                                     value={payoutModal.amount}
                                     onChange={(e) => setPayoutModal({ ...payoutModal, amount: Number(e.target.value) })}
@@ -1118,13 +1342,16 @@ export const AffiliatesPage: React.FC = () => {
                                     dir="ltr"
                                     required
                                 />
-                                {payoutModal.amount > 0 && (
-                                    <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1 px-1">
-                                        <span>الرصيد المتبقي بعد هذا الصرف:</span>
-                                        <span className={`font-black ${payoutModal.affiliate.pending_balance - payoutModal.amount < 0 ? 'text-red-600' : 'text-slate-700'}`}>
-                                            {formatSDG(Math.max(0, payoutModal.affiliate.pending_balance - payoutModal.amount))}
+                                <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1 px-1">
+                                    <span>الحد الأدنى للصرف: <strong className="text-slate-700">{formatSDG(payoutModal.affiliate.minimum_payout)}</strong></span>
+                                    {payoutModal.amount > 0 && (
+                                        <span>
+                                            المتبقي بعد الصرف: <strong className="text-slate-700">{formatSDG(Math.max(0, payoutModal.affiliate.pending_balance - payoutModal.amount))}</strong>
                                         </span>
-                                    </div>
+                                    )}
+                                </div>
+                                {payoutError && (
+                                    <p className="mt-2 p-2.5 rounded-xl bg-red-50 border border-red-100 text-[11px] font-black text-red-700">{payoutError}</p>
                                 )}
                             </div>
 
@@ -1171,7 +1398,7 @@ export const AffiliatesPage: React.FC = () => {
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={recordingPayout || payoutModal.amount <= 0}
+                                    disabled={recordingPayout || payoutError !== null}
                                     className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-6 py-2.5 rounded-xl flex items-center gap-2 transition-colors disabled:opacity-50 shadow-sm"
                                 >
                                     {recordingPayout ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}

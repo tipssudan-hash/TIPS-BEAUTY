@@ -18,6 +18,15 @@ SET role = 'warehouse_supervisor',
     assigned_warehouse_id = (SELECT id FROM public.warehouses WHERE is_active = true LIMIT 1)
 WHERE id = (SELECT id FROM auth.users WHERE email = 'youssifshmo2311@gmail.com');
 
+DELETE FROM public.warehouse_manager_access
+WHERE user_id = (SELECT id FROM auth.users WHERE email = 'youssifshmo2311@gmail.com');
+
+INSERT INTO public.warehouse_manager_access (user_id, warehouse_id, is_primary)
+SELECT p.id, p.assigned_warehouse_id, true
+FROM public.profiles p
+WHERE p.id = (SELECT id FROM auth.users WHERE email = 'youssifshmo2311@gmail.com')
+  AND p.assigned_warehouse_id IS NOT NULL;
+
 -- 4. Verify
 SELECT u.email, p.role, p.assigned_warehouse_id, w.name AS warehouse_name
 FROM public.profiles p

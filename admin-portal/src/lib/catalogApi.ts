@@ -1,11 +1,9 @@
 import { supabase } from './supabase';
-import type { AdminReview, Banner, Collection, Coupon, CouponInput, CollectionInput, CollectionRuleConfig, CollectionRuleType, DeliveryPricingConfig, DeliveryQuote, DeliveryZone, Driver, InventoryRow, Product, ProductInput, ProductVariant, Promotion, PromotionInput, Warehouse } from '../types';
+import type { AdminReview, Banner, Brand, BrandInput, Category, CategoryInput, Collection, Coupon, CouponInput, CollectionInput, CollectionRuleConfig, CollectionRuleType, DeliveryPolicySettings, DeliveryPricingConfig, DeliveryQuote, DeliveryZone, Driver, InventoryRow, Product, ProductInput, ProductVariant, Promotion, PromotionBundleItem, PromotionInput, PromotionTier, PromotionType, Warehouse } from '../types';
 import type { Json } from './database.types';
+import { errorMessage } from './errors';
 
-// latitude/longitude/base_dispatch_minutes (warehouses), latitude/longitude (delivery_zones):
-// added by GPS-01/GPS-02, ahead of generated types until those migrations are applied and
-// `supabase gen types` is re-run — same `as any` pattern already used elsewhere in this file
-// for RPCs ahead of their types (e.g. admin_get_coupons below).
+// Columns and RPCs used below are typed by hand in database.types.ts until `supabase gen types` is re-run.
 
 // Admin data access for catalogue, logistics and settings over the generated database types.
 
@@ -16,9 +14,10 @@ type ProductRow = Omit<Product, 'variants' | 'images' | 'benefits' | 'ingredient
     name_en: string | null; brand: string | null; category: string | null; image: string | null; description: string | null;
     usage: string | null; origin: string | null; expiry: string | null; discount_percentage: number | null; cost_price: number | null;
     stock: number | null; reviews_count: number | null; average_rating: number | null; is_imported: boolean | null; is_active: boolean | null;
+    average_cost: number | null; average_cost_updated_at: string | null;
 };
 
-function mapVariants(raw: unknown): ProductVariant[] {
+export function mapVariants(raw: unknown): ProductVariant[] {
     if (!Array.isArray(raw)) return [];
     return (raw as Partial<ProductVariant>[])
         .filter((v) => v && typeof v.id === 'string' && typeof v.name_ar === 'string')
@@ -38,8 +37,11 @@ function mapProduct(row: ProductRow): Product {
         price: Number(row.price),
         discount_percentage: Number(row.discount_percentage ?? 0),
         cost_price: Number(row.cost_price ?? 0),
+        average_cost: row.average_cost == null ? null : Number(row.average_cost),
         category: row.category ?? '',
+        category_id: row.category_id ?? null,
         brand: row.brand ?? '',
+        brand_id: row.brand_id ?? null,
         image: row.image ?? '',
         images: row.images ?? [],
         description: row.description ?? '',
@@ -63,10 +65,25 @@ function mapProduct(row: ProductRow): Product {
     };
 }
 
+export interface PageResult<T> {
+    rows: T[];
+    total: number;
+}
+
 export async function fetchAdminProducts(): Promise<Product[]> {
     const { data, error } = await supabase.rpc('get_admin_products');
     if (error) throw error;
     return ((data ?? []) as ProductRow[]).map(mapProduct);
+}
+
+export async function fetchAdminProductsPage(params: { search: string; page: number; pageSize: number }): Promise<PageResult<Product>> {
+    const { data, error } = await supabase.rpc('get_admin_products', {
+        p_limit: params.pageSize,
+        p_offset: params.page * params.pageSize,
+        p_search: params.search.trim() || null,
+    });
+    if (error) throw error;
+    return { rows: ((data ?? []) as ProductRow[]).map(mapProduct), total: Number(data?.[0]?.total_count ?? 0) };
 }
 
 export async function fetchAdminProduct(id: string): Promise<Product | null> {
@@ -83,8 +100,8 @@ function toRow(input: ProductInput) {
         price: input.price,
         discount_percentage: input.discount_percentage,
         cost_price: input.cost_price,
-        category: input.category.trim(),
-        brand: input.brand.trim(),
+        category_id: input.category_id,
+        brand_id: input.brand_id,
         image: input.image,
         images: input.images,
         description: input.description,
@@ -118,6 +135,18 @@ export async function updateProduct(id: string, input: ProductInput): Promise<vo
 export async function setProductActive(id: string, isActive: boolean): Promise<void> {
     const { error } = await supabase.from('products').update({ is_active: isActive }).eq('id', id);
     if (error) throw error;
+}
+
+export async function bulkSetProductsActive(ids: string[], isActive: boolean): Promise<number> {
+    const { data, error } = await supabase.rpc('admin_bulk_set_products_active', { p_ids: ids, p_is_active: isActive });
+    if (error) throw error;
+    return Number(data ?? 0);
+}
+
+export async function bulkAssignProductCategory(ids: string[], categoryId: string): Promise<number> {
+    const { data, error } = await supabase.rpc('admin_bulk_assign_category', { p_ids: ids, p_category_id: categoryId });
+    if (error) throw error;
+    return Number(data ?? 0);
 }
 
 // Storage -------------------------------------------------------------------------
@@ -160,10 +189,84 @@ export async function uploadPublicImage(folder: string, file: File): Promise<str
     return supabase.storage.from('products').getPublicUrl(path).data.publicUrl;
 }
 
+// Categories & brands ------------------------------------------------------------------
+// Reads and writes go through the admin RPCs; the storefront reads the public variants.
+
+export function catalogError(error: unknown, fallback: string): string {
+    const raw = error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' ? error.message : '';
+    return errorMessage(error, raw || fallback);
+}
+
+export async function fetchCategories(): Promise<Category[]> {
+    const { data, error } = await supabase.rpc('admin_get_categories');
+    if (error) throw error;
+    return (data ?? [])
+        .map((row) => ({ ...row, product_count: Number(row.product_count ?? 0) }))
+        .sort((a, b) => a.sort_order - b.sort_order || a.name_ar.localeCompare(b.name_ar, 'ar'));
+}
+
+export async function saveCategory(id: string | null, input: CategoryInput): Promise<string> {
+    const { data, error } = await supabase.rpc('admin_save_category', {
+        p_name_ar: input.name_ar.trim(),
+        p_id: id ?? null,
+        p_parent_id: input.parent_id,
+        p_name_en: input.name_en?.trim() || null,
+        p_slug: input.slug?.trim() || null,
+        p_image_url: input.image_url,
+        p_icon: input.icon,
+        p_sort_order: input.sort_order,
+        p_is_active: input.is_active,
+    });
+    if (error) throw error;
+    return data;
+}
+
+export async function reorderCategories(ids: string[]): Promise<void> {
+    const { error } = await supabase.rpc('admin_reorder_categories', { p_ids: ids });
+    if (error) throw error;
+}
+
+export async function deleteCategory(id: string): Promise<void> {
+    const { error } = await supabase.rpc('admin_delete_category', { p_id: id });
+    if (error) throw error;
+}
+
+export async function fetchBrands(): Promise<Brand[]> {
+    const { data, error } = await supabase.rpc('admin_get_brands');
+    if (error) throw error;
+    return (data ?? [])
+        .map((row) => ({ ...row, product_count: Number(row.product_count ?? 0) }))
+        .sort((a, b) => a.sort_order - b.sort_order || a.name_ar.localeCompare(b.name_ar, 'ar'));
+}
+
+export async function saveBrand(id: string | null, input: BrandInput): Promise<string> {
+    const { data, error } = await supabase.rpc('admin_save_brand', {
+        p_name_ar: input.name_ar.trim(),
+        p_id: id ?? null,
+        p_name_en: input.name_en?.trim() || null,
+        p_slug: input.slug?.trim() || null,
+        p_logo_url: input.logo_url,
+        p_sort_order: input.sort_order,
+        p_is_active: input.is_active,
+    });
+    if (error) throw error;
+    return data;
+}
+
+export async function reorderBrands(ids: string[]): Promise<void> {
+    const { error } = await supabase.rpc('admin_reorder_brands', { p_ids: ids });
+    if (error) throw error;
+}
+
+export async function deleteBrand(id: string): Promise<void> {
+    const { error } = await supabase.rpc('admin_delete_brand', { p_id: id });
+    if (error) throw error;
+}
+
 // Warehouses / inventory --------------------------------------------------------------
 
 export async function fetchWarehouses(): Promise<Warehouse[]> {
-    const { data, error } = await supabase.from('warehouses').select('id,name,code,state,city,address,phone,is_active,latitude,longitude,base_dispatch_minutes' as any).order('created_at');
+    const { data, error } = await supabase.from('warehouses').select('id,name,code,state,city,address,phone,is_active,latitude,longitude,base_dispatch_minutes').order('created_at');
     if (error) throw error;
     return (data ?? []) as unknown as Warehouse[];
 }
@@ -188,6 +291,39 @@ export async function fetchInventory(warehouseId?: string): Promise<InventoryRow
         reorder_level: r.reorder_level,
         product_name: (r.products as { name_ar: string } | null)?.name_ar ?? '—',
     })).sort((a, b) => a.product_name.localeCompare(b.product_name, 'ar'));
+}
+
+export interface InventoryMovement {
+    id: string;
+    created_at: string;
+    movement_type: string;
+    quantity_delta: number;
+    note: string | null;
+    reference_id: string | null;
+    product_name: string;
+}
+
+export async function fetchInventoryMovements(warehouseId: string, page: number, pageSize: number): Promise<{ rows: InventoryMovement[]; total: number }> {
+    const from = page * pageSize;
+    const { data, error, count } = await supabase
+        .from('inventory_movements')
+        .select('id,created_at,movement_type,quantity_delta,note,reference_id,products(name_ar)', { count: 'exact' })
+        .eq('warehouse_id', warehouseId)
+        .order('created_at', { ascending: false })
+        .range(from, from + pageSize - 1);
+    if (error) throw error;
+    return {
+        rows: (data ?? []).map((r) => ({
+            id: r.id,
+            created_at: r.created_at,
+            movement_type: r.movement_type,
+            quantity_delta: r.quantity_delta,
+            note: r.note,
+            reference_id: r.reference_id,
+            product_name: (r.products as { name_ar: string } | null)?.name_ar ?? '—',
+        })),
+        total: count ?? 0,
+    };
 }
 
 export async function adjustInventory(warehouseId: string, productId: string, delta: number, note: string, reorderLevel?: number): Promise<void> {
@@ -215,7 +351,7 @@ export async function transferInventory(fromId: string, toId: string, productId:
 // Delivery zones ---------------------------------------------------------------------
 
 export async function fetchDeliveryZones(): Promise<DeliveryZone[]> {
-    const { data, error } = await supabase.from('delivery_zones').select('id,name,fee,is_active,state,warehouse_id,latitude,longitude' as any).order('state').order('name');
+    const { data, error } = await supabase.from('delivery_zones').select('id,name,fee,is_active,state,warehouse_id,latitude,longitude').order('state').order('name');
     if (error) throw error;
     return ((data ?? []) as unknown as DeliveryZone[]).map((z) => ({ ...z, fee: Number(z.fee) }));
 }
@@ -237,7 +373,7 @@ export async function deleteDeliveryZone(id: string): Promise<void> {
 
 export async function fetchPricingConfigs(): Promise<DeliveryPricingConfig[]> {
     const { data, error } = await supabase
-        .from('delivery_pricing_config' as any)
+        .from('delivery_pricing_config')
         .select('id,warehouse_id,delivery_zone_id,state,base_fee,per_km_rate,weight_multiplier,road_multiplier,min_fee,max_fee,avg_speed_kmh,per_kg_rate,per_extra_warehouse_fee,handling_fee,is_active')
         .order('warehouse_id', { nullsFirst: true })
         .order('delivery_zone_id', { nullsFirst: true });
@@ -249,20 +385,20 @@ export type PricingConfigInput = Omit<DeliveryPricingConfig, 'id'>;
 
 export async function savePricingConfig(id: string | null, input: PricingConfigInput): Promise<void> {
     const query = id
-        ? supabase.from('delivery_pricing_config' as any).update(input as never).eq('id', id)
-        : supabase.from('delivery_pricing_config' as any).insert(input as never);
+        ? supabase.from('delivery_pricing_config').update(input as never).eq('id', id)
+        : supabase.from('delivery_pricing_config').insert(input as never);
     const { error } = await query;
     if (error) throw error;
 }
 
 export async function deletePricingConfig(id: string): Promise<void> {
-    const { error } = await supabase.from('delivery_pricing_config' as any).delete().eq('id', id);
+    const { error } = await supabase.from('delivery_pricing_config').delete().eq('id', id);
     if (error) throw error;
 }
 
 export async function fetchPricingConfigAudit(configId: string): Promise<{ id: number; action: string; changed_at: string; old_values: Json | null; new_values: Json | null }[]> {
     const { data, error } = await supabase
-        .from('delivery_pricing_config_audit' as any)
+        .from('delivery_pricing_config_audit')
         .select('id,action,changed_at,old_values,new_values')
         .eq('config_id', configId)
         .order('changed_at', { ascending: false })
@@ -274,11 +410,11 @@ export async function fetchPricingConfigAudit(configId: string): Promise<{ id: n
 // Calls the same RPC checkout_order freezes into the Order — never a client-side
 // reimplementation of the formula (GPS-03 acceptance criterion).
 export async function simulateDeliveryQuote(warehouseId: string, deliveryZoneId: string, orderWeight = 0): Promise<DeliveryQuote> {
-    const { data, error } = await supabase.rpc('calculate_delivery_quote' as any, {
+    const { data, error } = await supabase.rpc('calculate_delivery_quote', {
         p_warehouse_id: warehouseId,
         p_delivery_zone_id: deliveryZoneId,
         p_order_weight: orderWeight,
-    } as any);
+    });
     if (error) throw error;
     return (data as unknown as DeliveryQuote[])[0];
 }
@@ -404,9 +540,9 @@ export async function deleteCollection(id: string): Promise<void> {
 // Eligibility data: reads under the admin policy, every write through the admin RPCs.
 
 export async function fetchCoupons(): Promise<Coupon[]> {
-    const { data, error } = await supabase.rpc('admin_get_coupons' as any);
+    const { data, error } = await supabase.rpc('admin_get_coupons');
     if (error) throw error;
-    return (data ?? []).map((row: any) => ({
+    return (data ?? []).map((row) => ({
         ...row,
         discount_type: row.discount_type as Coupon['discount_type'],
         discount_value: Number(row.discount_value),
@@ -417,7 +553,7 @@ export async function fetchCoupons(): Promise<Coupon[]> {
 }
 
 export async function saveCoupon(id: string | null, input: CouponInput): Promise<string> {
-    const { data, error } = await supabase.rpc('admin_save_coupon' as any, {
+    const { data, error } = await supabase.rpc('admin_save_coupon', {
         p_id: id ?? undefined,
         p_code: input.code.trim(),
         p_name: input.name.trim(),
@@ -432,23 +568,30 @@ export async function saveCoupon(id: string | null, input: CouponInput): Promise
         p_ends_at: input.ends_at ?? undefined,
         p_is_active: input.is_active,
         p_affiliate_id: input.affiliate_id ?? undefined,
-    } as any);
+    });
     if (error) throw error;
     return data;
 }
 
+export async function bulkSetCouponsActive(ids: string[], isActive: boolean): Promise<number> {
+    const { data, error } = await supabase.rpc('admin_bulk_set_coupons_active', { p_ids: ids, p_is_active: isActive });
+    if (error) throw error;
+    return Number(data ?? 0);
+}
+
 export async function deleteCoupon(id: string): Promise<void> {
-    const { error } = await supabase.rpc('admin_delete_coupon' as any, { p_id: id } as any);
+    const { error } = await supabase.rpc('admin_delete_coupon', { p_id: id });
     if (error) throw error;
 }
 
 // Marketers / Affiliates ---------------------------------------------------------------
 
 export async function fetchAffiliates(): Promise<import('../types').Affiliate[]> {
-    const { data, error } = await supabase.rpc('admin_get_affiliates' as any);
+    const { data, error } = await supabase.rpc('admin_get_affiliates');
     if (error) throw error;
-    return (data ?? []).map((row: any) => ({
+    return (data ?? []).map((row) => ({
         ...row,
+        status: row.status as import('../types').Affiliate['status'],
         commission_rate: Number(row.commission_rate ?? 0),
         minimum_payout: Number(row.minimum_payout ?? 0),
         total_orders: Number(row.total_orders ?? 0),
@@ -462,7 +605,7 @@ export async function fetchAffiliates(): Promise<import('../types').Affiliate[]>
 }
 
 export async function saveAffiliate(id: string | null, input: import('../types').AffiliateInput): Promise<string> {
-    const { data, error } = await supabase.rpc('admin_save_affiliate' as any, {
+    const { data, error } = await supabase.rpc('admin_save_affiliate', {
         p_id: id ?? undefined,
         p_display_name: input.display_name.trim(),
         p_phone: input.phone?.trim() || undefined,
@@ -473,33 +616,42 @@ export async function saveAffiliate(id: string | null, input: import('../types')
         p_payout_details: input.payout_details?.trim() || undefined,
         p_admin_note: input.admin_note?.trim() || undefined,
         p_status: input.status,
-    } as any);
+    });
     if (error) throw error;
     return data;
 }
 
 export async function recordAffiliatePayout(input: import('../types').AffiliatePayoutInput): Promise<string> {
-    const { data, error } = await supabase.rpc('admin_record_affiliate_payout' as any, {
+    const { data, error } = await supabase.rpc('admin_record_affiliate_payout', {
         p_affiliate_id: input.affiliate_id,
         p_amount: input.amount,
         p_payout_method: input.payout_method.trim(),
         p_reference_number: input.reference_number?.trim() || undefined,
         p_notes: input.notes?.trim() || undefined,
-    } as any);
+    });
     if (error) throw error;
     return data;
 }
 
+type AffiliateDetailsPayload = {
+    profile?: import('../types').AffiliateDetails['profile'];
+    stats?: Partial<import('../types').AffiliateDetails['stats']>;
+    coupons?: import('../types').AffiliateDetails['coupons'];
+    orders?: import('../types').AffiliateDetails['orders'];
+    commissions?: import('../types').AffiliateCommission[];
+    payouts?: import('../types').AffiliatePayout[];
+};
+
 export async function fetchAffiliateDetails(id: string): Promise<import('../types').AffiliateDetails> {
-    const { data, error } = await supabase.rpc('admin_get_affiliate_details' as any, { p_affiliate_id: id } as any);
+    const { data, error } = await supabase.rpc('admin_get_affiliate_details', { p_affiliate_id: id });
     if (error) throw error;
-    const res = data as any;
+    const res = (data ?? {}) as unknown as AffiliateDetailsPayload;
     return {
         profile: {
             ...res.profile,
             commission_rate: Number(res.profile?.commission_rate ?? 0),
             minimum_payout: Number(res.profile?.minimum_payout ?? 0),
-        },
+        } as import('../types').AffiliateDetails['profile'],
         stats: {
             total_orders: Number(res.stats?.total_orders ?? 0),
             total_sales: Number(res.stats?.total_sales ?? 0),
@@ -507,28 +659,45 @@ export async function fetchAffiliateDetails(id: string): Promise<import('../type
             total_commission_earned: Number(res.stats?.total_commission_earned ?? 0),
             total_payouts_paid: Number(res.stats?.total_payouts_paid ?? 0),
             pending_balance: Number(res.stats?.pending_balance ?? 0),
+            on_hold_balance: Number(res.stats?.on_hold_balance ?? 0),
         },
-        coupons: (res.coupons ?? []).map((c: any) => ({
+        coupons: (res.coupons ?? []).map((c) => ({
             ...c,
             discount_value: Number(c.discount_value ?? 0),
             max_discount_amount: c.max_discount_amount == null ? null : Number(c.max_discount_amount),
             usage_count: Number(c.usage_count ?? 0),
         })),
-        orders: (res.orders ?? []).map((o: any) => ({
+        orders: (res.orders ?? []).map((o) => ({
             ...o,
             total: Number(o.total ?? 0),
             discount_amount: Number(o.discount_amount ?? 0),
         })),
-        commissions: (res.commissions ?? []).map((c: any) => ({
+        commissions: (res.commissions ?? []).map((c) => ({
             ...c,
             commission_amount: Number(c.commission_amount ?? 0),
             commission_rate: Number(c.commission_rate ?? 0),
+            paid_amount: Number(c.paid_amount ?? 0),
         })),
-        payouts: (res.payouts ?? []).map((p: any) => ({
+        payouts: (res.payouts ?? []).map((p) => ({
             ...p,
             amount: Number(p.amount ?? 0),
         })),
     };
+}
+
+export async function reviewAffiliateCommission(commissionId: string, status: 'approved' | 'reversed', note?: string): Promise<void> {
+    const { error } = await supabase.rpc('review_affiliate_commission', {
+        p_commission_id: commissionId,
+        p_status: status,
+        p_note: note?.trim() || undefined,
+    });
+    if (error) throw error;
+}
+
+export async function releaseEligibleCommissions(affiliateId?: string | null): Promise<number> {
+    const { data, error } = await supabase.rpc('admin_release_eligible_commissions', { p_affiliate_id: affiliateId ?? undefined });
+    if (error) throw error;
+    return Number(data ?? 0);
 }
 
 // Promotions ---------------------------------------------------------------------------
@@ -538,32 +707,79 @@ export const PROMOTION_TARGET_LABELS: Record<Promotion['target_kind'], string> =
     all: 'كل المنتجات', category: 'تصنيف', brand: 'علامة تجارية', products: 'منتجات محددة',
 };
 export const PROMOTION_STATUS_LABELS: Record<Promotion['status'], string> = { scheduled: 'مجدول', active: 'ساري', expired: 'منتهٍ' };
+export const PROMOTION_TYPE_LABELS: Record<PromotionType, string> = {
+    item_discount: 'تخفيض مباشر', buy_x_get_y: 'اشترِ X واحصل على Y', quantity_tier: 'شرائح كمية', bundle: 'حزمة',
+};
+
+const numberOrNull = (value: unknown): number | null => (value == null ? null : Number(value));
+
+function parseTiers(raw: unknown): PromotionTier[] {
+    if (!Array.isArray(raw)) return [];
+    return (raw as { min_quantity: unknown; percent: unknown }[]).map((t) => ({ min_quantity: Number(t.min_quantity), percent: Number(t.percent) }));
+}
+
+function parseBundleItems(raw: unknown): PromotionBundleItem[] {
+    if (!Array.isArray(raw)) return [];
+    return (raw as { product_id: unknown; quantity: unknown }[]).map((i) => ({ product_id: String(i.product_id), quantity: Number(i.quantity) }));
+}
 
 export async function fetchPromotions(): Promise<Promotion[]> {
     const { data, error } = await supabase.rpc('admin_get_promotions');
     if (error) throw error;
     return (data ?? []).map((row) => ({
         ...row,
+        promotion_type: (row.promotion_type || 'item_discount') as PromotionType,
         discount_type: row.discount_type as Promotion['discount_type'],
-        discount_value: Number(row.discount_value),
+        discount_value: numberOrNull(row.discount_value),
+        buy_quantity: numberOrNull(row.buy_quantity),
+        get_quantity: numberOrNull(row.get_quantity),
+        get_discount_percent: numberOrNull(row.get_discount_percent),
+        tiers: parseTiers(row.tiers),
+        bundle_price: numberOrNull(row.bundle_price),
+        bundle_items: parseBundleItems(row.bundle_items),
+        max_applications_per_order: numberOrNull(row.max_applications_per_order),
         target_kind: row.target_kind as Promotion['target_kind'],
+        target_category_id: row.target_category_id ?? null,
+        target_brand_id: row.target_brand_id ?? null,
         target_product_ids: row.target_product_ids ?? [],
         status: row.status as Promotion['status'],
     }));
 }
 
+export async function fetchPromotion(id: string): Promise<Promotion | null> {
+    return (await fetchPromotions()).find((p) => p.id === id) ?? null;
+}
+
+// A bundle prices the Products it lists, so its target is those Products; the type decides which
+// fields reach the backend, and the rest are sent as null so an edit clears them.
 export async function savePromotion(id: string | null, input: PromotionInput): Promise<string> {
+    const type = input.promotion_type;
+    const isItem = type === 'item_discount';
+    const isBundle = type === 'bundle';
+    const isBuyGet = type === 'buy_x_get_y';
+    const targetKind = isBundle ? 'products' : input.target_kind;
+    const bundleItems = isBundle ? input.bundle_items.map((i) => ({ product_id: i.product_id, quantity: i.quantity })) : null;
     const { data, error } = await supabase.rpc('admin_save_promotion', {
         p_id: id ?? undefined,
         p_title: input.title.trim(),
         p_description: input.description?.trim() || undefined,
-        p_discount_type: input.discount_type,
-        p_discount_value: input.discount_value,
-        p_target_kind: input.target_kind,
+        p_discount_type: isItem ? input.discount_type : null,
+        p_discount_value: isItem ? input.discount_value : null,
+        p_target_kind: targetKind,
         p_target_value: input.target_value?.trim() || undefined,
-        p_target_product_ids: input.target_kind === 'products' ? input.target_product_ids : [],
+        p_target_product_ids: isBundle ? (bundleItems ?? []).map((i) => i.product_id) : targetKind === 'products' ? input.target_product_ids : [],
         p_start_date: input.start_date,
         p_end_date: input.end_date ?? undefined,
+        p_promotion_type: type,
+        p_buy_quantity: isBuyGet ? input.buy_quantity : null,
+        p_get_quantity: isBuyGet ? input.get_quantity : null,
+        p_get_discount_percent: isBuyGet ? input.get_discount_percent : null,
+        p_tiers: type === 'quantity_tier' ? input.tiers.map((t) => ({ min_quantity: t.min_quantity, percent: t.percent })) : null,
+        p_bundle_items: bundleItems,
+        p_bundle_price: isBundle ? input.bundle_price : null,
+        p_max_applications_per_order: isBuyGet || isBundle ? input.max_applications_per_order : null,
+        p_target_category_id: targetKind === 'category' ? input.target_category_id : null,
+        p_target_brand_id: targetKind === 'brand' ? input.target_brand_id : null,
     });
     if (error) throw error;
     return data;
@@ -581,25 +797,39 @@ export async function deletePromotion(id: string): Promise<void> {
 
 // Settings -----------------------------------------------------------------------------
 
-export async function fetchNotificationEmails(): Promise<string[]> {
-    const { data, error } = await supabase.from('app_settings').select('notification_emails').eq('id', true).maybeSingle();
+export async function fetchDeliveryPolicySettings(): Promise<DeliveryPolicySettings> {
+    const { data, error } = await supabase
+        .from('app_settings')
+        .select('notification_emails,require_packing_check,require_delivery_proof')
+        .eq('id', true)
+        .maybeSingle();
     if (error) throw error;
-    return ((data as { notification_emails: string[] } | null)?.notification_emails) ?? [];
+    return {
+        notification_emails: data?.notification_emails ?? [],
+        require_packing_check: data?.require_packing_check ?? false,
+        require_delivery_proof: data?.require_delivery_proof ?? false,
+    };
 }
 
-export async function saveNotificationEmails(emails: string[]): Promise<void> {
-    const { error } = await supabase.from('app_settings').update({ notification_emails: emails, updated_at: new Date().toISOString() }).eq('id', true);
+export async function saveDeliveryPolicySettings(settings: DeliveryPolicySettings): Promise<void> {
+    const { error } = await supabase
+        .from('app_settings')
+        .update({ ...settings, updated_at: new Date().toISOString() })
+        .eq('id', true);
     if (error) throw error;
 }
 
 // Reviews ------------------------------------------------------------------------------
 
-export async function fetchAdminReviews(): Promise<AdminReview[]> {
-    const { data, error } = await supabase.from('reviews')
-        .select('id,product_id,user_name,rating,comment,status,created_at,order_id,is_verified_purchase,products(name_ar)')
-        .order('created_at', { ascending: false }).limit(300);
+export async function fetchAdminReviews(status: 'all' | 'published' | 'hidden', page: number, pageSize: number): Promise<PageResult<AdminReview>> {
+    let query = supabase.from('reviews')
+        .select('id,product_id,user_name,rating,comment,status,created_at,order_id,is_verified_purchase,products(name_ar)', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(page * pageSize, page * pageSize + pageSize - 1);
+    if (status !== 'all') query = query.eq('status', status);
+    const { data, error, count } = await query;
     if (error) throw error;
-    return (data ?? []).map((r) => ({
+    const rows = (data ?? []).map((r) => ({
         id: r.id,
         product_id: r.product_id ?? '',
         product_name: (r.products as { name_ar: string } | null)?.name_ar ?? '—',
@@ -611,6 +841,7 @@ export async function fetchAdminReviews(): Promise<AdminReview[]> {
         order_id: r.order_id,
         is_verified_purchase: r.is_verified_purchase,
     }));
+    return { rows, total: count ?? 0 };
 }
 
 export async function moderateReview(id: string, status: 'published' | 'hidden'): Promise<void> {
@@ -618,17 +849,32 @@ export async function moderateReview(id: string, status: 'published' | 'hidden')
     if (error) throw error;
 }
 
+export async function bulkSetReviewStatus(ids: string[], status: 'published' | 'hidden'): Promise<number> {
+    const { data, error } = await supabase.rpc('admin_bulk_set_review_status', { p_ids: ids, p_status: status });
+    if (error) throw error;
+    return Number(data ?? 0);
+}
+
 // Returns (T2-12) ------------------------------------------------------------------
 
-export async function fetchOrderReturns(): Promise<import('../types').OrderReturn[]> {
-    // admin_list_order_returns is ahead of generated types until this migration is applied and
-    // `supabase gen types` is re-run — same as any pattern as elsewhere in this file.
-    const { data, error } = await supabase.rpc('admin_list_order_returns' as any);
+export async function fetchOrderReturns(params: { search: string; page: number; pageSize: number }): Promise<PageResult<import('../types').OrderReturn>> {
+    const { data, error } = await supabase.rpc('admin_list_order_returns', {
+        p_limit: params.pageSize,
+        p_offset: params.page * params.pageSize,
+        p_search: params.search.trim() || null,
+    });
     if (error) throw error;
-    return ((data ?? []) as any[]).map((r) => ({
+    const rows = (data ?? []).map((r) => ({
         ...r,
-        items: Array.isArray(r.items) ? r.items : [],
+        status: r.status as import('../types').ReturnStatus,
+        requested_resolution: r.requested_resolution as import('../types').OrderReturn['requested_resolution'],
+        items: Array.isArray(r.items) ? (r.items as unknown as import('../types').ReturnItem[]) : [],
+        order_total: r.order_total == null ? null : Number(r.order_total),
+        refund_amount: r.refund_amount == null ? null : Number(r.refund_amount),
+        returned_items_value: Number(r.returned_items_value ?? 0),
+        refundable_cap: Number(r.refundable_cap ?? 0),
     }));
+    return { rows, total: Number(data?.[0]?.total_count ?? 0) };
 }
 
 export async function reviewOrderReturn(

@@ -14,7 +14,7 @@ type DeliveryStatus = "shipped" | "delivered";
 type PushEvent = DeliveryStatus | "review_request";
 type PushProvider = "expo" | "fcm";
 type PushToken = { id: string; provider: PushProvider; push_token: string; expo_push_token: string | null };
-type OrderRow = { id: string; order_number: string | null; customer_id: string; driver_id: string | null; status: string };
+type OrderRow = { id: string; order_number: string | null; customer_id: string; driver_id: string | null; status: string; fulfillment_warehouse_id: string | null };
 type Target = { token: PushToken; eventType: PushEvent };
 type DispatchOutcome = { status: "submitted" | "failed"; messageId: string | null; error: string | null; tokenInvalid: boolean; payload: unknown };
 
@@ -121,16 +121,19 @@ Deno.serve(async (request) => {
     const body = await request.json() as { order_id?: string; status?: string };
     if (!body.order_id || !["shipped", "delivered"].includes(body.status ?? "")) return new Response(JSON.stringify({ error: "Unsupported event" }), { status: 400, headers: corsHeaders });
     const status = body.status as DeliveryStatus;
-    const { data: orderData, error: orderError } = await service.from("orders").select("id,order_number,customer_id,driver_id,status").eq("id", body.order_id).maybeSingle();
+    const { data: orderData, error: orderError } = await service.from("orders").select("id,order_number,customer_id,driver_id,status,fulfillment_warehouse_id").eq("id", body.order_id).maybeSingle();
     const order = orderData as OrderRow | null;
     if (orderError || !order || order.status !== status) return new Response(JSON.stringify({ error: "Order state does not match event" }), { status: 409, headers: corsHeaders });
     const [{ data: profile }, { data: driver }] = await Promise.all([service.from("profiles").select("role").eq("id", user.id).maybeSingle(), service.from("drivers").select("id").eq("user_id", user.id).maybeSingle()]);
-    const permitted = profile?.role === "admin" || (driver?.id && driver.id === order.driver_id);
+    const callerClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: authorization } }, auth: { persistSession: false, autoRefreshToken: false } });
+    const { data: canManageWarehouse } = await callerClient.rpc("can_manage_warehouse", { p_warehouse_id: order.fulfillment_warehouse_id });
+    const permitted = profile?.role === "admin" || canManageWarehouse === true || (driver?.id && driver.id === order.driver_id);
     if (!permitted) return new Response(JSON.stringify({ error: "Caller is not assigned to this order" }), { status: 403, headers: corsHeaders });
 
     const { data: tokens, error: tokenError } = await service.from("customer_push_tokens")
       .select("id,provider,push_token,expo_push_token")
       .eq("customer_id", order.customer_id)
+      .eq("app_audience", "customer")
       .eq("is_active", true);
     if (tokenError) throw tokenError;
     if (!tokens?.length) return new Response(JSON.stringify({ queued: 0, reason: "No registered device" }), { status: 202, headers: corsHeaders });

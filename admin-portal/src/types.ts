@@ -14,8 +14,12 @@ export interface Product {
     price: number;
     discount_percentage: number;
     cost_price: number;
+    // Weighted average of purchase invoices and returns (read-only; set by the backend).
+    average_cost: number | null;
     category: string;
+    category_id: string | null;
     brand: string;
+    brand_id: string | null;
     image: string;
     images: string[];
     description: string;
@@ -38,7 +42,46 @@ export interface Product {
     created_at: string;
 }
 
-export type ProductInput = Omit<Product, 'id' | 'stock' | 'reviews_count' | 'average_rating' | 'created_at'>;
+// The taxonomy is sent as ids; the backend trigger fills the text category/brand from them.
+export type ProductInput = Omit<Product, 'id' | 'stock' | 'reviews_count' | 'average_rating' | 'created_at' | 'category' | 'brand' | 'average_cost'>;
+
+// Two levels at most: a category with parent_id null is a top-level group, its children are leaves.
+export interface Category {
+    id: string;
+    parent_id: string | null;
+    name_ar: string;
+    name_en: string | null;
+    slug: string | null;
+    image_url: string | null;
+    icon: string | null;
+    sort_order: number;
+    is_active: boolean;
+    product_count: number;
+}
+
+export interface CategoryInput {
+    name_ar: string;
+    name_en: string | null;
+    slug: string | null;
+    image_url: string | null;
+    icon: string | null;
+    parent_id: string | null;
+    sort_order: number;
+    is_active: boolean;
+}
+
+export interface Brand {
+    id: string;
+    name_ar: string;
+    name_en: string | null;
+    slug: string | null;
+    logo_url: string | null;
+    sort_order: number;
+    is_active: boolean;
+    product_count: number;
+}
+
+export type BrandInput = Omit<Brand, 'id' | 'product_count'>;
 
 export interface Warehouse {
     id: string;
@@ -141,6 +184,7 @@ export interface CollectionRuleConfig {
     limit?: number;
     price?: number;
     category?: string;
+    category_id?: string;
     minimum_discount?: number;
 }
 
@@ -308,13 +352,18 @@ export interface AffiliateOrder {
     created_at: string;
 }
 
+export type AffiliateCommissionStatus = 'pending' | 'approved' | 'paid' | 'reversed';
+
 export interface AffiliateCommission {
     id: string;
     order_id: string;
     order_number: string | null;
     commission_amount: number;
     commission_rate: number;
-    status: 'pending' | 'approved' | 'paid' | 'reversed';
+    paid_amount: number;
+    status: AffiliateCommissionStatus;
+    eligible_at: string | null;
+    review_note: string | null;
     created_at: string;
     paid_at: string | null;
 }
@@ -341,6 +390,7 @@ export interface AffiliateDetails {
         total_commission_earned: number;
         total_payouts_paid: number;
         pending_balance: number;
+        on_hold_balance: number;
     };
     coupons: {
         id: string;
@@ -363,15 +413,37 @@ export interface AffiliateDetails {
 // derived by the backend from the schedule; "end now" closes the schedule.
 export type PromotionTargetKind = 'all' | 'category' | 'brand' | 'products';
 export type PromotionStatus = 'scheduled' | 'active' | 'expired';
+// item_discount: a percentage or fixed reduction. The other types price by quantity or by bundle.
+export type PromotionType = 'item_discount' | 'buy_x_get_y' | 'quantity_tier' | 'bundle';
+
+export interface PromotionTier {
+    min_quantity: number;
+    percent: number;
+}
+
+export interface PromotionBundleItem {
+    product_id: string;
+    quantity: number;
+}
 
 export interface Promotion {
     id: string;
     title: string;
     description: string | null;
-    discount_type: 'percentage' | 'fixed';
-    discount_value: number;
+    promotion_type: PromotionType;
+    discount_type: 'percentage' | 'fixed' | null;
+    discount_value: number | null;
+    buy_quantity: number | null;
+    get_quantity: number | null;
+    get_discount_percent: number | null;
+    tiers: PromotionTier[];
+    bundle_price: number | null;
+    bundle_items: PromotionBundleItem[];
+    max_applications_per_order: number | null;
     target_kind: PromotionTargetKind;
     target_value: string | null;
+    target_category_id: string | null;
+    target_brand_id: string | null;
     target_product_ids: string[];
     start_date: string;
     end_date: string | null;
@@ -492,6 +564,189 @@ export interface OrderReturn {
     refund_amount?: number | null;
     refund_reference?: string | null;
     refunded_at?: string | null;
+    returned_items_value: number;
+    refundable_cap: number;
+}
+
+export interface Supplier {
+    id: string;
+    name: string;
+    phone: string | null;
+    email: string | null;
+    address: string | null;
+    tax_number: string | null;
+    notes: string | null;
+    is_active: boolean;
+}
+
+export type SupplierInput = Omit<Supplier, 'id'>;
+
+export type PurchaseInvoiceStatus = 'draft' | 'approved' | 'voided';
+
+export interface PurchaseInvoiceSummary {
+    id: string;
+    invoice_number: string;
+    supplier_id: string;
+    supplier_name: string;
+    warehouse_id: string;
+    warehouse_name: string;
+    supplier_invoice_ref: string | null;
+    invoice_date: string;
+    status: PurchaseInvoiceStatus;
+    total: number;
+}
+
+export interface PurchaseInvoiceItem {
+    id: string;
+    line_no: number;
+    product_id: string;
+    product_name: string;
+    variant_id: string | null;
+    variant_name: string | null;
+    quantity: number;
+    unit_cost: number;
+    line_total: number;
+    landed_unit_cost: number | null;
+    expiry_date: string | null;
+    batch_number: string | null;
+}
+
+export interface PurchaseInvoiceAttachment {
+    id: string;
+    storage_path: string;
+    uploaded_at: string;
+}
+
+export interface PurchaseInvoice extends PurchaseInvoiceSummary {
+    subtotal: number;
+    discount_amount: number;
+    extra_costs: number;
+    notes: string | null;
+    created_at: string;
+    approved_at: string | null;
+    voided_at: string | null;
+    void_reason: string | null;
+    items: PurchaseInvoiceItem[];
+    attachments: PurchaseInvoiceAttachment[];
+}
+
+export type SupplierReturnStatus = 'draft' | 'approved' | 'cancelled';
+
+export interface SupplierReturnSummary {
+    id: string;
+    return_number: string;
+    supplier_id: string;
+    supplier_name: string;
+    warehouse_id: string;
+    warehouse_name: string;
+    purchase_invoice_id: string | null;
+    invoice_number: string | null;
+    status: SupplierReturnStatus;
+    reason: string;
+    is_void_reversal: boolean;
+    created_at: string;
+    approved_at: string | null;
+}
+
+export interface SupplierReturnItem {
+    id: string;
+    purchase_invoice_item_id: string | null;
+    product_id: string;
+    product_name: string;
+    variant_id: string | null;
+    quantity: number;
+    unit_cost: number;
+}
+
+export interface SupplierReturn extends SupplierReturnSummary {
+    notes: string | null;
+    items: SupplierReturnItem[];
+}
+
+export interface ProfitByProduct {
+    product_id: string;
+    product_name: string;
+    quantity: number;
+    revenue: number;
+    cogs: number;
+    gross_profit: number;
+    margin_pct: number | null;
+}
+
+export interface ProfitReport {
+    revenue: number;
+    cogs: number;
+    gross_profit: number;
+    margin_pct: number | null;
+    by_product: ProfitByProduct[];
+    missing_cost_lines: number;
+    estimated_cost_lines: number;
+    cogs_reversed: number;
+}
+
+// Operations: the backend computes these from the order lifecycle; the UI only shapes them.
+export type OrderNeedsActionReason = 'delivery_failed' | 'needs_fulfillment_review' | 'stale' | 'failed_return_pending';
+
+export interface OrderNeedsAction {
+    order_id: string;
+    order_number: string | null;
+    status: string;
+    reason: OrderNeedsActionReason;
+    since: string;
+    warehouse_id: string | null;
+}
+
+// `packing` is the warehouse checklist before hand-over; `pickup` is the driver's check at hand-over.
+export type OrderItemCheckStage = 'packing' | 'pickup';
+
+export interface OrderItemCheck {
+    stage: OrderItemCheckStage;
+    line_no: number;
+    checked_qty: number;
+    checked_at: string;
+}
+
+export interface FulfillmentBreakdownLine {
+    line_no: number;
+    product_id: string;
+    name_ar: string | null;
+    quantity: number;
+    warehouse_id: string;
+    warehouse_name: string;
+    available: number;
+    is_fulfillment_warehouse: boolean;
+}
+
+export interface DriverLocation {
+    driver_id: string;
+    name: string;
+    status: string;
+    latitude: number;
+    longitude: number;
+    accuracy_meters: number | null;
+    updated_at: string;
+    active_order_numbers: string[];
+}
+
+export type StaffNotificationKind = 'low_stock' | 'delivery_failed' | 'remittance_submitted';
+
+export interface StaffNotification {
+    id: string;
+    warehouse_id: string | null;
+    kind: StaffNotificationKind;
+    title: string;
+    body: string | null;
+    ref_type: string | null;
+    ref_id: string | null;
+    read_at: string | null;
+    created_at: string;
+}
+
+// Delivery workflow switches in app_settings. The backend enforces them; the UI only shows them.
+export interface DeliveryPolicySettings {
+    notification_emails: string[];
+    require_packing_check: boolean;
+    require_delivery_proof: boolean;
 }
 
 export const SUDANESE_STATES = [

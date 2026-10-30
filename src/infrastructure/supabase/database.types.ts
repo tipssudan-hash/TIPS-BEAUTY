@@ -331,6 +331,62 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_addresses: {
+        Row: {
+          address_line: string
+          city: string
+          created_at: string
+          customer_id: string
+          id: string
+          is_default: boolean
+          label: string
+          latitude: number | null
+          longitude: number | null
+          phone: string
+          recipient_name: string
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          address_line: string
+          city: string
+          created_at?: string
+          customer_id: string
+          id?: string
+          is_default?: boolean
+          label: string
+          latitude?: number | null
+          longitude?: number | null
+          phone: string
+          recipient_name: string
+          state: string
+          updated_at?: string
+        }
+        Update: {
+          address_line?: string
+          city?: string
+          created_at?: string
+          customer_id?: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          latitude?: number | null
+          longitude?: number | null
+          phone?: string
+          recipient_name?: string
+          state?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_addresses_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_favorites: {
         Row: {
           created_at: string
@@ -487,6 +543,63 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "delivery_zones_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      driver_cash_remittances: {
+        Row: {
+          amount: number
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          driver_id: string
+          driver_notes: string | null
+          id: string
+          status: string
+          submitted_at: string
+          supervisor_notes: string | null
+          warehouse_id: string | null
+        }
+        Insert: {
+          amount: number
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          driver_id: string
+          driver_notes?: string | null
+          id?: string
+          status?: string
+          submitted_at?: string
+          supervisor_notes?: string | null
+          warehouse_id?: string | null
+        }
+        Update: {
+          amount?: number
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          driver_id?: string
+          driver_notes?: string | null
+          id?: string
+          status?: string
+          submitted_at?: string
+          supervisor_notes?: string | null
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_cash_remittances_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "driver_cash_remittances_warehouse_id_fkey"
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
@@ -919,6 +1032,7 @@ export type Database = {
           customer_name: string | null
           discount_amount: number
           driver_id: string | null
+          estimated_delivery_at: string | null
           financial_status: string | null
           fulfillment_warehouse_id: string | null
           id: string
@@ -937,6 +1051,7 @@ export type Database = {
           resources_released_at: string | null
           shipping_address: string | null
           shipping_fee: number
+          staff_note: string | null
           state: string | null
           status: string | null
           total: number | null
@@ -1964,6 +2079,8 @@ export type Database = {
         Args: {
           p_city: string
           p_coupon_code?: string
+          p_customer_lat?: number | null
+          p_customer_lng?: number | null
           p_customer_name: string
           p_idempotency_key?: string
           p_items: Json
@@ -2067,7 +2184,15 @@ export type Database = {
           status: string
         }[]
       }
+      customer_issue_delivery_code: {
+        Args: { p_order_id: string }
+        Returns: string
+      }
       dispatch_email_queue: { Args: never; Returns: undefined }
+      driver_submit_cash_remittance: {
+        Args: { p_amount: number; p_notes?: string }
+        Returns: string
+      }
       effective_price: {
         Args: {
           p_base_price: number
@@ -2103,15 +2228,22 @@ export type Database = {
       get_active_promotions: {
         Args: never
         Returns: {
+          bundle_items: { product_id: string; quantity: number }[] | null
+          bundle_price: number | null
+          buy_quantity: number | null
           description: string
-          discount_type: string
-          discount_value: number
+          discount_type: string | null
+          discount_value: number | null
           end_date: string
+          get_discount_percent: number | null
+          get_quantity: number | null
           id: string
           product_ids: string[]
+          promotion_type: 'item_discount' | 'buy_x_get_y' | 'quantity_tier' | 'bundle'
           start_date: string
           target_kind: string
           target_value: string
+          tiers: { min_quantity: number; percent: number }[] | null
           title: string
         }[]
       }
@@ -2200,15 +2332,21 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_my_cash_position: {
+        Args: { p_business_date?: string }
+        Returns: Json
+      }
       get_my_deliveries: {
         Args: { p_order_id?: string }
         Returns: {
           city: string
           cod_amount: number
+          cod_collected: boolean
           created_at: string
           customer_name: string
           customer_lat: number
           customer_lng: number
+          estimated_delivery_at: string | null
           id: string
           item_count: number
           items: Json
@@ -2217,6 +2355,7 @@ export type Database = {
           payment_method: string
           phone: string
           shipping_address: string
+          staff_note: string | null
           state: string
           status: string
           status_changed_at: string
@@ -2232,6 +2371,32 @@ export type Database = {
           latitude: number
           location_updated_at: string
           longitude: number
+        }[]
+      }
+      get_public_brands: {
+        Args: never
+        Returns: {
+          id: string
+          logo_url: string | null
+          name_ar: string
+          name_en: string | null
+          product_count: number
+          slug: string | null
+          sort_order: number
+        }[]
+      }
+      get_public_categories: {
+        Args: never
+        Returns: {
+          icon: string | null
+          id: string
+          image_url: string | null
+          name_ar: string
+          name_en: string | null
+          parent_id: string | null
+          product_count: number
+          slug: string | null
+          sort_order: number
         }[]
       }
       get_public_product: {
@@ -2265,7 +2430,7 @@ export type Database = {
         }[]
       }
       get_public_product_reviews: {
-        Args: { p_product_id: string }
+        Args: { p_product_id: string; p_limit?: number | null; p_offset?: number }
         Returns: {
           comment: string
           created_at: string
@@ -2273,6 +2438,7 @@ export type Database = {
           image_paths: string[]
           rating: number
           reviewer_label: string
+          total_count: number
           verified_purchase: boolean
         }[]
       }
@@ -2360,6 +2526,43 @@ export type Database = {
         Args: { p_product_id: string }
         Returns: undefined
       }
+      preview_cart_pricing: {
+        Args: { p_coupon_code?: string | null; p_items: Json }
+        Returns: {
+          applied_promotions: {
+            promotion_id: string
+            promotion_type: 'item_discount' | 'buy_x_get_y' | 'quantity_tier' | 'bundle'
+            reduction: number
+            rule_label: string
+          }[]
+          base_subtotal: number
+          coupon: { code: string | null; reason: string | null; reduction: number } | null
+          line_reductions: number
+          lines: {
+            effective_unit_price: number
+            line_index: number
+            line_total: number
+            pricing_rule_kind: 'discount' | 'promotion' | null
+            product_id: string
+            promotion_id: string | null
+            promotion_type: 'item_discount' | 'buy_x_get_y' | 'quantity_tier' | 'bundle' | null
+            quantity: number
+            unit_price: number
+            variant_id?: string | null
+          }[]
+          subtotal: number
+        }
+      }
+      preview_delivery_quote: {
+        Args: { p_customer_lat?: number | null; p_customer_lng?: number | null; p_items: Json }
+        Returns: {
+          distance_km: number | null
+          eta_minutes: number | null
+          fee: number
+          source: string
+          warehouses_count: number | null
+        }[]
+      }
       preview_coupon: {
         Args: { p_code: string; p_items: Json }
         Returns: {
@@ -2399,7 +2602,7 @@ export type Database = {
       delete_my_account: { Args: never; Returns: Json }
       deactivate_push_token: { Args: { p_token: string }; Returns: boolean }
       register_push_token: {
-        Args: { p_device_name?: string; p_platform: string; p_provider: string; p_token: string }
+        Args: { p_app_audience?: string; p_device_name?: string; p_platform: string; p_provider: string; p_token: string }
         Returns: string
       }
       register_customer_push_token: {
@@ -2509,6 +2712,33 @@ export type Database = {
         Returns: string
       }
       subscribe_restock: { Args: { p_product_id: string }; Returns: undefined }
+      supervisor_assign_driver: {
+        Args: { p_driver_id: string; p_order_id: string }
+        Returns: undefined
+      }
+      supervisor_confirm_cash_remittance: {
+        Args: { p_action?: string; p_notes?: string; p_remittance_id: string }
+        Returns: string
+      }
+      supervisor_get_warehouse_drivers: {
+        Args: { p_warehouse_id?: string }
+        Returns: {
+          active_deliveries: number
+          id: string
+          name: string
+          phone: string
+          status: string
+        }[]
+      }
+      supervisor_update_order: {
+        Args: {
+          p_expected_status?: string
+          p_notes?: string
+          p_order_id: string
+          p_status?: string
+        }
+        Returns: undefined
+      }
       transfer_warehouse_stock: {
         Args: {
           p_from_warehouse_id: string
@@ -2521,12 +2751,31 @@ export type Database = {
       }
       update_driver_order_status: {
         Args: {
+          p_delivery_code?: string
           p_failure_reason?: string
           p_note?: string
           p_order_id: string
+          p_proof_path?: string
           p_status: string
         }
         Returns: string
+      }
+      driver_set_pickup_check: {
+        Args: { p_checked_qty: number; p_line_no: number; p_order_id: string }
+        Returns: undefined
+      }
+      staff_get_item_checks: {
+        Args: { p_order_id: string }
+        Returns: {
+          checked_at: string
+          checked_qty: number
+          line_no: number
+          stage: string
+        }[]
+      }
+      get_my_driver_summary: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
       }
       variant_line: {
         Args: {

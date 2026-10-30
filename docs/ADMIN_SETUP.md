@@ -1,90 +1,37 @@
-# Admin Application - Setup Guide
+# Admin Portal - Setup Guide
 
-###### Current Status
+## Status
 
-The **Admin application is currently NOT implemented** as a separate application. During the refactoring process, we prioritized the customer-facing application as per your requirements.
+The Admin Portal is built in `admin-portal/` (Vite + React) and deployed separately (`admin.tips-sd.com`). It uses the same Supabase backend as the Storefront. Staff roles are enforced by RLS and RPCs, and the UI only reflects them.
 
-## What Happened to the Old Admin Features?
+## Staff Roles
 
-The original monolithic `App.tsx` contained admin features (product management, order tracking, promotions, etc.). These were **removed** during the refactor to:
+Roles are stored in `public.profiles.role`. The check constraint allows:
 
-1. Keep the customer app clean and focused
-2. Prepare for a separate admin application with its own authentication and permissions
+| `profiles.role` | Who | Access |
+| --- | --- | --- |
+| `admin` | Tips Beauty administrators | Everything |
+| `warehouse_supervisor` | Warehouse managers (UI label: مدير مستودع) | Only the Warehouses they are granted |
+| `driver` | Drivers | Own deliveries and cash remittance |
+| `customer` | Default | Storefront only |
 
-## How to Access Admin Features
+A warehouse manager can cover several Warehouses. The grants live in `public.warehouse_manager_access` (`user_id`, `warehouse_id`, `is_primary`). `profiles.assigned_warehouse_id` keeps the primary Warehouse for backward compatibility.
 
-### Option 1: Create a Separate Admin Application (Recommended)
+### RPCs
 
-This is the approach you requested. Here's how to proceed:
+- `get_my_staff_context() RETURNS jsonb` returns `{role, is_admin, is_warehouse_manager, warehouses: [{id, name, code, is_primary}]}`. The Admin Portal calls it at sign-in (`admin-portal/src/lib/adminApi.ts`). Admins receive all active Warehouses.
+- `admin_set_warehouse_manager_access(p_user_id uuid, p_warehouse_ids uuid[], p_primary_warehouse_id uuid DEFAULT NULL)` sets the Warehouses a manager covers. Admin only. It is used from the Warehouses and Customers pages.
 
-1. **Create a new directory** for the admin app:
+## Test Accounts
 
-   ```
-   tips-beauty-admin/
-   ```
-2. **Initialize a new React app** with the same tech stack:
+- `scripts/assign-test-roles.sql`: run in the Supabase SQL Editor (runs as `postgres`). It confirms the test emails, sets `profiles.role`, and inserts the matching `warehouse_manager_access` row.
+- `scripts/create-test-users.mjs`: creates the test users. Without `SUPABASE_SERVICE_ROLE_KEY` it skips the `warehouse_manager_access` rows; run `scripts/assign-test-roles.sql` to add them.
 
-   ```bash
-   npm create vite@latest tips-beauty-admin -- --template react-ts
-   ```
-3. **Share the Supabase backend** by using the same `.env` credentials
-4. **Implement admin-specific features**:
+## Local Development
 
-   - Product CRUD operations
-   - Order management dashboard
-   - Inventory tracking
-   - Analytics and reports
-   - Promotion management
-5. **Add authentication** using Supabase Auth:
+1. Copy `admin-portal/.env.example` to `admin-portal/.env.local` and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+2. Install dependencies with `npm --prefix admin-portal install`.
+3. Run `npm --prefix admin-portal run dev`.
+4. Checks: `npm --prefix admin-portal run typecheck`, `npm --prefix admin-portal run lint`, `npm --prefix admin-portal run build`.
 
-   - Only allow specific email addresses (admin@tips-beauty.com)
-   - Implement role-based access control (RBAC)
-6. **Deploy separately** on a different subdomain:
-
-   - Customer app: `https://tips-beauty.com`
-   - Admin app: `https://admin.tips-beauty.com`
-
-### Option 2: Add Admin Routes to Current App (Quick Fix)
-
-If you want admin features accessible immediately:
-
-1. Add a `/admin` route to the current app
-2. Protect it with a simple password check (temporary)
-3. Create admin pages in `src/pages/admin/`
-4. Later migrate to a separate app
-
-## Recommended Next Steps
-
-1. **Decide on approach**: Separate app (more secure) vs. same app with protected routes
-2. **Set up authentication**: Use Supabase Auth for admin login
-3. **Define admin permissions**: Who can access what features
-4. **Implement admin UI**: Dashboard, tables, forms for managing data
-
-## Database Schema for Admin
-
-The Supabase database already has the `products` table. You'll need to add:
-
-```sql
--- Orders table
-CREATE TABLE orders (
-  id text primary key,
-  customer_name text,
-  phone text,
-  items jsonb,
-  total numeric,
-  status text,
-  created_at timestamp with time zone default now()
-);
-
--- Admin users table
-CREATE TABLE admin_users (
-  id uuid primary key default uuid_generate_v4(),
-  email text unique not null,
-  role text default 'admin',
-  created_at timestamp with time zone default now()
-);
-```
-
-## Contact
-
-Let me know which approach you'd like to take, and I'll help you implement it!
+Schema and migrations are in `supabase/migrations/`. The project plan is `docs/ADMIN_WAREHOUSES_PURCHASES_CATALOG_PLAN.md`.

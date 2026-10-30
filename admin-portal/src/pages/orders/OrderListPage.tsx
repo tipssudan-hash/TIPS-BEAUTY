@@ -1,13 +1,16 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search, ShoppingBag, Loader2, ArrowLeft, AlertTriangle } from 'lucide-react';
-import { fetchOrders, subscribeToOrders, updateOrderOperation, countFulfillmentReviewOrders, type OrderListRow } from '../../lib/adminApi';
+import { Search, ShoppingBag, Loader2, ArrowLeft, AlertTriangle, ClipboardList } from 'lucide-react';
+import { fetchOrders, fetchOrdersNeedingAction, subscribeToOrders, updateOrderOperation, countFulfillmentReviewOrders, type OrderListRow } from '../../lib/adminApi';
 import {
-    ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, formatDateTime, formatSDG, orderStatusLabel, orderStatusStyle,
+    NEEDS_ACTION_REASON_LABELS, NEEDS_ACTION_REASON_STYLES, ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, formatDateTime, formatSDG, orderStatusLabel, orderStatusStyle,
     paymentMethodLabel, paymentStatusLabel, paymentStatusStyle, primaryForwardTransition, type OrderStatus,
 } from '../../lib/format';
 import { errorMessage } from '../../lib/errors';
+import { csvFileName, downloadCsv, toCsv, type CsvColumn } from '../../lib/csv';
+import { fetchAllPages } from '../../lib/pagination';
 import { Card, Notice } from '../../components/ui';
+import type { OrderNeedsAction } from '../../types';
 
 const PAGE_SIZE = 20;
 
@@ -16,15 +19,48 @@ export const OrderListPage: React.FC = () => {
     const status = searchParams.get('status') ?? '';
     const paymentStatus = searchParams.get('payment') ?? '';
     const page = Math.max(0, Number(searchParams.get('page') ?? '0') || 0);
+    const actionView = searchParams.get('view') === 'action';
 
     const fulfillmentReview = searchParams.get('fulfillment_review') === '1';
     const [searchInput, setSearchInput] = useState(searchParams.get('q') ?? '');
     const [search, setSearch] = useState(searchInput);
     const [orders, setOrders] = useState<OrderListRow[]>([]);
     const [total, setTotal] = useState(0);
+    const [actionRows, setActionRows] = useState<OrderNeedsAction[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [advancingId, setAdvancingId] = useState<string | null>(null);
+    const [exporting, setExporting] = useState(false);
+
+    const exportCsv = async () => {
+        setExporting(true);
+        setError(null);
+        try {
+            const rows = await fetchAllPages((offset, limit) => fetchOrders({
+                status: status || undefined,
+                paymentStatus: paymentStatus || undefined,
+                needsFulfillmentReview: fulfillmentReview || undefined,
+                search,
+                page: offset / limit,
+                pageSize: limit,
+            }));
+            const columns: CsvColumn<OrderListRow>[] = [
+                { header: 'رقم الطلب', value: (o) => o.order_number ?? o.id },
+                { header: 'العميلة', value: (o) => o.customer_name },
+                { header: 'الهاتف', value: (o) => o.phone },
+                { header: 'الإجمالي', value: (o) => o.total },
+                { header: 'حالة الطلب', value: (o) => orderStatusLabel(o.status) },
+                { header: 'طريقة الدفع', value: (o) => paymentMethodLabel(o.payment_method) },
+                { header: 'حالة الدفع', value: (o) => paymentStatusLabel(o.payment_status) },
+                { header: 'التاريخ', value: (o) => o.created_at },
+            ];
+            downloadCsv(csvFileName('orders'), toCsv(rows, columns));
+        } catch (err) {
+            setError(errorMessage(err, 'تعذر تصدير الطلبات.'));
+        } finally {
+            setExporting(false);
+        }
+    };
     const [reviewCount, setReviewCount] = useState(0);
 
     useEffect(() => {
@@ -47,19 +83,23 @@ export const OrderListPage: React.FC = () => {
         if (!silent) setLoading(true);
         setError(null);
         try {
-            const [result, rc] = await Promise.all([
-                fetchOrders({ status, paymentStatus, needsFulfillmentReview: fulfillmentReview || undefined, search, page, pageSize: PAGE_SIZE }),
+            const [rows, rc] = await Promise.all([
+                fetchOrdersNeedingAction(),
                 countFulfillmentReviewOrders(),
             ]);
-            setOrders(result.rows);
-            setTotal(result.total);
+            setActionRows(rows);
             setReviewCount(rc);
+            if (!actionView) {
+                const result = await fetchOrders({ status, paymentStatus, needsFulfillmentReview: fulfillmentReview || undefined, search, page, pageSize: PAGE_SIZE });
+                setOrders(result.rows);
+                setTotal(result.total);
+            }
         } catch (err) {
             setError(errorMessage(err, 'تعذر تحميل الطلبات.'));
         } finally {
             setLoading(false);
         }
-    }, [status, paymentStatus, fulfillmentReview, search, page]);
+    }, [actionView, status, paymentStatus, fulfillmentReview, search, page]);
 
     useEffect(() => { void load(); }, [load]);
     useEffect(() => subscribeToOrders(() => { void load(true); }), [load]);
@@ -90,7 +130,7 @@ export const OrderListPage: React.FC = () => {
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight">إدارة الطلبات</h1>
                     <p className="text-slate-500 font-medium mt-1">متابعة الطلبات، الدفع، والتوصيل</p>
                 </div>
-                {reviewCount > 0 && (
+                {reviewCount > 0 && !actionView && (
                     <button
                         type="button"
                         onClick={() => updateParams({ fulfillment_review: fulfillmentReview ? '' : '1', page: '' })}
@@ -103,6 +143,33 @@ export const OrderListPage: React.FC = () => {
                 )}
             </div>
 
+            <div role="tablist" aria-label="عرض الطلبات" className="flex flex-wrap gap-2">
+                <button
+                    type="button"
+                    role="tab"
+                    aria-selected={!actionView}
+                    onClick={() => updateParams({ view: '', page: '' })}
+                    className={`px-4 py-2 rounded-xl text-sm font-black border transition-colors ${!actionView ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                >
+                    كل الطلبات
+                </button>
+                <button
+                    type="button"
+                    role="tab"
+                    aria-selected={actionView}
+                    onClick={() => updateParams({ view: 'action', page: '' })}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black border transition-colors ${actionView ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                >
+                    يحتاج إجراء
+                    {actionRows.length > 0 && (
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${actionView ? 'bg-white text-slate-900' : 'bg-amber-500 text-white'}`}>
+                            {new Set(actionRows.map((row) => row.order_id)).size}
+                        </span>
+                    )}
+                </button>
+            </div>
+
+            {!actionView && (
             <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-wrap gap-3">
                 <div className="flex-1 min-w-[260px] relative">
                     <Search className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -130,7 +197,9 @@ export const OrderListPage: React.FC = () => {
                     <option value="">كل حالات الدفع</option>
                     {Object.entries(PAYMENT_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
+                <button type="button" disabled={exporting} onClick={() => void exportCsv()} className="bg-slate-900 text-white rounded-xl px-4 py-2.5 font-black text-sm disabled:opacity-50">{exporting ? 'جاري التصدير...' : 'تصدير CSV'}</button>
             </div>
+            )}
 
             {error && (
                 <Notice kind="error">
@@ -139,6 +208,57 @@ export const OrderListPage: React.FC = () => {
                 </Notice>
             )}
 
+            {actionView ? (
+                <Card className="overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-right border-collapse">
+                            <thead>
+                                <tr className="bg-slate-900 border-b border-slate-800">
+                                    <th className="px-6 py-5 text-xs font-black text-slate-400 uppercase tracking-widest">الطلب</th>
+                                    <th className="px-6 py-5 text-xs font-black text-slate-400 uppercase tracking-widest">السبب</th>
+                                    <th className="px-6 py-5 text-xs font-black text-slate-400 uppercase tracking-widest text-center">الحالة</th>
+                                    <th className="px-6 py-5 text-xs font-black text-slate-400 uppercase tracking-widest text-left">منذ</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan={4} className="px-6 py-20 text-center text-slate-400">
+                                            <Loader2 className="w-6 h-6 animate-spin mx-auto" />
+                                        </td>
+                                    </tr>
+                                ) : actionRows.length > 0 ? actionRows.map((row) => (
+                                    <tr key={`${row.order_id}-${row.reason}`} className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="px-6 py-5">
+                                            <Link to={`/orders/${row.order_id}`} className="font-bold text-slate-900 text-sm hover:text-brand-blue">
+                                                {row.order_number ?? row.order_id.slice(0, 8)}
+                                            </Link>
+                                        </td>
+                                        <td className="px-6 py-5">
+                                            <span className={`px-3 py-1.5 rounded-lg text-[10px] font-black border ${NEEDS_ACTION_REASON_STYLES[row.reason]}`}>
+                                                {NEEDS_ACTION_REASON_LABELS[row.reason] ?? row.reason}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-5 text-center">
+                                            <span className={`px-3 py-1.5 rounded-lg text-[10px] font-black border ${orderStatusStyle(row.status)}`}>{orderStatusLabel(row.status)}</span>
+                                        </td>
+                                        <td className="px-6 py-5 text-left text-xs font-bold text-slate-500">{formatDateTime(row.since)}</td>
+                                    </tr>
+                                )) : (
+                                    <tr>
+                                        <td colSpan={4} className="px-6 py-20 text-center">
+                                            <div className="flex flex-col items-center opacity-20">
+                                                <ClipboardList className="w-12 h-12 mb-3" />
+                                                <p className="font-black text-lg">لا توجد طلبات تحتاج إجراء الآن</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </Card>
+            ) : (
             <Card className="overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-right border-collapse">
@@ -246,6 +366,7 @@ export const OrderListPage: React.FC = () => {
                     </div>
                 </div>
             </Card>
+            )}
         </div>
     );
 };

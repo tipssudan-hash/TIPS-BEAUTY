@@ -1,61 +1,28 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, QrCode, CheckCircle2, AlertCircle, ScanLine, Camera, Keyboard } from 'lucide-react';
 import jsQR from 'jsqr';
 import { inputClass } from '../ui';
-import { generate12DigitDeliveryCode } from '../orders/OrderDeliveryQRCode';
+import { errorMessage } from '@application/errors';
+import { readDeliveryCode } from '@application/services/deliveryCode';
 
 interface Props {
     isOpen: boolean;
     orderNumber: string;
-    orderId?: string;
     onClose: () => void;
-    onVerified: () => void;
-}
-
-/**
- * Validates whether the scanned or entered code strictly matches the
- * customer's secret delivery verification code.
- * Rejects orderNumber, PIN, or any public data to prevent unauthorized delivery confirmation.
- */
-export function validateDeliveryCode(input: string, orderId: string, orderNumber: string): boolean {
-    const raw = input.trim();
-    if (!raw) return false;
-
-    const expected12Code = generate12DigitDeliveryCode(orderId || orderNumber, orderNumber);
-    const expectedClean12 = expected12Code.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-
-    // 1. Direct match with 12-character verification code (case-insensitive, ignores hyphens/spaces)
-    const cleanAlphaNumeric = raw.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-    if (cleanAlphaNumeric === expectedClean12) {
-        return true;
-    }
-
-    // 2. Scanned QR JSON payload from customer's screen
-    if (raw.startsWith('{') && raw.endsWith('}')) {
-        try {
-            const parsed = JSON.parse(raw);
-            const parsedCode = (parsed.verification_code || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-            if (parsedCode === expectedClean12) {
-                return true;
-            }
-        } catch {
-            return false;
-        }
-    }
-
-    return false;
+    // Resolves when the server accepts the code; rejects with the server's reason otherwise.
+    onSubmitCode: (code: string) => Promise<void>;
 }
 
 export const BarcodeScannerModal: React.FC<Props> = ({
     isOpen,
     orderNumber,
-    orderId,
     onClose,
-    onVerified,
+    onSubmitCode,
 }) => {
     const [mode, setMode] = useState<'camera' | 'manual'>('camera');
     const [scannedCode, setScannedCode] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [submitting, setSubmitting] = useState(false);
     const [cameraAvailable, setCameraAvailable] = useState<boolean | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
@@ -67,6 +34,24 @@ export const BarcodeScannerModal: React.FC<Props> = ({
             streamRef.current = null;
         }
     };
+
+    const submitCode = useCallback(async (raw: string) => {
+        const code = readDeliveryCode(raw);
+        if (!code) {
+            setError('لم يُعثر على رمز تحقق في الإدخال.');
+            return;
+        }
+        setScannedCode(code);
+        setSubmitting(true);
+        setError(null);
+        try {
+            await onSubmitCode(code);
+        } catch (err) {
+            setError(errorMessage(err, 'تعذر تأكيد التسليم، تحققي من الرمز وحاولي مرة أخرى.'));
+        } finally {
+            setSubmitting(false);
+        }
+    }, [onSubmitCode]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -152,13 +137,12 @@ export const BarcodeScannerModal: React.FC<Props> = ({
                 inversionAttempts: 'dontInvert',
             });
 
-            if (result && result.data) {
-                if (validateDeliveryCode(result.data, orderId || orderNumber, orderNumber)) {
-                    active = false;
-                    stopCamera();
-                    onVerified();
-                    return;
-                }
+            if (result?.data && readDeliveryCode(result.data)) {
+                // One submission per scan: a rejected code is retried deliberately, never frame by frame.
+                active = false;
+                setMode('manual');
+                void submitCode(result.data);
+                return;
             }
 
             rafId = requestAnimationFrame(scanFrame);
@@ -170,20 +154,13 @@ export const BarcodeScannerModal: React.FC<Props> = ({
             active = false;
             if (rafId !== null) cancelAnimationFrame(rafId);
         };
-    }, [isOpen, mode, cameraAvailable, orderId, orderNumber, onVerified]);
+    }, [isOpen, mode, cameraAvailable, submitCode]);
 
     if (!isOpen) return null;
 
     const handleConfirm = (e: React.FormEvent) => {
         e.preventDefault();
-        const valid = validateDeliveryCode(scannedCode, orderId || orderNumber, orderNumber);
-        if (valid) {
-            setError(null);
-            stopCamera();
-            onVerified();
-        } else {
-            setError('رمز التحقق غير صحيح. تأكد من مسح باركود العميل أو كتابة رمز التحقق المكون من 12 خانة الموجود في هاتف العميل فقط.');
-        }
+        void submitCode(scannedCode);
     };
 
     return (
@@ -293,7 +270,7 @@ export const BarcodeScannerModal: React.FC<Props> = ({
                             </div>
 
                             {error && (
-                                <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold">
+                                <div role="alert" className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold">
                                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                                     <span>{error}</span>
                                 </div>
@@ -301,11 +278,11 @@ export const BarcodeScannerModal: React.FC<Props> = ({
 
                             <button
                                 type="submit"
-                                disabled={!scannedCode.trim()}
+                                disabled={submitting || !scannedCode.trim()}
                                 className="w-full flex items-center justify-center gap-1.5 py-3.5 px-4 rounded-xl bg-brand-blue hover:bg-sky-800 text-white font-bold text-sm shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-98"
                             >
                                 <CheckCircle2 className="w-4 h-4" />
-                                تأكيد التحقق والتسليم
+                                {submitting ? 'جاري التحقق...' : 'تأكيد التحقق والتسليم'}
                             </button>
                         </form>
                     )}

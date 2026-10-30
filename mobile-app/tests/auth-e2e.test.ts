@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || "https://luqrrjhvaremronfcvaf.supabase.co";
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1cXJyamh2YXJlbXJvbmZjdmFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA3MzM2MzgsImV4cCI6MjA3NjMwOTYzOH0.8g_QSxyxra1uVVJFboe45Dilq3X1CCdgHoZTY3UPESk";
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const liveTestsEnabled = Boolean(SUPABASE_URL) && process.env.RUN_LIVE_TESTS === "1";
 
-describe("TIPS Beauty Authentication & Database Flow", () => {
+describe.skipIf(!liveTestsEnabled)("TIPS Beauty Authentication & Database Flow", () => {
   const testEmail = `beauty_user_${Date.now()}@tips-sd.com`;
   const testPassword = "BeautySecurePassword123!";
   const testFullName = "نورا أحمد";

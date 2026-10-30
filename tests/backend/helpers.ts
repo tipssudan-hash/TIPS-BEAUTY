@@ -1,7 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { config } from 'dotenv';
 import { randomUUID } from 'node:crypto';
-import type { Database } from '../../src/lib/database.types';
+import type { Database } from '../../src/infrastructure/supabase/database.types';
 
 config({ path: '.env' });
 config({ path: '.env.test.local', override: true });
@@ -34,6 +34,22 @@ export const haveCreds = Boolean(creds.customer.email && creds.customer.password
 export const rpc = (client: Client, fn: string, args?: Record<string, unknown>) =>
     (client.rpc as unknown as (f: string, a?: Record<string, unknown>) => ReturnType<Client['rpc']>)(fn, args);
 
+export type LooseRow = Record<string, unknown>;
+type LooseResult<T> = { data: T; error: { message: string; code?: string } | null };
+export interface LooseQuery extends PromiseLike<LooseResult<LooseRow[] | null>> {
+    select(columns?: string): LooseQuery;
+    eq(column: string, value: unknown): LooseQuery;
+    in(column: string, values: unknown[]): LooseQuery;
+    is(column: string, value: unknown): LooseQuery;
+    order(column: string, options?: { ascending?: boolean }): LooseQuery;
+    insert(values: LooseRow): LooseQuery;
+    update(values: LooseRow): LooseQuery;
+    delete(): LooseQuery;
+    single(): PromiseLike<LooseResult<LooseRow | null>>;
+}
+// Tables and columns added by the Phase 1b migrations are not in the generated types yet.
+export const loose = (client: Client) => client as unknown as { from(table: string): LooseQuery };
+
 export async function publicStock(client: Client, productId: string): Promise<number> {
     const { data, error } = await client.rpc('get_public_product', { p_product_id: productId });
     if (error) throw error;
@@ -58,6 +74,22 @@ export async function provisionProduct(admin: Client): Promise<{ id: string; war
     return {
         id: product.id,
         warehouseId: wh.id,
+        release: async () => { await adjust(-TEST_STOCK_TOPUP, `${TEST_TAG} top-up removed`); },
+    };
+}
+
+// A second Product in the same warehouse, for tests that need two Products (a Bundle).
+export async function provisionOtherProduct(admin: Client, warehouseId: string, excludeId: string): Promise<{ id: string; release: () => Promise<void> }> {
+    const { data: products, error: pErr } = await admin.rpc('get_admin_products');
+    if (pErr) throw pErr;
+    const other = (products as { id: string; is_active: boolean }[]).find((p) => p.is_active && p.id !== excludeId);
+    if (!other) throw new Error('No second active product to test with');
+    const adjust = (delta: number, note: string) =>
+        admin.rpc('adjust_warehouse_inventory', { p_warehouse_id: warehouseId, p_product_id: other.id, p_quantity_delta: delta, p_note: note });
+    const { error } = await adjust(TEST_STOCK_TOPUP, `${TEST_TAG} top-up`);
+    if (error) throw error;
+    return {
+        id: other.id,
         release: async () => { await adjust(-TEST_STOCK_TOPUP, `${TEST_TAG} top-up removed`); },
     };
 }

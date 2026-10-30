@@ -6,8 +6,12 @@ import {
   CustomerPreferences,
   Product,
   StorefrontBanner,
+  StorefrontBrand,
+  StorefrontCategory,
   StorefrontCollection,
   addFavorite,
+  fetchBrands,
+  fetchCategories,
   fetchFavoriteIds,
   fetchProducts,
   fetchStorefront,
@@ -159,6 +163,8 @@ type Store = {
   products: Product[];
   banners: StorefrontBanner[];
   collections: StorefrontCollection[];
+  categories: StorefrontCategory[] | null;
+  brands: StorefrontBrand[];
   cart: CartItem[];
   favoriteIds: string[];
   loading: boolean;
@@ -182,6 +188,8 @@ export function TipsStoreProvider({ children }: { children: React.ReactNode }) {
   const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
   const [banners, setBanners] = useState<StorefrontBanner[]>(FALLBACK_BANNERS);
   const [collections, setCollections] = useState<StorefrontCollection[]>(FALLBACK_COLLECTIONS);
+  const [categories, setCategories] = useState<StorefrontCategory[] | null>(null);
+  const [brands, setBrands] = useState<StorefrontBrand[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -208,10 +216,18 @@ export function TipsStoreProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     setError(null);
     try {
-      const [nextProducts, storefront] = await Promise.all([
+      const [nextProducts, storefront, nextCategories, nextBrands] = await Promise.all([
         fetchProducts(),
         fetchStorefront(),
+        fetchCategories().catch(() => null),
+        fetchBrands().catch(() => null),
       ]);
+      if (Array.isArray(nextCategories)) {
+        setCategories(nextCategories);
+      }
+      if (Array.isArray(nextBrands)) {
+        setBrands(nextBrands);
+      }
       if (nextProducts && nextProducts.length > 0) {
         setProducts(nextProducts);
       }
@@ -312,6 +328,8 @@ export function TipsStoreProvider({ children }: { children: React.ReactNode }) {
       products,
       banners,
       collections,
+      categories,
+      brands,
       cart,
       favoriteIds,
       loading,
@@ -331,6 +349,8 @@ export function TipsStoreProvider({ children }: { children: React.ReactNode }) {
       products,
       banners,
       collections,
+      categories,
+      brands,
       cart,
       favoriteIds,
       loading,

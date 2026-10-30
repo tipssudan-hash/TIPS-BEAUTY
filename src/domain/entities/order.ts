@@ -39,6 +39,8 @@ export interface Order {
   city: string | null;
   state: string | null;
   createdAt: string;
+  // The warehouse's promised arrival; null until one is set.
+  estimatedDeliveryAt?: string | null;
 }
 
 export interface OrderStatusEntry {

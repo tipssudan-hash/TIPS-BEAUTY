@@ -21,7 +21,7 @@ describe.skipIf(!haveCreds)('Affiliate & Coupon End-to-End Workflow', () => {
             p_status: 'active',
         });
         expect(affErr).toBeNull();
-        expect(affiliateId).toBeTruthy();
+        if (typeof affiliateId !== 'string') throw new Error('admin_save_affiliate did not return an id');
 
         // 2. Admin creates a coupon linked to this marketer
         const { data: couponId, error: cpnErr } = await rpc(admin, 'admin_save_coupon', {
@@ -40,7 +40,7 @@ describe.skipIf(!haveCreds)('Affiliate & Coupon End-to-End Workflow', () => {
         const { data: affiliatesList, error: listErr } = await rpc(admin, 'admin_get_affiliates');
         expect(listErr).toBeNull();
         const createdMarketer = (affiliatesList as Array<{ id: string; total_commission_earned: number; total_payouts_paid: number; pending_balance: number }>)?.find((a) => a.id === affiliateId);
-        expect(createdMarketer).toBeTruthy();
+        if (!createdMarketer) throw new Error('Created marketer is missing from admin_get_affiliates');
         expect(Number(createdMarketer.total_commission_earned)).toBe(0);
         expect(Number(createdMarketer.total_payouts_paid)).toBe(0);
         expect(Number(createdMarketer.pending_balance)).toBe(0);

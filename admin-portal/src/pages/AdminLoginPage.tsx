@@ -7,7 +7,7 @@ import { Lock, Mail, AlertCircle } from 'lucide-react';
 
 export const AdminLoginPage: React.FC = () => {
     const navigate = useNavigate();
-    const { checkAdminRole } = useAuth();
+    const { checkStaffAccess } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
@@ -23,13 +23,13 @@ export const AdminLoginPage: React.FC = () => {
             if (error) throw error;
             if (!data.session) throw new Error('no session');
 
-            const admin = await checkAdminRole(data.session.user.id);
-            if (!admin) {
+            const hasAccess = await checkStaffAccess();
+            if (!hasAccess) {
                 await supabase.auth.signOut();
-                setError('هذا الحساب ليس حساب مدير.');
+                setError('هذا الحساب ليس حساب مدير أو مدير مستودع.');
                 return;
             }
-            navigate('/dashboard');
+            navigate('/');
         } catch (err) {
             console.error('Admin login failed', err);
             setError(loginErrorMessage(err instanceof Error ? err.message : ''));

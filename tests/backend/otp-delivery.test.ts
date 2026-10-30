@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { anonClient, creds, haveCreds, rpc, signedInClient } from './helpers';
+import { anonClient, creds, haveCreds, loose, rpc, signedInClient } from './helpers';
 
 // OTP rate limiting and logging (migration 20260924000200).
 //
@@ -46,7 +46,7 @@ suite('OTP endpoints are not reachable from the client', () => {
     it('never exposes the raw attempt ledger', async () => {
         const admin = await signedInClient(creds.admin.email, creds.admin.password);
         // No SELECT policy at all: it is rate-limiting state for the hook, not a report.
-        const { data } = await admin.from('otp_request_attempts').select('phone');
+        const { data } = await loose(admin).from('otp_request_attempts').select('phone');
         expect(data ?? []).toHaveLength(0);
     });
 });

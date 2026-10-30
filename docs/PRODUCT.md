@@ -10,7 +10,7 @@ web
 
 **Customers**: Sudanese cosmetics shoppers using the Storefront, a mobile-first web app (also shipped inside a native wrapper built and maintained separately by others). They browse the catalogue, order via Cash on Delivery or Mycashi, track delivery, and review products they've received.
 
-**Staff**: A single admin role at launch, using the separately hosted Admin Portal to manage products, orders, drivers, Warehouses and Stock, States and Localities, and banners. No role-based access tiers yet.
+**Staff**: Three roles in the separately hosted Admin Portal: **admin** (full access), **warehouse manager** (`profiles.role = 'warehouse_supervisor'`, limited to the Warehouses granted in `warehouse_manager_access`), and **driver** (`profiles.role = 'driver'`, own deliveries and cash remittance). Staff manage products, orders, drivers, Warehouses and Stock, States and Localities, banners, coupons, promotions, affiliates, purchases and the audit log. See `docs/ADMIN_SETUP.md` for role setup.
 
 ## Product Purpose
 
@@ -37,12 +37,13 @@ Brand tagline (bilingual, user-confirmed): **اكتشفي جمالك الطبي�
 - **Accounts**: login and email verification required before ordering.
 - **Delivery coverage**: all Sudanese States are served; Localities within a State carry their own shipping fee, falling back to a State default.
 - **Reviews**: one per Product, only from a customer with a delivered Order containing that Product, no photos.
-- **Variants**: exist per Product (shade/size, own price/stock) but are hidden at checkout for launch — documented limitation, not a bug.
-- **Discounts**: a staff-set percentage on a single Product is the only pricing rule at launch.
+- **Variants**: exist per Product (shade/size, own price/stock) and are sent and shown at checkout.
+- **Discounts**: staff-set percentage discounts on a Product, plus coupons and promotions.
+- **Loyalty and referrals**: Beauty Points, referral codes and affiliate commissions are built (backend migrations from `20260920000000` onward; Admin Portal pages for affiliates and payouts).
 - Scope is explicitly tiered:
   - **Tier 1 (launch)**: catalogue, checkout, Localities/Warehouses, Mycashi + COD, verified reviews, order tracking/history, admin order operations, product image upload, drivers, banners, order emails.
-  - **Tier 2 (post-launch, after Tier 1 is tested)**: coupons, promotions, collections, in-app notifications, returns.
-  - **Tier 3 (report only, not built)**: loyalty, referrals, affiliates, driver app/live location, push beyond the existing Edge Function.
+  - **Tier 2 (post-launch, after Tier 1 is tested)**: coupons, promotions, collections, in-app notifications, returns. Built.
+  - **Tier 3 (report only, not built)**: driver app/live location, push beyond the existing Edge Function. Loyalty, referrals and affiliates have been built since this tiering.
 
 ## Brand Commitments
 
@@ -62,6 +63,6 @@ Brand tagline (bilingual, user-confirmed): **اكتشفي جمالك الطبي�
 
 1. The backend is the source of truth: RPCs and RLS decide pricing, stock, and permissions — the UI must never compute or trust these client-side.
 2. Sudan-specific by default: States/Localities, SDG, Mycashi, and own-driver delivery are product facts, not generic e-commerce patterns — don't substitute couriers, foreign gateways, or currencies.
-3. Two audiences, two apps, one backend: Storefront and Admin Portal have sharply different scopes and permissions (single admin role vs. self-service customers).
+3. Two audiences, two apps, one backend: Storefront and Admin Portal have sharply different scopes and permissions (self-service customers vs. admin, warehouse-manager and driver roles).
 4. Pre-launch discipline: real data, tiered scope (Tier 1 ships now; Tier 2 waits for Tier 1 to be tested; Tier 3 is reported, not built).
 5. Mobile-first responsive web is the actual design surface; the native wrapper is someone else's concern.

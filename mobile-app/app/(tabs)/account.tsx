@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { ScreenContainer } from "@/components/screen-container";
 import { useTipsStore } from "@/lib/tips-store";
-import { getCustomerPreferences, type CustomerPreferences } from "@/lib/tips-api";
+import { fetchProfile } from "@/lib/tips-api";
 
 const LOGO = require("../../assets/images/tips-logo.png");
 const AVATAR_DEFAULT = require("../../assets/images/hero-makeup-model.jpg");
@@ -21,16 +21,14 @@ const actions = [
   { icon: "auto-awesome" as const, label: "مساعدي الذكي", route: "/ai-chat", color: "#dc426d" },
 ];
 export default function AccountScreen() {
-  const { session, setSession, configured } = useTipsStore();
+  const { session, setSession, configured, preferences } = useTipsStore();
   const [points, setPoints] = useState<number | null>(null);
-  const [prefs, setPrefs] = useState<CustomerPreferences | null>(null);
 
   useEffect(() => {
     if (!session) return;
     void fetchProfile(session)
       .then((profile) => setPoints(Number(profile.beauty_points || 0)))
       .catch(() => setPoints(null));
-    void getCustomerPreferences(session).then((p) => setPrefs(p));
   }, [session]);
 
   if (!session) {
@@ -57,7 +55,7 @@ export default function AccountScreen() {
     );
   }
 
-  const displayName = preferences?.fullName || prefs?.fullName || session.user.user_metadata?.full_name || session.user.email || "عميلة تيبس";
+  const displayName = preferences?.fullName || session.user.user_metadata?.full_name || session.user.email || "عميلة تيبس";
 
   return (
     <ScreenContainer edges={["top", "left", "right"]} containerClassName="bg-[#f7f8fc]">

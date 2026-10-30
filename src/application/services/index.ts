@@ -3,3 +3,4 @@ export * from './notifications';
 export * from './offers';
 export * from './orderProgress';
 export * from './productSearch';
+export * from './reorder';

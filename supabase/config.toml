@@ -435,6 +435,9 @@ verify_jwt = true
 [functions.order-status-push]
 verify_jwt = true
 
+[functions.driver-assignment-push]
+verify_jwt = true
+
 # Supabase's Send SMS hook signs with a shared secret (webhook-signature), not a user JWT, so gateway
 # JWT verification would reject every call. The function verifies SEND_SMS_HOOK_SECRET itself and fails
 # closed when it is unset.

@@ -157,4 +157,37 @@ suite('coupons over the backend RPCs', () => {
         await cleanupTestOrders(admin); // deleting the tagged orders removes their redemptions (reversal itself is proven in reversal.test.ts)
         expect((await rpc(admin, 'admin_delete_coupon', { p_id: couponIds.pop()! })).error).toBeNull();
     });
+
+    it('a Coupon below a cart Promotion is refused as not_best; a larger one wins and the Promotion gives way', async () => {
+        const promotion = await rpc(admin, 'admin_save_promotion', {
+            p_title: `${TEST_TAG} cart tier`, p_discount_type: null, p_discount_value: null, p_target_kind: 'products',
+            p_target_product_ids: [product.id], p_promotion_type: 'quantity_tier', p_tiers: [{ min_quantity: 2, percent: 30 }],
+        });
+        if (promotion.error) throw promotion.error;
+        const promotionId = promotion.data as unknown as string;
+        try {
+            // The Promotion takes 30% of two units (0.6 x base): the small Coupon is below it, the big one above it.
+            const small = Math.max(1, Math.floor(basePrice * 0.2));
+            const big = Math.ceil(basePrice * 1.5);
+            await saveCoupon({ p_code: code('CART-S'), p_discount_type: 'fixed', p_discount_value: small });
+            await saveCoupon({ p_code: code('CART-B'), p_discount_type: 'fixed', p_discount_value: big });
+
+            expect((await preview(customer, code('CART-S'), 2)).reason).toBe('not_best');
+            expect((await checkoutWith(code('CART-S'), 2)).error?.message ?? '').toMatch(/Coupon refused: not_best/);
+
+            const accepted = await preview(customer, code('CART-B'), 2);
+            expect(accepted.ok).toBe(true);
+            const created = await checkoutWith(code('CART-B'), 2);
+            expect(created.error).toBeNull();
+            const order = (created.data as { order_id: string; discount_amount: number; total: number }[])[0];
+            expect(Number(order.discount_amount)).toBe(big);
+            expect(Number(order.total)).toBe(Number((basePrice * 2 - big + zone.fee).toFixed(2)));
+            const { data: row } = await admin.from('orders').select('items').eq('id', order.order_id).single();
+            expect((row!.items as { promotion_id: string | null }[])[0].promotion_id).toBeNull();
+        } finally {
+            await cleanupTestOrders(admin);
+            const { error } = await rpc(admin, 'admin_delete_promotion', { p_id: promotionId });
+            if (error) await rpc(admin, 'admin_end_promotion', { p_id: promotionId });
+        }
+    });
 });

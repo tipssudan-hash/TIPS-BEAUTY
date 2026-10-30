@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import * as storefront from '@application/errors';
 import * as admin from '../../admin-portal/src/lib/errors';
 
@@ -24,6 +24,19 @@ describe('storefront errorMessage', () => {
         expect(storefront.loginErrorMessage('Email not confirmed')).toMatch(/تأكيد البريد/);
         expect(storefront.signupErrorMessage('User already registered')).toMatch(/مسجل بالفعل/);
         expect(storefront.signupErrorMessage('Password should be at least 6 characters')).toMatch(/6/);
+    });
+
+    it('translates the checkout idempotency refusals', () => {
+        expect(storefront.errorMessage(new Error('IDEMPOTENCY_KEY_REUSED'))).toMatch(/بيانات الطلب/);
+        expect(storefront.errorMessage({ message: 'IDEMPOTENCY_ORDER_CANCELLED' })).toMatch(/تم إلغاء/);
+    });
+
+    it('maps the delivery code refusals returned by update_driver_order_status', () => {
+        expect(storefront.deliveryCodeRefusalMessage('delivery_code_invalid')).toMatch(/غير صحيح/);
+        expect(storefront.deliveryCodeRefusalMessage('delivery_code_locked')).toMatch(/رمز التسليم/);
+        expect(storefront.deliveryCodeRefusalMessage('delivery_code_required')).toMatch(/رمز التسليم/);
+        expect(storefront.deliveryCodeRefusalMessage('delivered')).toBeNull();
+        expect(storefront.deliveryCodeRefusalMessage(null)).toBeNull();
     });
 });
 

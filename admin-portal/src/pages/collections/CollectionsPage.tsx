@@ -4,9 +4,12 @@ import { Layers, Plus, Edit, Trash2 } from 'lucide-react';
 import type { Collection } from '../../types';
 import { COLLECTION_RULE_LABELS, deleteCollection, fetchCollections } from '../../lib/catalogApi';
 import { errorMessage } from '../../lib/errors';
+import { PAGE_SIZE } from '../../lib/pagination';
 import { Card, Notice, PageHeader, Spinner, StatusPill, Table, primaryButtonClass, smallButtonClass } from '../../components/ui';
+import { Pagination } from '../../components/Pagination';
 
 export const CollectionsPage: React.FC = () => {
+    const [page, setPage] = useState(0);
     const [collections, setCollections] = useState<Collection[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -50,7 +53,7 @@ export const CollectionsPage: React.FC = () => {
 
             <Card className="overflow-hidden">
                 <Table headers={['التشكيلة', 'المعرّف', 'القاعدة', 'الترتيب', 'الحالة', 'الإجراءات']} empty={collections.length === 0} emptyText="لا توجد تشكيلات بعد">
-                    {collections.map((c) => (
+                    {collections.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((c) => (
                         <tr key={c.id} className="hover:bg-slate-50/50">
                             <td className="px-6 py-4">
                                 <p className="text-sm font-black text-slate-900">{c.name_ar}</p>
@@ -69,6 +72,7 @@ export const CollectionsPage: React.FC = () => {
                         </tr>
                     ))}
                 </Table>
+                <Pagination page={page} pageSize={PAGE_SIZE} total={collections.length} onPageChange={setPage} />
             </Card>
         </div>
     );

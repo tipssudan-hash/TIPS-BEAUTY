@@ -4,13 +4,13 @@ import Constants from "expo-constants";
 const baseUrl = (
   process.env.EXPO_PUBLIC_SUPABASE_URL ||
   Constants.expoConfig?.extra?.supabaseUrl ||
-  "https://luqrrjhvaremronfcvaf.supabase.co"
+  ""
 ).replace(/\/$/, "");
 
 const anonKey = (
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
   Constants.expoConfig?.extra?.supabaseAnonKey ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1cXJyamh2YXJlbXJvbmZjdmFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA3MzM2MzgsImV4cCI6MjA3NjMwOTYzOH0.8g_QSxyxra1uVVJFboe45Dilq3X1CCdgHoZTY3UPESk"
+  ""
 );
 export const isTipsConfigured = Boolean(baseUrl && anonKey);
 
@@ -38,6 +38,8 @@ export type Product = {
   description?: string | null;
   category?: string | null;
   brand?: string | null;
+  category_id?: string | null;
+  brand_id?: string | null;
   created_at?: string | null;
   average_rating?: number | null;
   reviews_count?: number | null;
@@ -53,6 +55,8 @@ export type CartItem = Product & {
 export type AuthSession = { access_token: string; refresh_token?: string; user: { id: string; email?: string; user_metadata?: Record<string, string> } };
 export type StorefrontBanner = { id: string; title_ar: string; subtitle_ar: string | null; image_url: string | null; action_type: "collection" | "category" | "product" | "url" | "none"; action_value: string | null };
 export type StorefrontCollection = { id: string; slug: string; name_ar: string; description_ar: string | null; icon: string; display_order: number; product_ids: string[] };
+export type StorefrontCategory = { id: string; parent_id: string | null; name_ar: string; name_en: string | null; slug: string | null; image_url: string | null; icon: string | null; sort_order: number; product_count: number };
+export type StorefrontBrand = { id: string; name_ar: string; name_en: string | null; slug: string | null; logo_url: string | null; sort_order: number; product_count: number };
 export type CustomerNotification = { id: string; type: string; title_ar: string; body_ar: string; payload: { url?: string } | null; is_read: boolean; created_at: string };
 export type CustomerProfile = { beauty_points: number; loyalty_tier: "bronze" | "silver" | "gold"; loyalty_lifetime_points: number; referral_code: string };
 export type AffiliateProfile = { id: string; display_name: string; code: string; status: "pending" | "active" | "suspended" | "rejected"; commission_rate: number; minimum_payout: number; admin_note?: string | null };
@@ -286,6 +290,12 @@ export async function fetchStorefront() {
   ]);
   return { banners, collections };
 }
+export async function fetchCategories() {
+  return request("/rest/v1/rpc/get_public_categories", { method: "POST", body: "{}" }) as Promise<StorefrontCategory[]>;
+}
+export async function fetchBrands() {
+  return request("/rest/v1/rpc/get_public_brands", { method: "POST", body: "{}" }) as Promise<StorefrontBrand[]>;
+}
 export async function fetchOrders(session: AuthSession) {
   return request("/rest/v1/orders?select=id,order_number,total,status,payment_status,created_at,shipping_fee,items&order=created_at.desc", { headers: { Accept: "application/json" } }, session.access_token);
 }
@@ -306,8 +316,28 @@ export async function subscribeRestock(session: AuthSession, productId: string) 
 export async function fetchDeliveryZones() {
   return request("/rest/v1/delivery_zones?select=name,state,fee&is_active=eq.true&order=state,name", { headers: { Accept: "application/json" } }) as Promise<Array<{ name: string; state?: string | null; fee: number }>>;
 }
-export async function createOrder(session: AuthSession, args: { name: string; phone: string; address: string; city: string; paymentMethod: string; items: CartItem[]; couponCode?: string; pointsToRedeem?: number; referralCode?: string; affiliateCode?: string; idempotencyKey: string }) {
-  return request("/rest/v1/rpc/checkout_order_with_growth", { method: "POST", body: JSON.stringify({ p_customer_name: args.name, p_phone: args.phone, p_shipping_address: args.address, p_city: args.city, p_state: "", p_payment_method: args.paymentMethod, p_items: args.items.map((item) => ({ id: item.id, quantity: item.quantity })), p_coupon_code: args.couponCode || null, p_points_to_redeem: args.pointsToRedeem || 0, p_referral_code: args.referralCode || null, p_affiliate_code: args.affiliateCode || null, p_idempotency_key: args.idempotencyKey }) }, session.access_token);
+export type CartPricingPreview = {
+  lines: { line_index: number; product_id: string; variant_id?: string | null; quantity: number; unit_price: number; line_total: number; effective_unit_price: number; pricing_rule_kind: string | null; promotion_id: string | null; promotion_type: string | null }[];
+  base_subtotal: number;
+  line_reductions: number;
+  subtotal: number;
+  applied_promotions: { promotion_id: string; promotion_type: string; rule_label: string; reduction: number }[];
+  coupon: { code: string | null; reduction: number; reason: string | null } | null;
+};
+
+// The priced line for the Cart item at this position; line_index may start at 0 or 1.
+export function previewLine(preview: CartPricingPreview, index: number) {
+  const first = Math.min(...preview.lines.map((line) => line.line_index));
+  return preview.lines.find((line) => line.line_index - first === index);
+}
+
+// Same item shape createOrder sends, so the preview prices exactly what checkout will charge.
+export async function previewCartPricing(items: CartItem[], couponCode?: string): Promise<CartPricingPreview> {
+  return request("/rest/v1/rpc/preview_cart_pricing", { method: "POST", body: JSON.stringify({ p_items: items.map((item) => ({ id: item.id, quantity: item.quantity })), p_coupon_code: couponCode || null }) }) as Promise<CartPricingPreview>;
+}
+
+export async function createOrder(session: AuthSession, args: { name: string; phone: string; address: string; city: string; paymentMethod: string; items: CartItem[]; couponCode?: string; pointsToRedeem?: number; referralCode?: string; affiliateCode?: string; idempotencyKey: string; customerLat: number; customerLng: number }) {
+  return request("/rest/v1/rpc/checkout_order_with_growth", { method: "POST", body: JSON.stringify({ p_customer_name: args.name, p_phone: args.phone, p_shipping_address: args.address, p_city: args.city, p_state: "", p_payment_method: args.paymentMethod, p_items: args.items.map((item) => ({ id: item.id, quantity: item.quantity })), p_coupon_code: args.couponCode || null, p_points_to_redeem: args.pointsToRedeem || 0, p_referral_code: args.referralCode || null, p_affiliate_code: args.affiliateCode || null, p_idempotency_key: args.idempotencyKey, p_customer_lat: args.customerLat, p_customer_lng: args.customerLng }) }, session.access_token);
 }
 export async function fetchPaymentMethods() {
   return request("/rest/v1/payment_methods?select=code,name_ar,description_ar,requires_proof&is_active=eq.true&order=display_order", { headers: { Accept: "application/json" } }) as Promise<Array<{ code: string; name_ar: string; description_ar: string | null; requires_proof: boolean }>>;

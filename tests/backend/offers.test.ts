@@ -6,7 +6,19 @@ import { TEST_TAG, anonClient, creds, haveCreds, rpc, signedInClient, type Clien
 
 const suite = haveCreds ? describe : describe.skip;
 
-type Offer = { id: string; title: string; target_kind: string; product_ids: string[] };
+type Offer = {
+    id: string;
+    title: string;
+    target_kind: string;
+    product_ids: string[];
+    promotion_type: string;
+    buy_quantity: number | null;
+    get_quantity: number | null;
+    get_discount_percent: number | null;
+    tiers: { min_quantity: number; percent: number }[];
+    bundle_price: number | null;
+    bundle_items: { product_id: string; quantity: number }[];
+};
 
 suite('public offers', () => {
     let admin: Client;
@@ -55,5 +67,19 @@ suite('public offers', () => {
 
         const direct = await anon.from('promotions').select('id').limit(1);
         expect(direct.error).not.toBeNull();
+    });
+
+    it('lists each cart-type Promotion with its own terms: buy X get Y, quantity tiers and bundle items', async () => {
+        const { data: catalogue } = await anon.rpc('get_public_products');
+        const products = catalogue as unknown as { id: string }[];
+        const buyGet = await add({ p_promotion_type: 'buy_x_get_y', p_discount_type: null, p_discount_value: null, p_target_kind: 'products', p_target_product_ids: [products[0].id], p_buy_quantity: 2, p_get_quantity: 1, p_get_discount_percent: 50, p_title: `${TEST_TAG} buy2get1` });
+        const tier = await add({ p_promotion_type: 'quantity_tier', p_discount_type: null, p_discount_value: null, p_target_kind: 'products', p_target_product_ids: [products[0].id], p_tiers: [{ min_quantity: 3, percent: 10 }], p_title: `${TEST_TAG} tier` });
+        const bundle = await add({ p_promotion_type: 'bundle', p_discount_type: null, p_discount_value: null, p_target_kind: 'products', p_bundle_price: 1000, p_bundle_items: [{ product_id: products[0].id, quantity: 2 }], p_title: `${TEST_TAG} bundle` });
+
+        const byId = new Map((await offers()).map((o) => [o.id, o]));
+        expect(byId.get(buyGet)).toMatchObject({ promotion_type: 'buy_x_get_y', buy_quantity: 2, get_quantity: 1, get_discount_percent: 50 });
+        expect(byId.get(tier)).toMatchObject({ promotion_type: 'quantity_tier', tiers: [{ min_quantity: 3, percent: 10 }] });
+        expect(byId.get(bundle)).toMatchObject({ promotion_type: 'bundle', bundle_price: 1000, bundle_items: [{ product_id: products[0].id, quantity: 2 }] });
+        await removeAll();
     });
 });

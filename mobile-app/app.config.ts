@@ -108,6 +108,12 @@ const config: ExpoConfig = {
       },
     ],
     [
+      "expo-location",
+      {
+        locationWhenInUsePermission: "نحتاج موقعك لتحديد عنوان التوصيل بدقة وحساب رسوم التوصيل.",
+      },
+    ],
+    [
       "expo-audio",
       {
         microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone.",

@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Save, ArrowRight, Loader2, Search, X, ChevronUp, ChevronDown, Plus } from 'lucide-react';
-import type { CollectionInput, CollectionRuleType, Product } from '../../types';
+import type { Category, CollectionInput, CollectionRuleType, Product } from '../../types';
 import {
-    COLLECTION_ICONS, COLLECTION_RULE_LABELS, fetchAdminProducts, fetchCollection,
+    COLLECTION_ICONS, COLLECTION_RULE_LABELS, fetchAdminProducts, fetchCategories, fetchCollection,
     saveCollection, validateCollectionSlug
 } from '../../lib/catalogApi';
+import { childrenByParent, categoryLabel, topLevelCategories } from '../../lib/categoryTree';
 import { errorMessage } from '../../lib/errors';
 import { Card, Field, Notice, Spinner, inputClass, primaryButtonClass } from '../../components/ui';
 
@@ -23,6 +24,7 @@ export const CollectionFormPage: React.FC = () => {
     const [form, setForm] = useState<CollectionInput>(emptyCollection);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [catalogue, setCatalogue] = useState<Product[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [pickerSearch, setPickerSearch] = useState('');
     const [fetching, setFetching] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -30,10 +32,11 @@ export const CollectionFormPage: React.FC = () => {
 
     useEffect(() => {
         let cancelled = false;
-        Promise.all([fetchAdminProducts(), id ? fetchCollection(id) : Promise.resolve(null)])
-            .then(([products, collection]) => {
+        Promise.all([fetchAdminProducts(), fetchCategories(), id ? fetchCollection(id) : Promise.resolve(null)])
+            .then(([products, categoryList, collection]) => {
                 if (cancelled) return;
                 setCatalogue(products);
+                setCategories(categoryList);
                 if (id) {
                     if (!collection) { navigate('/collections'); return; }
                     const { id: _id, product_ids, ...input } = collection;
@@ -51,7 +54,12 @@ export const CollectionFormPage: React.FC = () => {
     const setRule = (key: keyof CollectionInput['rule_config'], value: number | string | undefined) =>
         setForm((prev) => ({ ...prev, rule_config: { ...prev.rule_config, [key]: value } }));
     const isManual = form.rule_type === 'manual';
-    const categories = useMemo(() => Array.from(new Set(catalogue.map((p) => p.category).filter(Boolean))).sort(), [catalogue]);
+    const childrenOf = useMemo(() => childrenByParent(categories), [categories]);
+    const selectedCategoryId = form.rule_config.category_id
+        ?? categories.find((c) => c.name_ar === form.rule_config.category)?.id
+        ?? '';
+    const setCategoryRule = (category: Category | undefined) =>
+        setForm((prev) => ({ ...prev, rule_config: { ...prev.rule_config, category_id: category?.id, category: category?.name_ar } }));
 
     const productsById = useMemo(() => new Map(catalogue.map((p) => [p.id, p])), [catalogue]);
     const selectedProducts = useMemo(() => selectedIds.map((pid) => productsById.get(pid)).filter((p): p is Product => Boolean(p)), [selectedIds, productsById]);
@@ -80,11 +88,14 @@ export const CollectionFormPage: React.FC = () => {
         const slugError = validateCollectionSlug(form.slug);
         if (slugError) { setError(slugError); return; }
         if (form.rule_type === 'price_under' && !(Number(form.rule_config.price) > 0)) { setError('حددي السعر الأقصى للقاعدة.'); return; }
-        if (form.rule_type === 'category' && !form.rule_config.category) { setError('اختاري التصنيف للقاعدة.'); return; }
+        if (form.rule_type === 'category' && !selectedCategoryId) { setError('اختاري التصنيف للقاعدة.'); return; }
 
+        const input: CollectionInput = form.rule_type === 'category'
+            ? { ...form, rule_config: { ...form.rule_config, category_id: selectedCategoryId, category: categories.find((c) => c.id === selectedCategoryId)?.name_ar } }
+            : form;
         setSaving(true);
         try {
-            await saveCollection(id ?? null, form, selectedIds);
+            await saveCollection(id ?? null, input, selectedIds);
             navigate('/collections');
         } catch (err) {
             setError(errorMessage(err, 'فشل حفظ التشكيلة.'));
@@ -169,9 +180,18 @@ export const CollectionFormPage: React.FC = () => {
                         )}
                         {form.rule_type === 'category' && (
                             <Field label="التصنيف" required>
-                                <select value={form.rule_config.category ?? ''} onChange={(e) => setRule('category', e.target.value || undefined)} className={inputClass}>
+                                <select value={selectedCategoryId} onChange={(e) => setCategoryRule(categories.find((c) => c.id === e.target.value))} className={inputClass}>
                                     <option value="">اختاري تصنيفاً</option>
-                                    {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                                    {topLevelCategories(categories).map((group) => {
+                                        const children = childrenOf.get(group.id) ?? [];
+                                        if (children.length === 0) return <option key={group.id} value={group.id}>{categoryLabel(group)}</option>;
+                                        return (
+                                            <optgroup key={group.id} label={categoryLabel(group)}>
+                                                <option value={group.id}>{categoryLabel(group)} (كل المجموعة)</option>
+                                                {children.map((c) => <option key={c.id} value={c.id}>{categoryLabel(c)}</option>)}
+                                            </optgroup>
+                                        );
+                                    })}
                                 </select>
                             </Field>
                         )}

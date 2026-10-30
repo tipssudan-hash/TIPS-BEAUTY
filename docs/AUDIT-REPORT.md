@@ -2,6 +2,8 @@
 
 Date: 2026-09-20 · Branch: `audit/2026-09` (9 commits on top of `update-from-remote`) · Backend: Supabase project `eaomyiihsuikinkdhwzy`
 
+> **Historical document.** This is the 2026-09-20 audit snapshot and is no longer maintained. For the current state and the open phases, see [ADMIN_WAREHOUSES_PURCHASES_CATALOG_PLAN.md](ADMIN_WAREHOUSES_PURCHASES_CATALOG_PLAN.md).
+
 ---
 
 ## 1. Executive summary (for the business)

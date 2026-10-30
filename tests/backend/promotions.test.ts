@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { TEST_TAG, anonClient, checkoutArgs, cleanupTestOrders, creds, haveCreds, pickZone, provisionProduct, rpc, signedInClient, type Client } from './helpers';
+import { TEST_TAG, anonClient, checkoutArgs, cleanupTestOrders, creds, haveCreds, loose, pickZone, provisionOtherProduct, provisionProduct, rpc, signedInClient, type Client } from './helpers';
 
 // Promotions (T2-10): staff schedule and target them through the admin RPCs, the backend derives
 // their state from the schedule, effective_price matches them per target kind, and checkout charges
@@ -10,12 +10,17 @@ const suite = haveCreds ? describe : describe.skip;
 
 type PublicProduct = { id: string; price: number; category: string | null; brand: string | null; effective_price: number; pricing_rule_kind: string | null; pricing_rule_label: string | null };
 type AdminPromotion = { id: string; title: string; target_kind: string; target_value: string | null; target_product_ids: string[]; start_date: string; end_date: string | null; status: string };
+type CartPreview = {
+    subtotal: number;
+    lines: { promotion_id: string | null; pricing_rule_kind: string | null }[];
+    applied_promotions: { promotion_id: string; promotion_type: string; rule_label: string; reduction: number }[];
+};
 
 suite('promotions over the backend RPCs', () => {
     let customer: Client;
     let admin: Client;
     let anon: Client;
-    let product: { id: string; release: () => Promise<void> };
+    let product: { id: string; warehouseId: string; release: () => Promise<void> };
     let zone: { name: string; state: string | null; fee: number };
     let shown: PublicProduct;
     let originalDiscount: number | null;
@@ -221,6 +226,132 @@ suite('promotions over the backend RPCs', () => {
         expect(line.promotion_id).toBeNull();
         expect(Number(line.effective_unit_price)).toBe(Number(shown.price));
         expect(promoted).toBeLessThan(Number(shown.price));
+        await removeAll();
+    });
+
+    it('a Category or Brand Promotion still matches the Product after the category or brand is renamed', async () => {
+        const stamp = randomUUID().slice(0, 8);
+        const { data: before, error: beforeErr } = await loose(admin).from('products').select('category_id,brand_id').eq('id', product.id).single();
+        expect(beforeErr).toBeNull();
+        const categoryName = `${TEST_TAG} ${stamp} فئة`;
+        const brandName = `${TEST_TAG} ${stamp} brand`;
+        const cat = (await rpc(admin, 'admin_save_category', { p_name_ar: categoryName })).data as unknown as string;
+        const brand = (await rpc(admin, 'admin_save_brand', { p_name_ar: brandName })).data as unknown as string;
+        try {
+            const moved = await loose(admin).from('products').update({ category_id: cat, brand_id: brand }).eq('id', product.id);
+            expect(moved.error).toBeNull();
+
+            await add({ p_target_kind: 'category', p_target_value: categoryName, p_discount_value: 10 });
+            expect(Number((await publicProduct()).effective_price)).toBe(pct(Number(shown.price), 10));
+            expect((await rpc(admin, 'admin_save_category', { p_id: cat, p_name_ar: `${categoryName} جديدة` })).error).toBeNull();
+            expect(Number((await publicProduct()).effective_price)).toBe(pct(Number(shown.price), 10));
+            await removeAll();
+
+            await add({ p_target_kind: 'brand', p_target_value: brandName, p_discount_value: 12 });
+            expect(Number((await publicProduct()).effective_price)).toBe(pct(Number(shown.price), 12));
+            expect((await rpc(admin, 'admin_save_brand', { p_id: brand, p_name_ar: `${brandName} new` })).error).toBeNull();
+            expect(Number((await publicProduct()).effective_price)).toBe(pct(Number(shown.price), 12));
+            await removeAll();
+        } finally {
+            await removeAll();
+            await loose(admin).from('products').update({ category_id: before?.category_id ?? null, brand_id: before?.brand_id ?? null }).eq('id', product.id);
+            await rpc(admin, 'admin_delete_category', { p_id: cat });
+            await rpc(admin, 'admin_delete_brand', { p_id: brand });
+        }
+    });
+
+    const typed = (args: Record<string, unknown>) => save(admin, { p_discount_type: null, p_discount_value: null, ...args });
+    const previewCart = async (items: { id: string; quantity: number }[], coupon: string | null = null) => {
+        const { data, error } = await rpc(customer, 'preview_cart_pricing', { p_items: items, p_coupon_code: coupon });
+        if (error) throw error;
+        return data as unknown as CartPreview;
+    };
+
+    it('the admin RPC validates each Promotion type before it is stored', async () => {
+        expect((await typed({ p_title: `${TEST_TAG} x`, p_promotion_type: 'buy_x_get_y', p_target_kind: 'all' })).error?.message).toMatch(/quantities are required/);
+        expect((await typed({ p_title: `${TEST_TAG} x`, p_promotion_type: 'buy_x_get_y', p_target_kind: 'all', p_buy_quantity: 2, p_get_quantity: 1, p_get_discount_percent: 0 })).error?.message).toMatch(/get discount is invalid/);
+        expect((await typed({ p_title: `${TEST_TAG} x`, p_promotion_type: 'quantity_tier', p_target_kind: 'all', p_tiers: [{ min_quantity: 4, percent: 10 }, { min_quantity: 2, percent: 5 }] })).error?.message).toMatch(/tiers are invalid/);
+        expect((await typed({ p_title: `${TEST_TAG} x`, p_promotion_type: 'quantity_tier', p_target_kind: 'all', p_tiers: [{ min_quantity: 1, percent: 5 }] })).error?.message).toMatch(/tiers are invalid/);
+        expect((await typed({ p_title: `${TEST_TAG} x`, p_promotion_type: 'bundle', p_target_kind: 'all', p_bundle_price: 10, p_bundle_items: [{ product_id: product.id, quantity: 1 }] })).error?.message).toMatch(/target products/);
+        expect((await typed({ p_title: `${TEST_TAG} x`, p_promotion_type: 'bundle', p_target_kind: 'products', p_bundle_items: [{ product_id: product.id, quantity: 1 }] })).error?.message).toMatch(/Bundle price is invalid/);
+        expect((await typed({ p_title: `${TEST_TAG} x`, p_promotion_type: 'bundle', p_target_kind: 'products', p_bundle_price: 10, p_bundle_items: [{ product_id: product.id, quantity: 1 }, { product_id: product.id, quantity: 2 }] })).error?.message).toMatch(/repeated/);
+        expect((await typed({ p_title: `${TEST_TAG} x`, p_promotion_type: 'bundle', p_target_kind: 'products', p_bundle_price: 10, p_bundle_items: [{ product_id: product.id, quantity: 0 }] })).error?.message).toMatch(/quantities are invalid/);
+        expect((await typed({ p_title: `${TEST_TAG} x`, p_promotion_type: 'shade', p_target_kind: 'all' })).error?.message).toMatch(/kind is invalid/);
+        expect(await list()).toHaveLength(0);
+    });
+
+    it('buy X get Y: with three units of one Product the cheapest unit is free', async () => {
+        const id = await add({ p_promotion_type: 'buy_x_get_y', p_target_kind: 'products', p_target_product_ids: [product.id], p_buy_quantity: 2, p_get_quantity: 1, p_get_discount_percent: 100, p_title: `${TEST_TAG} buy2get1` });
+        const three = await previewCart([{ id: product.id, quantity: 3 }]);
+        expect(Number(three.subtotal).toFixed(2)).toBe((Number(shown.price) * 2).toFixed(2));
+        expect(three.applied_promotions[0]).toMatchObject({ promotion_id: id, promotion_type: 'buy_x_get_y' });
+        const two = await previewCart([{ id: product.id, quantity: 2 }]);
+        expect(Number(two.subtotal).toFixed(2)).toBe((Number(shown.price) * 2).toFixed(2));
+        expect(two.applied_promotions).toHaveLength(0);
+        await removeAll();
+    });
+
+    it('quantity tiers charge the highest tier the whole quantity reaches', async () => {
+        await add({ p_promotion_type: 'quantity_tier', p_target_kind: 'products', p_target_product_ids: [product.id], p_tiers: [{ min_quantity: 2, percent: 10 }, { min_quantity: 4, percent: 20 }] });
+        const base = Number(shown.price);
+        expect(Number((await previewCart([{ id: product.id, quantity: 1 }])).subtotal)).toBe(base);
+        expect(Number((await previewCart([{ id: product.id, quantity: 3 }])).subtotal)).toBe(pct(base * 3, 10));
+        expect(Number((await previewCart([{ id: product.id, quantity: 5 }])).subtotal)).toBe(pct(base * 5, 20));
+        await removeAll();
+    });
+
+    it('a bundle applies once per complete set', async () => {
+        const other = await provisionOtherProduct(admin, product.warehouseId, product.id);
+        try {
+            const { data: row, error } = await admin.from('products').select('price').eq('id', other.id).single();
+            if (error) throw error;
+            const base = Number(shown.price);
+            const bundlePrice = Number(((base + Number(row!.price)) * 0.8).toFixed(2));
+            await add({ p_promotion_type: 'bundle', p_target_kind: 'products', p_bundle_price: bundlePrice, p_bundle_items: [{ product_id: product.id, quantity: 1 }, { product_id: other.id, quantity: 1 }], p_title: `${TEST_TAG} bundle` });
+            const twoSets = await previewCart([{ id: product.id, quantity: 2 }, { id: other.id, quantity: 2 }]);
+            expect(Number(twoSets.subtotal).toFixed(2)).toBe((bundlePrice * 2).toFixed(2));
+            const oneSet = await previewCart([{ id: product.id, quantity: 2 }, { id: other.id, quantity: 1 }]);
+            expect(Number(oneSet.subtotal).toFixed(2)).toBe((bundlePrice + base).toFixed(2));
+            await removeAll();
+        } finally {
+            await removeAll();
+            await other.release();
+        }
+    });
+
+    it('a cart Promotion never stacks with the item Discount: the larger net reduction wins', async () => {
+        const base = Number(shown.price);
+        await setDiscount(10);
+        try {
+            const id = await add({ p_promotion_type: 'quantity_tier', p_target_kind: 'products', p_target_product_ids: [product.id], p_tiers: [{ min_quantity: 2, percent: 30 }], p_title: `${TEST_TAG} tier30` });
+            const bigger = await previewCart([{ id: product.id, quantity: 2 }]);
+            expect(Number(bigger.subtotal)).toBe(pct(base * 2, 30));
+            expect(bigger.lines[0].promotion_id).toBe(id);
+            await removeAll();
+
+            await add({ p_promotion_type: 'quantity_tier', p_target_kind: 'products', p_target_product_ids: [product.id], p_tiers: [{ min_quantity: 2, percent: 5 }], p_title: `${TEST_TAG} tier5` });
+            const smaller = await previewCart([{ id: product.id, quantity: 2 }]);
+            const itemOff = Number((base * 0.1).toFixed(2));
+            expect(Number(smaller.subtotal).toFixed(2)).toBe((base * 2 - itemOff * 2).toFixed(2));
+            expect(smaller.lines[0].pricing_rule_kind).toBe('discount');
+            await removeAll();
+        } finally {
+            await setDiscount(null);
+        }
+    });
+
+    it('checkout records a cart Promotion on its line; the Promotion then cannot be deleted', async () => {
+        const id = await add({ p_promotion_type: 'quantity_tier', p_target_kind: 'products', p_target_product_ids: [product.id], p_tiers: [{ min_quantity: 2, percent: 25 }], p_title: `${TEST_TAG} charged cart` });
+        const created = await rpc(customer, 'checkout_order_safe', checkoutArgs(zone, [{ id: product.id, quantity: 2 }], randomUUID()));
+        expect(created.error).toBeNull();
+        const order = (created.data as { order_id: string; total: number }[])[0];
+        const base = Number(shown.price);
+        expect(Number(order.total)).toBe(Number((pct(base * 2, 25) + zone.fee).toFixed(2)));
+        const { data: row } = await admin.from('orders').select('items').eq('id', order.order_id).single();
+        const line = (row!.items as { promotion_id: string | null; promotion_type: string; pricing_rule_kind: string; line_total: number }[])[0];
+        expect(line).toMatchObject({ promotion_id: id, promotion_type: 'quantity_tier', pricing_rule_kind: 'promotion' });
+        expect(Number(line.line_total)).toBe(pct(base * 2, 25));
+        expect((await rpc(admin, 'admin_delete_promotion', { p_id: id })).error?.message).toMatch(/priced orders/);
         await removeAll();
     });
 });
